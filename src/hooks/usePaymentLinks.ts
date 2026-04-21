@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabaseAltClient } from '@/utils/supabaseAltClient';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface PaymentLinkData {
     id?: string;
@@ -20,7 +20,7 @@ export function usePaymentLinks() {
         setLoading(true);
         setError(null);
         try {
-            const { data, error: sbError } = await supabaseAltClient
+            const { data, error: sbError } = await supabase
                 .from('payment_links')
                 .insert(links)
                 .select();
@@ -40,7 +40,7 @@ export function usePaymentLinks() {
         setLoading(true);
         setError(null);
         try {
-            const { data, error: sbError } = await supabaseAltClient
+            const { data, error: sbError } = await supabase
                 .from('payment_links')
                 .select('*')
                 .eq('id', id)
@@ -61,7 +61,7 @@ export function usePaymentLinks() {
         setLoading(true);
         setError(null);
         try {
-            const { data, error: sbError } = await supabaseAltClient
+            const { data, error: sbError } = await supabase
                 .from('payment_links')
                 .select('*')
                 .eq('group_id', groupId)
@@ -80,7 +80,7 @@ export function usePaymentLinks() {
 
     const incrementUsage = async (id: string, currentUses: number) => {
         try {
-            const { data, error: sbError } = await supabaseAltClient
+            const { data, error: sbError } = await supabase
                 .from('payment_links')
                 .update({ current_uses: currentUses + 1 })
                 .eq('id', id)

@@ -74,6 +74,13 @@ export default function ReceiptPage() {
                             <span className="text-xl font-bold gradient-text">{receipt.amount.toFixed(2)} USDC</span>
                         </div>
 
+                        {receipt.memo && (
+                            <div className="flex justify-between items-center">
+                                <span className="text-xs text-muted-foreground uppercase tracking-wider">Memo</span>
+                                <span className="text-sm text-foreground">{receipt.memo}</span>
+                            </div>
+                        )}
+
                         <div className="flex justify-between items-center">
                             <span className="text-xs text-muted-foreground uppercase tracking-wider">Date</span>
                             <span className="text-sm text-foreground font-medium">

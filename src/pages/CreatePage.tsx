@@ -4,12 +4,26 @@ import { toast } from 'sonner'
 import QRCode from 'react-qr-code'
 import { SplitInput } from '@/components/SplitInput'
 import { usePaymentLinks } from '@/hooks/usePaymentLinks'
+import { useAccount } from 'wagmi'
+import { useProfiles } from '@/hooks/useProfiles'
 
 const CreatePage = () => {
   const { createLinks, loading: isCreatingLinks } = usePaymentLinks()
+  const { address: connectedWallet } = useAccount()
+  const { getProfileByWallet, resolveUsernameToWallet } = useProfiles()
 
-  const [address, setAddress] = useState('')
+  const [recipientInput, setRecipientInput] = useState('')
   const [amount, setAmount] = useState('')
+
+  useEffect(() => {
+    if (connectedWallet && !recipientInput) {
+      getProfileByWallet(connectedWallet).then(p => {
+        if (p) setRecipientInput(p.username)
+        else setRecipientInput(connectedWallet)
+      })
+    }
+  }, [connectedWallet, getProfileByWallet])
+
   const [generated, setGenerated] = useState(false)
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null)
   const [generatedSplitLinks, setGeneratedSplitLinks] = useState<Array<{ id: string; amount: number }>>([])
@@ -32,8 +46,8 @@ const CreatePage = () => {
   const [splitExpiresAt, setSplitExpiresAt] = useState<string[]>([])
   const [splitMaxUses, setSplitMaxUses] = useState<string[]>([])
 
-  const shareUrl = `https://arc-pay-link.vercel.app/pay?to=${address}&amount=${amount}`
-  const isValid = address.startsWith('0x') && address.length === 42 && (isSplitMode ? splitAmounts.length > 0 : parseFloat(amount) > 0)
+  const shareUrl = `${import.meta.env.VITE_APP_URL || 'https://qevor.app'}/pay?to=${recipientInput}&amount=${amount}`
+  const isValid = recipientInput.length >= 3 && (isSplitMode ? splitAmounts.length > 0 : parseFloat(amount) > 0)
 
   const handleGenerate = async () => {
     console.log("🚀 Starting handleGenerate...")
@@ -46,6 +60,16 @@ const CreatePage = () => {
       console.error("❌ Validation failed!")
       toast.error("Invalid input. Please check your address and amounts.")
       return
+    }
+
+    let finalAddress = recipientInput;
+    if (!recipientInput.startsWith('0x') || recipientInput.length !== 42) {
+      const resolved = await resolveUsernameToWallet(recipientInput);
+      if (!resolved) {
+        toast.error(`Invalid address or unknown username: ${recipientInput}`);
+        return;
+      }
+      finalAddress = resolved;
     }
 
     const hasAdvancedFeatures = isSplitMode || expiresAt || maxUses
@@ -68,7 +92,7 @@ const CreatePage = () => {
         }
 
         const linkObject = {
-          receiver_wallet: address,
+          receiver_wallet: finalAddress,
           amount: amt,
           expires_at: currentExpiresAt ? new Date(currentExpiresAt).toISOString() : null,
           max_uses: currentMaxUses ? parseInt(currentMaxUses) : null,
@@ -90,7 +114,7 @@ const CreatePage = () => {
 
         if (data && data.length > 0) {
           console.log(`✨ Successfully created ${data.length} links!`)
-          
+
           if (isSplitMode) {
             // Store all split links and navigate to results view
             const linkData = data.map((link: any) => ({
@@ -131,7 +155,7 @@ const CreatePage = () => {
     setIsSplitResultsView(false)
     setGenerated(false)
     setGeneratedSplitLinks([])
-    setAddress('')
+    setRecipientInput('')
     setAmount('')
     setSplitAmounts([])
     setIsSplitMode(false)
@@ -181,7 +205,7 @@ const CreatePage = () => {
           {/* Links Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {generatedSplitLinks.map((link, index) => {
-              const linkUrl = `https://arc-pay-link.vercel.app/pay?link=${link.id}`
+              const linkUrl = `${import.meta.env.VITE_APP_URL || 'https://qevor.app'}/pay?link=${link.id}`
               return (
                 <div
                   key={link.id}
@@ -195,7 +219,7 @@ const CreatePage = () => {
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">Receiver</p>
-                      <p className="text-xs font-mono text-foreground truncate">{address.slice(0, 10)}...</p>
+                      <p className="text-xs font-mono text-foreground truncate">{recipientInput.length > 20 ? `${recipientInput.slice(0, 10)}...` : recipientInput}</p>
                     </div>
                   </div>
 
@@ -242,7 +266,7 @@ const CreatePage = () => {
 
                     {/* Twitter */}
                     <a
-                      href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Pay me ${link.amount} USDC on Arc Testnet ⚡`)}&url=${encodeURIComponent(linkUrl)}`}
+                      href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Pay me ${link.amount} USDC on Qevor ⚡`)}&url=${encodeURIComponent(linkUrl)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-1 rounded-lg border border-border bg-secondary py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors"
@@ -255,7 +279,7 @@ const CreatePage = () => {
 
                     {/* Telegram */}
                     <a
-                      href={`https://t.me/share/url?url=${encodeURIComponent(linkUrl)}&text=${encodeURIComponent(`Pay me ${link.amount} USDC on Arc Testnet ⚡`)}`}
+                      href={`https://t.me/share/url?url=${encodeURIComponent(linkUrl)}&text=${encodeURIComponent(`Pay me ${link.amount} USDC on Qevor ⚡`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-1 rounded-lg border border-border bg-secondary py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors"
@@ -266,7 +290,7 @@ const CreatePage = () => {
 
                     {/* WhatsApp */}
                     <a
-                      href={`https://wa.me/?text=${encodeURIComponent(`Pay me ${link.amount} USDC on Arc Testnet ⚡ ${linkUrl}`)}`}
+                      href={`https://wa.me/?text=${encodeURIComponent(`Pay me ${link.amount} USDC on Qevor ⚡ ${linkUrl}`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-1 rounded-lg border border-border bg-secondary py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors"
@@ -291,7 +315,7 @@ const CreatePage = () => {
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold gradient-text">Arc Pay Link</h1>
+          <h1 className="text-3xl font-bold gradient-text">Qevor</h1>
           <p className="text-muted-foreground text-sm">
             Create a shareable payment link for USDC on Arc Testnet
           </p>
@@ -299,12 +323,12 @@ const CreatePage = () => {
 
         <div className="glass-card rounded-xl p-6 space-y-5 shadow-glow-lg">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Your Arc Wallet Address</label>
+            <label className="text-sm font-medium text-foreground">Recipient Username or Address</label>
             <input
               type="text"
-              placeholder="0x..."
-              value={address}
-              onChange={(e) => { setAddress(e.target.value); setGenerated(false) }}
+              placeholder="@satoshi or 0x..."
+              value={recipientInput}
+              onChange={(e) => { setRecipientInput(e.target.value); setGenerated(false) }}
               className="w-full rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
             />
           </div>
@@ -440,7 +464,7 @@ const CreatePage = () => {
 
             <div className="flex gap-3 pt-1">
               <a
-                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Pay me ${amount} USDC on Arc Testnet ⚡`)}&url=${encodeURIComponent(shareUrl)}`}
+                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Pay me ${amount} USDC on Qevor ⚡`)}&url=${encodeURIComponent(shareUrl)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-border bg-secondary py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
@@ -449,7 +473,7 @@ const CreatePage = () => {
                 X
               </a>
               <a
-                href={`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(`Pay me ${amount} USDC on Arc Testnet ⚡`)}`}
+                href={`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(`Pay me ${amount} USDC on Qevor ⚡`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-border bg-secondary py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
@@ -458,7 +482,7 @@ const CreatePage = () => {
                 Telegram
               </a>
               <a
-                href={`https://wa.me/?text=${encodeURIComponent(`Pay me ${amount} USDC on Arc Testnet ⚡ ${shareUrl}`)}`}
+                href={`https://wa.me/?text=${encodeURIComponent(`Pay me ${amount} USDC on Qevor ⚡ ${shareUrl}`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-border bg-secondary py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"

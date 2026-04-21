@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       <text x="600" y="310" text-anchor="middle" fill="#ffffff" font-family="system-ui, sans-serif" font-size="96" font-weight="700">${parseFloat(amount).toFixed(2)} USDC</text>
       <text x="600" y="400" text-anchor="middle" fill="#9ca3af" font-family="system-ui, sans-serif" font-size="28">on Arc Testnet</text>
       ${shortAddr ? `<text x="600" y="450" text-anchor="middle" fill="#6b7280" font-family="monospace" font-size="22">to ${shortAddr}</text>` : ''}
-      <text x="600" y="560" text-anchor="middle" fill="#7c3aed" font-family="system-ui, sans-serif" font-size="28" font-weight="600">Arc Pay-Link</text>
+      <text x="600" y="560" text-anchor="middle" fill="#7c3aed" font-family="system-ui, sans-serif" font-size="28" font-weight="600">Qevor</text>
     </svg>
   `
 

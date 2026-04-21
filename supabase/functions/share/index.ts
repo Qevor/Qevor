@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Pay ${displayAmount} USDC | Arc Pay-Link</title>
+  <title>Pay ${displayAmount} USDC | Qevor</title>
   <meta name="description" content="Payment request for ${displayAmount} USDC to ${shortAddr} on Arc Testnet" />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Pay ${displayAmount} USDC on Arc" />

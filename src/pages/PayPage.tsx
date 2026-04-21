@@ -7,6 +7,7 @@ import { Loader2, Wallet, ExternalLink, MessageSquare, CheckCircle2, DollarSign,
 import Confetti from 'react-confetti'
 import { usePaymentLinks } from '@/hooks/usePaymentLinks'
 import { useReceipts } from '@/hooks/useReceipts'
+import { useProfiles } from '@/hooks/useProfiles'
 import { toast } from 'sonner'
 
 const OG_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/og-image`
@@ -39,6 +40,7 @@ const PayPage = () => {
 
   const { getLink, incrementUsage } = usePaymentLinks()
   const { createReceipt } = useReceipts()
+  const { resolveUsernameToWallet } = useProfiles()
 
   const { address, isConnected, chainId } = useAccount()
   const { connect, connectors, isPending: isConnecting } = useConnect()
@@ -71,10 +73,20 @@ const PayPage = () => {
         }
         setIsLoadingLink(false)
         setIsVerifyingLink(false)
+      } else if (fallbackTo && (!fallbackTo.startsWith('0x') || fallbackTo.length !== 42)) {
+        // Resolve username from ?to=username parameter natively
+        setIsLoadingLink(true)
+        const resolved = await resolveUsernameToWallet(fallbackTo)
+        if (resolved) {
+          setTo(resolved as `0x${string}`)
+        } else {
+          setDbLinkError(`Could not securely resolve username: ${fallbackTo}`)
+        }
+        setIsLoadingLink(false)
       }
     }
     fetchLinkData()
-  }, [linkId])
+  }, [linkId, fallbackTo])
 
   // OG meta tags
   useEffect(() => {
@@ -90,9 +102,9 @@ const PayPage = () => {
         el.setAttribute('content', content)
       }
       setMeta('og:image', ogUrl)
-      setMeta('og:title', `Pay ${parseFloat(amount).toFixed(2)} USDC on Arc`)
-      setMeta('og:description', `Payment request for ${parseFloat(amount).toFixed(2)} USDC on Arc Testnet`)
-      document.title = `Pay ${parseFloat(amount).toFixed(2)} USDC | Arc Pay Link`
+      setMeta('og:title', `Pay ${parseFloat(amount).toFixed(2)} USDC on Qevor`)
+      setMeta('og:description', `Payment request for ${parseFloat(amount).toFixed(2)} USDC on Qevor (Arc Testnet)`)
+      document.title = `Pay ${parseFloat(amount).toFixed(2)} USDC | Qevor`
     }
   }, [to, amount])
 
@@ -116,6 +128,7 @@ const PayPage = () => {
             amount: parseFloat(amount),
             tx_hash: txHash,
             status: 'paid',
+            memo: memo,
           })
           if (receipt) setReceiptId(receipt.id)
         } catch (error) {
@@ -350,7 +363,7 @@ const PayPage = () => {
         )}
 
         <p className="text-center text-xs text-muted-foreground">
-          Powered by <span className="gradient-text font-semibold">Arc Testnet</span>
+          Powered by <span className="gradient-text font-semibold">Qevor</span> on Arc Testnet
         </p>
       </div>
     </div>

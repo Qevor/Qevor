@@ -42,8 +42,8 @@ const App = () => (
           </Routes>
         </Layout>
       </ErrorBoundary>
-      <Toaster theme="dark" />
     </BrowserRouter>
+    <Toaster theme="dark" />
   </Web3Provider>
 )
 

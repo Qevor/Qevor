@@ -13,7 +13,7 @@
     --popover: 240 5% 8%;
     --popover-foreground: 0 0% 95%;
 
-    --primary: 262 83% 58%;
+    --primary: 200 95% 45%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 240 4% 14%;
@@ -22,7 +22,7 @@
     --muted: 240 4% 14%;
     --muted-foreground: 240 5% 55%;
 
-    --accent: 220 70% 55%;
+    --accent: 200 70% 30%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
@@ -30,14 +30,14 @@
 
     --border: 240 4% 16%;
     --input: 240 4% 16%;
-    --ring: 262 83% 58%;
+    --ring: 200 95% 45%;
 
     --radius: 0.75rem;
 
-    --gradient-primary: linear-gradient(135deg, hsl(262, 83%, 58%), hsl(220, 70%, 55%));
-    --gradient-glow: linear-gradient(135deg, hsl(262, 83%, 58%), hsl(280, 100%, 70%), hsl(220, 70%, 55%));
-    --shadow-glow: 0 0 30px -5px hsl(262 83% 58% / 0.4);
-    --shadow-glow-lg: 0 0 60px -10px hsl(262 83% 58% / 0.3);
+    --gradient-primary: linear-gradient(135deg, hsl(200, 95%, 45%), hsl(215, 80%, 40%));
+    --gradient-glow: linear-gradient(135deg, hsl(190, 100%, 50%), hsl(205, 90%, 45%), hsl(220, 80%, 50%));
+    --shadow-glow: 0 0 30px -5px hsl(200 95% 45% / 0.4);
+    --shadow-glow-lg: 0 0 60px -10px hsl(200 95% 45% / 0.3);
   }
 }
 
@@ -78,5 +78,22 @@
 
   .glass-card {
     @apply bg-card border border-border backdrop-blur-sm;
+  }
+
+  /* Qevor brand pulse animation */
+  @keyframes qevor-pulse {
+
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.7;
+    }
+  }
+
+  .qevor-logo-pulse {
+    animation: qevor-pulse 3s ease-in-out infinite;
   }
 }

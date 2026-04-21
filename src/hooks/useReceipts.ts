@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabaseAltClient } from '@/utils/supabaseAltClient';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface Receipt {
     id: string;
@@ -8,6 +8,7 @@ export interface Receipt {
     amount: number;
     tx_hash: string;
     status: string;
+    memo?: string;
     created_at: string;
 }
 
@@ -19,7 +20,7 @@ export function useReceipts() {
         setLoading(true);
         setError(null);
         try {
-            const { data, error: sbError } = await supabaseAltClient
+            const { data, error: sbError } = await supabase
                 .from('receipts')
                 .select('*')
                 .eq('id', id)
@@ -40,7 +41,7 @@ export function useReceipts() {
         setLoading(true);
         setError(null);
         try {
-            const { data, error: sbError } = await supabaseAltClient
+            const { data, error: sbError } = await supabase
                 .from('receipts')
                 .insert([receiptData])
                 .select()

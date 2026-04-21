@@ -18,7 +18,7 @@ interface PaymentLinkCardProps {
 export function PaymentLinkCard({ linkData }: PaymentLinkCardProps) {
     const [copied, setCopied] = useState(false);
 
-    const payUrl = `https://arc-pay-link.vercel.app/api/share?link=${linkData.id}`;
+    const payUrl = `${import.meta.env.VITE_APP_URL || 'https://qevor.app'}/pay?link=${linkData.id}`;
 
     const isExpired = linkData.expires_at ? new Date(linkData.expires_at) < new Date() : false;
     const isMaxed = linkData.max_uses !== null && linkData.current_uses! >= linkData.max_uses!;
@@ -90,7 +90,7 @@ export function PaymentLinkCard({ linkData }: PaymentLinkCardProps) {
                     <DropdownMenuContent align="end" className="w-52 bg-secondary border-border text-foreground rounded-xl shadow-glow">
                         <DropdownMenuItem asChild className="cursor-pointer hover:bg-muted focus:bg-muted py-2.5">
                             <a
-                                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Pay me ${linkData.amount} USDC on Arc Testnet ⚡`)}&url=${encodeURIComponent(payUrl)}`}
+                                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Pay me ${linkData.amount} USDC on Qevor ⚡`)}&url=${encodeURIComponent(payUrl)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-2.5 w-full text-sm font-medium"
@@ -101,7 +101,7 @@ export function PaymentLinkCard({ linkData }: PaymentLinkCardProps) {
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild className="cursor-pointer hover:bg-muted focus:bg-muted py-2.5">
                             <a
-                                href={`https://t.me/share/url?url=${encodeURIComponent(payUrl)}&text=${encodeURIComponent(`Pay me ${linkData.amount} USDC on Arc Testnet ⚡`)}`}
+                                href={`https://t.me/share/url?url=${encodeURIComponent(payUrl)}&text=${encodeURIComponent(`Pay me ${linkData.amount} USDC on Qevor ⚡`)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-2.5 w-full text-sm font-medium"
@@ -112,7 +112,7 @@ export function PaymentLinkCard({ linkData }: PaymentLinkCardProps) {
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild className="cursor-pointer hover:bg-muted focus:bg-muted py-2.5">
                             <a
-                                href={`https://wa.me/?text=${encodeURIComponent(`Pay me ${linkData.amount} USDC on Arc Testnet ⚡ ${payUrl}`)}`}
+                                href={`https://wa.me/?text=${encodeURIComponent(`Pay me ${linkData.amount} USDC on Qevor ⚡ ${payUrl}`)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-2.5 w-full text-sm font-medium"
