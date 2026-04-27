@@ -20,6 +20,7 @@ export default function NavBar() {
                 <div className="flex items-center gap-4">
                     <div className="hidden md:flex items-center gap-6 text-sm font-medium">
                         <Link to="/create" className="text-muted-foreground hover:text-primary transition-colors">Create</Link>
+                        <Link to="/send" className="text-muted-foreground hover:text-primary transition-colors">Send</Link>
                         <Link to="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">Dashboard</Link>
                     </div>
                     {isConnected && address ? (
@@ -32,6 +33,9 @@ export default function NavBar() {
                             <DropdownMenuContent align="end" className="w-48">
                                 <DropdownMenuItem asChild className="md:hidden">
                                     <Link to="/create">Create</Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild className="md:hidden">
+                                    <Link to="/send">Send</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild className="md:hidden">
                                     <Link to="/dashboard">Dashboard</Link>

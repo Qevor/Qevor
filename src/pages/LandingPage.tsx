@@ -22,17 +22,19 @@ export default function LandingPage() {
                     The decentralized payment layer for Arc. Create versatile payment links and request batch payments seamlessly.
                 </p>
 
-                <div className="flex flex-col sm:flex-row gap-4 items-center justify-center w-full max-w-md">
-                    <Button asChild size="lg" className="w-full sm:w-auto gradient-primary shadow-glow hover:shadow-glow-lg transition-all text-lg font-medium px-8 h-14">
-                        <Link to="/create">
-                            Create Payment Link
-                        </Link>
-                    </Button>
-                    <Button asChild size="lg" variant="outline" className="w-full sm:w-auto text-lg font-medium px-8 h-14 border-primary/30 hover:bg-primary/10 hover:border-primary/50 transition-all text-primary">
-                        <Link to="/dashboard?tab=batch">
-                            New Batch Request
-                        </Link>
-                    </Button>
+                <div className="flex flex-col sm:flex-row gap-6 items-center justify-center w-full max-w-lg">
+                    <div className="flex flex-col items-center gap-2 w-full sm:w-auto">
+                        <Button asChild size="lg" className="w-full sm:w-auto gradient-primary shadow-glow hover:shadow-glow-lg transition-all text-lg font-medium px-8 h-14">
+                            <Link to="/create">Receive USDC</Link>
+                        </Button>
+                        <p className="text-xs text-muted-foreground">Generate a payment link to receive funds</p>
+                    </div>
+                    <div className="flex flex-col items-center gap-2 w-full sm:w-auto">
+                        <Button asChild size="lg" variant="outline" className="w-full sm:w-auto text-lg font-medium px-8 h-14 border-primary/30 hover:bg-primary/10 hover:border-primary/50 transition-all text-primary">
+                            <Link to="/send">Send USDC</Link>
+                        </Button>
+                        <p className="text-xs text-muted-foreground">Batch payout to multiple wallets</p>
+                    </div>
                 </div>
             </section>
 

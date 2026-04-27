@@ -10,6 +10,7 @@ import NotFound from '@/pages/NotFound'
 import ReceiptPage from '@/pages/ReceiptPage'
 import DashboardPage from '@/pages/DashboardPage'
 import RequestPage from '@/pages/RequestPage'
+import SendPage from '@/pages/SendPage'
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/create" element={<CreatePage />} />
             <Route path="/pay" element={<PayPage />} />
             <Route path="/receipt/:id" element={<ReceiptPage />} />
+            <Route path="/send" element={<SendPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/request/:id" element={<RequestPage />} />
             <Route path="*" element={<NotFound />} />
