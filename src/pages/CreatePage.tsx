@@ -57,7 +57,7 @@ const CreatePage = () => {
     console.log("📊 isValid:", isValid)
     console.log("🔄 isSplitMode:", isSplitMode)
     console.log("💰 splitAmounts:", splitAmounts)
-    console.log("📍 address:", address)
+    console.log("📍 address:", connectedWallet)
 
     if (!isValid) {
       console.error("❌ Validation failed!")
