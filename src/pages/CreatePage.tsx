@@ -47,9 +47,10 @@ const CreatePage = () => {
   const [splitExpiresAt, setSplitExpiresAt] = useState<string[]>([])
   const [splitMaxUses, setSplitMaxUses] = useState<string[]>([])
 
+  const appUrl = import.meta.env.VITE_APP_URL || window.location.origin
   const shareUrl = generatedLinkId
-    ? `${import.meta.env.VITE_APP_URL || 'https://qevor.app'}/pay?link=${generatedLinkId}`
-    : `${import.meta.env.VITE_APP_URL || 'https://qevor.app'}/pay?to=${recipientInput}&amount=${amount}`
+    ? `${appUrl}/pay?link=${generatedLinkId}`
+    : `${appUrl}/pay?to=${recipientInput}&amount=${amount}`
   const isValid = recipientInput.length >= 3 && (isSplitMode ? splitAmounts.length > 0 : parseFloat(amount) > 0)
 
   const handleGenerate = async () => {
@@ -227,7 +228,7 @@ const CreatePage = () => {
           {/* Links Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {generatedSplitLinks.map((link, index) => {
-              const linkUrl = `${import.meta.env.VITE_APP_URL || 'https://qevor.app'}/pay?link=${link.id}`
+              const linkUrl = `${appUrl}/pay?link=${link.id}`
               return (
                 <div
                   key={link.id}
