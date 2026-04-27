@@ -10,8 +10,8 @@ export default function LandingPage() {
                 {/* Background glow effects */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/20 rounded-full blur-[120px] -z-10 pointer-events-none" />
 
-                <div className="mb-6 inline-flex items-center justify-center p-3 rounded-full bg-primary/10 border border-primary/20 ring-1 ring-primary/30 shadow-glow">
-                    <img src="/logo.png" alt="Qevor Logo" className="w-12 h-12 qevor-logo-pulse object-contain" />
+                <div className="mb-4">
+                    <img src="/logo.png" alt="Qevor Logo" className="h-28 w-auto qevor-logo-pulse object-contain drop-shadow-[0_0_20px_rgba(0,180,255,0.4)]" />
                 </div>
 
                 <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6">
@@ -78,7 +78,7 @@ export default function LandingPage() {
             {/* Footer */}
             <footer className="py-8 text-center border-t border-border">
                 <p className="text-muted-foreground font-medium text-sm flex items-center justify-center gap-2">
-                    Powered by <img src="/logo.png" alt="Qevor Logo" className="w-5 h-5 mx-1 object-contain" /> <span className="text-foreground">Arc Testnet</span>
+                    Powered by <img src="/logo.png" alt="Qevor Logo" className="h-6 w-auto mx-1 object-contain" /> <span className="text-foreground">Arc Testnet</span>
                 </p>
             </footer>
         </div>

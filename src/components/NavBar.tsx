@@ -14,7 +14,7 @@ export default function NavBar() {
         <nav className="w-full border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
             <div className="container mx-auto px-4 h-16 flex items-center justify-between">
                 <Link to="/" className="flex items-center gap-2 group">
-                    <img src="/logo.png" alt="Qevor Logo" className="w-8 h-8 qevor-logo-pulse object-contain" />
+                    <img src="/logo.png" alt="Qevor Logo" className="h-9 w-auto qevor-logo-pulse object-contain" />
                     <span className="text-xl font-bold gradient-text pb-1">Qevor</span>
                 </Link>
                 <div className="flex items-center gap-4">
