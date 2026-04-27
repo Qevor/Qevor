@@ -28,6 +28,7 @@ const CreatePage = () => {
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null)
   const [generatedSplitLinks, setGeneratedSplitLinks] = useState<Array<{ id: string; amount: number }>>([])
   const [isSplitResultsView, setIsSplitResultsView] = useState(false)
+  const [generatedLinkId, setGeneratedLinkId] = useState<string | null>(null)
 
   const generatedCardRef = useRef<HTMLDivElement>(null)
 
@@ -46,7 +47,9 @@ const CreatePage = () => {
   const [splitExpiresAt, setSplitExpiresAt] = useState<string[]>([])
   const [splitMaxUses, setSplitMaxUses] = useState<string[]>([])
 
-  const shareUrl = `${import.meta.env.VITE_APP_URL || 'https://qevor.app'}/pay?to=${recipientInput}&amount=${amount}`
+  const shareUrl = generatedLinkId
+    ? `${import.meta.env.VITE_APP_URL || 'https://qevor.app'}/pay?link=${generatedLinkId}`
+    : `${import.meta.env.VITE_APP_URL || 'https://qevor.app'}/pay?to=${recipientInput}&amount=${amount}`
   const isValid = recipientInput.length >= 3 && (isSplitMode ? splitAmounts.length > 0 : parseFloat(amount) > 0)
 
   const handleGenerate = async () => {
@@ -139,8 +142,26 @@ const CreatePage = () => {
         toast.error(`An error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     } else {
-      console.log("ℹ️ No advanced features, generating legacy link")
-      setGenerated(true)
+      try {
+        const data = await createLinks([{
+          receiver_wallet: finalAddress,
+          amount: parseFloat(amount),
+          expires_at: null,
+          max_uses: null,
+          current_uses: 0,
+          group_id: null,
+        }])
+
+        if (data && data.length > 0) {
+          setGeneratedLinkId(data[0].id)
+          setGenerated(true)
+          toast.success("Pay link generated!")
+        } else {
+          toast.error("Failed to generate link. Check database connection or constraints.")
+        }
+      } catch (error) {
+        toast.error(`An error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
     }
   }
 
@@ -155,6 +176,7 @@ const CreatePage = () => {
     setIsSplitResultsView(false)
     setGenerated(false)
     setGeneratedSplitLinks([])
+    setGeneratedLinkId(null)
     setRecipientInput('')
     setAmount('')
     setSplitAmounts([])
@@ -328,7 +350,7 @@ const CreatePage = () => {
               type="text"
               placeholder="@satoshi or 0x..."
               value={recipientInput}
-              onChange={(e) => { setRecipientInput(e.target.value); setGenerated(false) }}
+              onChange={(e) => { setRecipientInput(e.target.value); setGenerated(false); setGeneratedLinkId(null) }}
               className="w-full rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
             />
           </div>
@@ -342,13 +364,13 @@ const CreatePage = () => {
                 min="0"
                 step="0.01"
                 value={amount}
-                onChange={(e) => { setAmount(e.target.value); setGenerated(false) }}
+                onChange={(e) => { setAmount(e.target.value); setGenerated(false); setGeneratedLinkId(null) }}
                 className="w-full rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
               />
             </div>
           )}
 
-          <SplitInput onSplitChange={(amounts, isModeActive) => { setSplitAmounts(amounts); setIsSplitMode(isModeActive); setGenerated(false); }} />
+          <SplitInput onSplitChange={(amounts, isModeActive) => { setSplitAmounts(amounts); setIsSplitMode(isModeActive); setGenerated(false); setGeneratedLinkId(null) }} />
 
           {!isSplitMode ? (
             <div className="grid grid-cols-2 gap-4">
