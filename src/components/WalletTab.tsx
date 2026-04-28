@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useAccount, useBalance } from 'wagmi';
+import { useState, useEffect, useCallback } from 'react';
+import { useAccount } from 'wagmi';
+import { createPublicClient, http, formatUnits } from 'viem';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Send, Download, Loader2, ArrowUpRight, ArrowDownLeft, Users, Link as LinkIcon } from 'lucide-react';
@@ -9,26 +10,61 @@ import { useProfiles } from '@/hooks/useProfiles';
 import { useArcSend } from '@/hooks/useArcSend';
 import { Link, useNavigate } from 'react-router-dom';
 
+// Direct Arc RPC client — bypasses wagmi chain config to avoid chainId mismatch
+const arcClient = createPublicClient({
+    transport: http('https://rpc.testnet.arc.network'),
+});
+
+const USDC_ADDRESS = '0x3600000000000000000000000000000000000000' as const;
+
+// Minimal ERC-20 ABI for balanceOf
+const erc20Abi = [
+    {
+        name: 'balanceOf',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [{ name: 'account', type: 'address' }],
+        outputs: [{ name: '', type: 'uint256' }],
+    },
+] as const;
+
 export function WalletTab() {
     const { address } = useAccount();
-    // Fetch native balance (USDC is the native token on Arc)
-    const { data: nativeBalance, refetch: refetchNative } = useBalance({
-        address,
-        query: { refetchInterval: 5000 },
-    });
-    // Also fetch USDC ERC-20 balance as a fallback (some faucets send ERC-20 USDC)
-    const { data: erc20Balance, refetch: refetchErc20 } = useBalance({
-        address,
-        token: '0x3600000000000000000000000000000000000000',
-        query: { refetchInterval: 5000 },
-    });
+    const [displayBalance, setDisplayBalance] = useState('0.0000');
 
-    // Use whichever balance is non-zero; prefer native
-    const balance = (nativeBalance && parseFloat(nativeBalance.formatted) > 0)
-        ? nativeBalance
-        : erc20Balance ?? nativeBalance;
+    const fetchBalance = useCallback(async () => {
+        if (!address) return;
+        try {
+            // Fetch native USDC balance (USDC is the native gas token on Arc)
+            const native = await arcClient.getBalance({ address });
+            if (native > 0n) {
+                setDisplayBalance(parseFloat(formatUnits(native, 18)).toFixed(4));
+                return;
+            }
+            // Fallback: check ERC-20 USDC contract
+            const erc20 = await arcClient.readContract({
+                address: USDC_ADDRESS,
+                abi: erc20Abi,
+                functionName: 'balanceOf',
+                args: [address],
+            });
+            setDisplayBalance(parseFloat(formatUnits(erc20, 18)).toFixed(4));
+        } catch {
+            // silently keep last known value
+        }
+    }, [address]);
 
-    const refetch = () => { refetchNative(); refetchErc20(); };
+    useEffect(() => {
+        fetchBalance();
+        const id = setInterval(fetchBalance, 5000);
+        return () => clearInterval(id);
+    }, [fetchBalance]);
+
+    const refetch = () => {
+        setTimeout(fetchBalance, 1000);
+        setTimeout(fetchBalance, 4000);
+        setTimeout(fetchBalance, 10000);
+    };
     const navigate = useNavigate();
 
     const [sendOpen, setSendOpen] = useState(false);
@@ -68,8 +104,6 @@ export function WalletTab() {
                 setRecipient('');
                 setAmount('');
                 refetch();
-                setTimeout(() => refetch(), 4000);
-                setTimeout(() => refetch(), 10000);
             },
             onError(error) {
                 toast.error('Transaction failed', { description: error.message });
@@ -85,9 +119,7 @@ export function WalletTab() {
 
                 <h2 className="text-muted-foreground font-medium mb-2 uppercase tracking-widest text-sm">Available Balance</h2>
                 <div className="text-5xl md:text-6xl font-extrabold gradient-text mb-2">
-                    {balance
-                        ? (isNaN(parseFloat(balance.formatted)) ? '0.0000' : parseFloat(balance.formatted).toFixed(4))
-                        : '0.0000'}
+                    {displayBalance}
                 </div>
                 <p className="text-primary/80 font-medium mb-10">USDC (Arc Testnet)</p>
 
