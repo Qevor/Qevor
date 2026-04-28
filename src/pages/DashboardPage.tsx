@@ -1,21 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { useAccount, useConnect } from 'wagmi';
+import { useAccount } from 'wagmi';
+import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2, Wallet, ExternalLink, Receipt as ReceiptIcon } from 'lucide-react';
+import { Plus, Loader2, LogIn, ExternalLink, Receipt as ReceiptIcon, Copy, Check, Link2 } from 'lucide-react';
 import { PaymentLinkCard } from '@/components/PaymentLinkCard';
 import { BatchRequestCard } from '@/components/BatchRequestCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useBatchRequests, BatchRecipient } from '@/hooks/useBatchRequests';
-import { useProfiles, Profile } from '@/hooks/useProfiles';
+import { useProfiles } from '@/hooks/useProfiles';
+import { usePaymentLinks } from '@/hooks/usePaymentLinks';
 import { WalletTab } from '@/components/WalletTab';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
 export default function DashboardPage() {
     const { address, isConnected } = useAccount();
-    const { connect, connectors, isPending } = useConnect();
+    const { setShowAuthFlow } = useDynamicContext();
     const [searchParams, setSearchParams] = useSearchParams();
 
     const defaultTab = searchParams.get('tab') || 'wallet';
@@ -34,29 +36,26 @@ export default function DashboardPage() {
     const [batchDesc, setBatchDesc] = useState('');
     const [batchRecipients, setBatchRecipients] = useState<BatchRecipient[]>([{ wallet: '', amount: 0, label: '' }]);
 
-    const { getProfileByWallet, registerUsername, resolveUsernameToWallet, loading: profileLoading } = useProfiles();
-    const [profile, setProfile] = useState<Profile | null>(null);
-    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-    const [newUsername, setNewUsername] = useState('');
+    const { resolveUsernameToWallet } = useProfiles();
+    const { createLinks, loading: linkCreating } = usePaymentLinks();
+
+    const [isLinkCreateOpen, setIsLinkCreateOpen] = useState(false);
+    const [linkRecipient, setLinkRecipient] = useState('');
+    const [linkAmount, setLinkAmount] = useState('');
+    const [linkExpiresAt, setLinkExpiresAt] = useState('');
+    const [linkMaxUses, setLinkMaxUses] = useState('');
+    const [createdLinkId, setCreatedLinkId] = useState<string | null>(null);
+    const [linkCopied, setLinkCopied] = useState(false);
+
+    const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
 
     useEffect(() => {
         if (address) {
             fetchLinks();
             fetchReceipts();
             fetchBatches();
-            checkProfile();
         }
     }, [address]);
-
-    const checkProfile = async () => {
-        if (!address) return;
-        const p = await getProfileByWallet(address);
-        if (p) {
-            setProfile(p);
-        } else {
-            setIsProfileModalOpen(true);
-        }
-    };
 
     const fetchLinks = async () => {
         if (!address) return;
@@ -86,6 +85,45 @@ export default function DashboardPage() {
         if (!address) return;
         const requests = await getBatchRequestsByWallet(address);
         setBatchRequests(requests);
+    };
+
+    const handleCreateLink = async () => {
+        if (!address) return;
+        const amt = parseFloat(linkAmount);
+        if (!linkRecipient || isNaN(amt) || amt <= 0) {
+            return toast.error('Please enter a valid recipient and amount');
+        }
+
+        let finalWallet = linkRecipient;
+        if (!linkRecipient.startsWith('0x') || linkRecipient.length !== 42) {
+            const resolved = await resolveUsernameToWallet(linkRecipient);
+            if (!resolved) return toast.error(`Could not resolve: ${linkRecipient}`);
+            finalWallet = resolved;
+        }
+
+        const data = await createLinks([{
+            receiver_wallet: finalWallet,
+            amount: amt,
+            expires_at: linkExpiresAt ? new Date(linkExpiresAt).toISOString() : null,
+            max_uses: linkMaxUses ? parseInt(linkMaxUses) : null,
+            current_uses: 0,
+            group_id: null,
+        }]);
+
+        if (data && data.length > 0) {
+            setCreatedLinkId(data[0].id);
+            toast.success('Payment link created!');
+            fetchLinks();
+        }
+    };
+
+    const resetLinkForm = () => {
+        setLinkRecipient('');
+        setLinkAmount('');
+        setLinkExpiresAt('');
+        setLinkMaxUses('');
+        setCreatedLinkId(null);
+        setLinkCopied(false);
     };
 
     const handleCreateBatch = async () => {
@@ -138,20 +176,18 @@ export default function DashboardPage() {
             <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4">
                 <div className="glass-card p-10 rounded-2xl text-center max-w-lg space-y-6">
                     <div className="bg-primary/20 p-4 rounded-full w-20 h-20 mx-auto flex items-center justify-center">
-                        <Wallet className="w-10 h-10 text-primary" />
+                        <LogIn className="w-10 h-10 text-primary" />
                     </div>
-                    <h2 className="text-3xl font-bold">Connect Your Wallet</h2>
+                    <h2 className="text-3xl font-bold">Login to view balances</h2>
                     <p className="text-muted-foreground">
-                        Please connect your wallet to view your Dashboard, manage links, and track payment requests.
+                        Please log in to view your Dashboard, manage links, and track payment requests.
                     </p>
                     <Button
                         size="lg"
-                        onClick={() => connect({ connector: connectors[0] })}
+                        onClick={() => setShowAuthFlow(true)}
                         className="w-full gradient-primary shadow-glow hover:shadow-glow-lg h-12"
-                        disabled={isPending}
                     >
-                        {isPending ? <Loader2 className="animate-spin mr-2" /> : null}
-                        Connect Wallet
+                        Login to view balances
                     </Button>
                 </div>
             </div>
@@ -177,18 +213,125 @@ export default function DashboardPage() {
 
                 {/* LINKS TAB */}
                 <TabsContent value="links" className="space-y-6">
-                    <div className="flex justify-between items-center bg-secondary/30 p-4 rounded-xl border border-border">
-                        <div className="flex gap-8">
-                            <div>
-                                <p className="text-sm text-muted-foreground">Total Links</p>
-                                <p className="text-2xl font-bold">{links.length}</p>
-                            </div>
-                            <div>
-                                <p className="text-sm text-muted-foreground">Total Volume Requested</p>
-                                <p className="text-2xl font-bold text-primary">
-                                    {links.reduce((acc, curr) => acc + Number(curr.amount), 0).toFixed(2)} USDC
-                                </p>
-                            </div>
+                    <div className="flex justify-between items-center mb-2">
+                        <h2 className="text-xl font-semibold">Your Payment Links</h2>
+                        <Dialog open={isLinkCreateOpen} onOpenChange={(open) => { setIsLinkCreateOpen(open); if (!open) resetLinkForm(); }}>
+                            <DialogTrigger asChild>
+                                <Button className="gap-2">
+                                    <Plus size={16} /> New Payment Link
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-md bg-card border-border">
+                                <DialogHeader>
+                                    <DialogTitle>Create Payment Link</DialogTitle>
+                                </DialogHeader>
+
+                                {createdLinkId ? (
+                                    /* ── Success state ── */
+                                    <div className="space-y-4 py-4">
+                                        <p className="text-sm text-muted-foreground text-center">Your payment link is ready to share!</p>
+                                        <div className="flex items-center gap-2 bg-secondary rounded-xl p-3 border border-border">
+                                            <code className="flex-1 text-xs font-mono break-all text-foreground">
+                                                {`${appUrl}/pay?link=${createdLinkId}`}
+                                            </code>
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(`${appUrl}/pay?link=${createdLinkId}`);
+                                                    setLinkCopied(true);
+                                                    toast.success('Copied to clipboard!');
+                                                    setTimeout(() => setLinkCopied(false), 2000);
+                                                }}
+                                            >
+                                                {linkCopied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+                                            </Button>
+                                        </div>
+                                        <div className="flex gap-3 pt-2">
+                                            <Button variant="outline" className="flex-1" onClick={resetLinkForm}>
+                                                Create Another
+                                            </Button>
+                                            <Button className="flex-1 gradient-primary" onClick={() => { setIsLinkCreateOpen(false); resetLinkForm(); }}>
+                                                Done
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* ── Form state ── */
+                                    <div className="space-y-4 py-4">
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium">Recipient (username or 0x…)</label>
+                                            <input
+                                                value={linkRecipient}
+                                                onChange={e => setLinkRecipient(e.target.value)}
+                                                placeholder="@satoshi or 0x..."
+                                                className="w-full bg-secondary border border-border rounded-xl p-3 outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium">Amount (USDC)</label>
+                                            <div className="relative">
+                                                <input
+                                                    type="number"
+                                                    value={linkAmount}
+                                                    onChange={e => setLinkAmount(e.target.value)}
+                                                    placeholder="0.00"
+                                                    min="0"
+                                                    step="0.01"
+                                                    className="w-full bg-secondary border border-border rounded-xl p-3 pl-8 outline-none focus:ring-2 focus:ring-primary"
+                                                />
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">$</span>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium">Expires (optional)</label>
+                                                <input
+                                                    type="datetime-local"
+                                                    value={linkExpiresAt}
+                                                    onChange={e => setLinkExpiresAt(e.target.value)}
+                                                    className="w-full bg-secondary border border-border rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium">Max Uses (optional)</label>
+                                                <input
+                                                    type="number"
+                                                    value={linkMaxUses}
+                                                    onChange={e => setLinkMaxUses(e.target.value)}
+                                                    placeholder="e.g. 5"
+                                                    min="1"
+                                                    className="w-full bg-secondary border border-border rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-end gap-3 pt-2 border-t border-border">
+                                            <Button variant="ghost" onClick={() => setIsLinkCreateOpen(false)}>Cancel</Button>
+                                            <Button
+                                                onClick={handleCreateLink}
+                                                disabled={linkCreating || !linkRecipient || !linkAmount}
+                                                className="gap-2"
+                                            >
+                                                {linkCreating ? <Loader2 className="animate-spin w-4 h-4" /> : <Link2 size={14} />}
+                                                Generate Link
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+
+                    <div className="flex gap-8 bg-secondary/30 p-4 rounded-xl border border-border">
+                        <div>
+                            <p className="text-sm text-muted-foreground">Total Links</p>
+                            <p className="text-2xl font-bold">{links.length}</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-muted-foreground">Total Volume Requested</p>
+                            <p className="text-2xl font-bold text-primary">
+                                {links.reduce((acc, curr) => acc + Number(curr.amount), 0).toFixed(2)} USDC
+                            </p>
                         </div>
                     </div>
 
@@ -367,40 +510,6 @@ export default function DashboardPage() {
 
             </Tabs>
 
-            {/* CLAIM USERNAME MODAL */}
-            <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
-                <DialogContent className="sm:max-w-md bg-card border-border">
-                    <DialogHeader>
-                        <DialogTitle>Claim Your Username</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <p className="text-sm text-muted-foreground">
-                            Usernames uniquely identify your smart wallet, allowing anyone to seamlessly send you funds without needing your long address.
-                        </p>
-                        <input
-                            value={newUsername}
-                            onChange={e => setNewUsername(e.target.value)}
-                            placeholder="@satoshinakamoto"
-                            className="w-full bg-secondary border border-border rounded-xl p-3 outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
-                        />
-                        <Button
-                            className="w-full h-12 mt-4 gradient-primary shadow-glow"
-                            onClick={async () => {
-                                if (!newUsername || newUsername.includes(' ')) return toast.error('Invalid username');
-                                const p = await registerUsername(address!, newUsername);
-                                if (p) {
-                                    setProfile(p);
-                                    setIsProfileModalOpen(false);
-                                }
-                            }}
-                            disabled={profileLoading}
-                        >
-                            {profileLoading && <Loader2 className="animate-spin mr-2" />}
-                            Claim Username
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }

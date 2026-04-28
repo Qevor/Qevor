@@ -2,18 +2,20 @@ import { useState } from 'react';
 import { useAccount, useBalance, useSendTransaction } from 'wagmi';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Send, Download, Loader2, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { Send, Download, Loader2, ArrowUpRight, ArrowDownLeft, Users, Link as LinkIcon } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { parseEther } from 'viem';
 import { toast } from 'sonner';
 import { useProfiles } from '@/hooks/useProfiles';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export function WalletTab() {
     const { address } = useAccount();
     const { data: balance, refetch } = useBalance({ address, watch: true });
+    const navigate = useNavigate();
 
     const [sendOpen, setSendOpen] = useState(false);
+    const [receiveOpen, setReceiveOpen] = useState(false);
     const [recipient, setRecipient] = useState('');
     const [amount, setAmount] = useState('');
 
@@ -70,7 +72,9 @@ export function WalletTab() {
                 </div>
                 <p className="text-primary/80 font-medium mb-10">USDC (Arc Native)</p>
 
-                <div className="flex gap-4 w-full max-w-sm">
+                {/* Primary action buttons — Send & Receive */}
+                <div className="flex gap-4 w-full max-w-sm mb-4">
+                    {/* Send Dialog */}
                     <Dialog open={sendOpen} onOpenChange={setSendOpen}>
                         <DialogTrigger asChild>
                             <Button size="lg" className="flex-1 gradient-primary shadow-glow hover:shadow-glow-lg transition-all h-14 rounded-2xl text-lg">
@@ -113,15 +117,20 @@ export function WalletTab() {
                                     {isPending ? 'Sending...' : 'Confirm Transfer'}
                                 </Button>
                                 <div className="pt-2 text-center border-t border-border mt-4">
-                                    <Link to="/dashboard?tab=batch" onClick={() => setSendOpen(false)} className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setSendOpen(false); navigate('/dashboard?tab=batch'); }}
+                                        className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+                                    >
                                         Need to send to multiple people? <span className="underline">Create a Batch Request</span>
-                                    </Link>
+                                    </button>
                                 </div>
                             </div>
                         </DialogContent>
                     </Dialog>
 
-                    <Dialog>
+                    {/* Receive Dialog */}
+                    <Dialog open={receiveOpen} onOpenChange={setReceiveOpen}>
                         <DialogTrigger asChild>
                             <Button size="lg" variant="outline" className="flex-1 border-primary/30 hover:border-primary/60 text-primary hover:bg-primary/5 transition-all h-14 rounded-2xl text-lg">
                                 <Download className="mr-2 w-5 h-5" /> Receive
@@ -145,35 +154,81 @@ export function WalletTab() {
                                 </Button>
                             </div>
                             <div className="pt-4 text-center w-full mt-2">
-                                <Link to="/create" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+                                <Link to="/create" onClick={() => setReceiveOpen(false)} className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
                                     Want a custom link with exact amounts? <span className="underline">Generate Payment Link</span>
                                 </Link>
                             </div>
                         </DialogContent>
                     </Dialog>
                 </div>
+
+                {/* Secondary action buttons — Send Batch & Payment Links */}
+                <div className="flex gap-4 w-full max-w-sm">
+                    <Link to="/dashboard?tab=batch" className="flex-1">
+                        <Button size="lg" variant="outline" className="w-full border-primary/30 hover:border-primary/60 hover:bg-primary/5 transition-all h-12 rounded-2xl text-base">
+                            <Users className="mr-2 w-4 h-4" /> Send Batch
+                        </Button>
+                    </Link>
+                    <Link to="/dashboard?tab=links" className="flex-1">
+                        <Button size="lg" variant="outline" className="w-full border-primary/30 hover:border-primary/60 hover:bg-primary/5 transition-all h-12 rounded-2xl text-base">
+                            <LinkIcon className="mr-2 w-4 h-4" /> Payment Links
+                        </Button>
+                    </Link>
+                </div>
             </div>
 
-            {/* Quick Actions / Info row */}
+            {/* Quick Actions / Info row — clickable cards */}
             <div className="grid md:grid-cols-2 gap-6">
-                <div className="glass-card p-6 rounded-2xl group flex items-start gap-4">
-                    <div className="p-3 bg-primary/10 text-primary rounded-xl group-hover:scale-110 transition-transform">
+                <button
+                    type="button"
+                    onClick={() => setSendOpen(true)}
+                    className="glass-card p-6 rounded-2xl group flex items-start gap-4 text-left w-full cursor-pointer hover:border-primary/50 transition-colors"
+                >
+                    <div className="p-3 bg-primary/10 text-primary rounded-xl group-hover:scale-110 transition-transform shrink-0">
                         <ArrowUpRight className="w-6 h-6" />
                     </div>
                     <div>
                         <h3 className="font-semibold mb-1">Send to anyone</h3>
                         <p className="text-sm text-muted-foreground">Instantly transfer USDC across the Arc Testnet securely and cheaply.</p>
                     </div>
-                </div>
-                <div className="glass-card p-6 rounded-2xl group flex items-start gap-4">
-                    <div className="p-3 bg-accent/10 text-accent rounded-xl group-hover:scale-110 transition-transform">
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setReceiveOpen(true)}
+                    className="glass-card p-6 rounded-2xl group flex items-start gap-4 text-left w-full cursor-pointer hover:border-primary/50 transition-colors"
+                >
+                    <div className="p-3 bg-accent/10 text-accent rounded-xl group-hover:scale-110 transition-transform shrink-0">
                         <ArrowDownLeft className="w-6 h-6" />
                     </div>
                     <div>
                         <h3 className="font-semibold mb-1">Receive funds</h3>
                         <p className="text-sm text-muted-foreground">Share your QR code or address to receive quick payouts directly to your wallet.</p>
                     </div>
-                </div>
+                </button>
+                <Link
+                    to="/dashboard?tab=batch"
+                    className="glass-card p-6 rounded-2xl group flex items-start gap-4 hover:border-primary/50 transition-colors"
+                >
+                    <div className="p-3 bg-primary/10 text-primary rounded-xl group-hover:scale-110 transition-transform shrink-0">
+                        <Users className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h3 className="font-semibold mb-1">Send Batch</h3>
+                        <p className="text-sm text-muted-foreground">Pay multiple wallets at once. Manage payroll, splits, and group expenses seamlessly.</p>
+                    </div>
+                </Link>
+                <Link
+                    to="/dashboard?tab=links"
+                    className="glass-card p-6 rounded-2xl group flex items-start gap-4 hover:border-primary/50 transition-colors"
+                >
+                    <div className="p-3 bg-accent/10 text-accent rounded-xl group-hover:scale-110 transition-transform shrink-0">
+                        <LinkIcon className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h3 className="font-semibold mb-1">Payment Links</h3>
+                        <p className="text-sm text-muted-foreground">Generate shareable links to request exact USDC amounts from anyone on Arc.</p>
+                    </div>
+                </Link>
             </div>
         </div>
     );
