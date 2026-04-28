@@ -11,7 +11,7 @@ export default function LandingPage() {
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/20 rounded-full blur-[120px] -z-10 pointer-events-none" />
 
                 <div className="mb-4">
-                    <img src="/logo.png" alt="Qevor Logo" className="w-40 h-40 qevor-logo-pulse object-contain drop-shadow-[0_0_24px_rgba(0,180,255,0.5)]" />
+                    <img src="/logo.png" alt="Qevor Logo" className="w-56 h-56 qevor-logo-pulse object-contain drop-shadow-[0_0_24px_rgba(0,180,255,0.5)]" />
                 </div>
 
                 <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6">
