@@ -382,7 +382,12 @@ export default function DashboardPage() {
 
                                         {/* Expiry + Max Uses */}
                                         <div className="space-y-2">
-                                            <label className="text-sm font-medium">Expiration Date (optional)</label>
+                                            <label className="text-sm font-medium flex items-center gap-2">
+                                                Expiration Date (optional)
+                                                {linkSplitMode && linkSplitAmounts.length > 0 && (
+                                                    <span className="text-xs text-primary font-normal">applies to all {linkSplitAmounts.length} links</span>
+                                                )}
+                                            </label>
                                             <input
                                                 type="datetime-local"
                                                 value={linkExpiresAt}
@@ -393,7 +398,12 @@ export default function DashboardPage() {
 
                                         <div className="space-y-2 border border-border rounded-xl p-3 bg-secondary/40">
                                             <div className="flex items-center justify-between">
-                                                <label className="text-sm font-medium">Max Uses per Link</label>
+                                                <label className="text-sm font-medium flex items-center gap-2">
+                                                    Max Uses per Link
+                                                    {linkSplitMode && linkSplitAmounts.length > 0 && (
+                                                        <span className="text-xs text-primary font-normal">applies to all {linkSplitAmounts.length} links</span>
+                                                    )}
+                                                </label>
                                                 <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
                                                     <input
                                                         type="checkbox"

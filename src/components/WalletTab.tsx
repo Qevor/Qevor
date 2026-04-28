@@ -1,17 +1,20 @@
 import { useState } from 'react';
-import { useAccount, useBalance, useSendTransaction } from 'wagmi';
+import { useAccount, useBalance } from 'wagmi';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Send, Download, Loader2, ArrowUpRight, ArrowDownLeft, Users, Link as LinkIcon } from 'lucide-react';
 import QRCode from 'react-qr-code';
-import { parseEther } from 'viem';
 import { toast } from 'sonner';
 import { useProfiles } from '@/hooks/useProfiles';
+import { useArcSend } from '@/hooks/useArcSend';
 import { Link, useNavigate } from 'react-router-dom';
 
 export function WalletTab() {
     const { address } = useAccount();
-    const { data: balance, refetch } = useBalance({ address, watch: true });
+    const { data: balance, refetch } = useBalance({
+        address,
+        query: { refetchInterval: 5000 },  // poll every 5 s — wagmi v3 replaces deprecated watch:true
+    });
     const navigate = useNavigate();
 
     const [sendOpen, setSendOpen] = useState(false);
@@ -19,20 +22,7 @@ export function WalletTab() {
     const [recipient, setRecipient] = useState('');
     const [amount, setAmount] = useState('');
 
-    const { sendTransaction, isPending } = useSendTransaction({
-        mutation: {
-            onSuccess(hash) {
-                toast.success('Transaction sent!', { description: `Hash: ${hash.slice(0, 10)}...` });
-                setSendOpen(false);
-                setRecipient('');
-                setAmount('');
-                refetch();
-            },
-            onError(error) {
-                toast.error('Transaction failed', { description: error.message });
-            }
-        }
-    });
+    const { sendTransaction, isPending } = useArcSend();
 
     const { resolveUsernameToWallet } = useProfiles();
 
@@ -54,9 +44,22 @@ export function WalletTab() {
         if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
             return toast.error('Invalid amount');
         }
+
         sendTransaction({
-            to: finalRecipient as `0x${string}`,
-            value: parseEther(amount),
+            to: finalRecipient,
+            amount,
+            onSuccess(hash) {
+                toast.success('Transaction sent!', { description: hash ? `Hash: ${hash.slice(0, 10)}...` : '' });
+                setSendOpen(false);
+                setRecipient('');
+                setAmount('');
+                refetch();
+                setTimeout(() => refetch(), 4000);
+                setTimeout(() => refetch(), 10000);
+            },
+            onError(error) {
+                toast.error('Transaction failed', { description: error.message });
+            },
         });
     };
 
@@ -68,9 +71,11 @@ export function WalletTab() {
 
                 <h2 className="text-muted-foreground font-medium mb-2 uppercase tracking-widest text-sm">Available Balance</h2>
                 <div className="text-5xl md:text-6xl font-extrabold gradient-text mb-2">
-                    {balance ? Number(balance.formatted).toFixed(4) : '0.0000'}
+                    {balance
+                        ? (isNaN(parseFloat(balance.formatted)) ? '0.0000' : parseFloat(balance.formatted).toFixed(4))
+                        : '0.0000'}
                 </div>
-                <p className="text-primary/80 font-medium mb-10">USDC (Arc Native)</p>
+                <p className="text-primary/80 font-medium mb-10">USDC (Arc Testnet)</p>
 
                 {/* Primary action buttons — Send & Receive */}
                 <div className="flex gap-4 w-full max-w-sm">
