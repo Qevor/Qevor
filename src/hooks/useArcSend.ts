@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { arcKit } from '@/lib/arcKit';
-import { createViemAdapterFromProvider } from '@circle-fin/adapter-viem-v2';
+import { ViemAdapter } from '@circle-fin/adapter-viem-v2';
+import { createWalletClient, custom, type Chain } from 'viem';
 import type { EIP1193Provider } from 'viem';
 
 interface ArcSendParams {
@@ -12,11 +13,11 @@ interface ArcSendParams {
 }
 
 export function useArcSend() {
-    const { connector } = useAccount();
+    const { connector, address } = useAccount();
     const [isPending, setIsPending] = useState(false);
 
     const sendTransaction = async ({ to, amount, onSuccess, onError }: ArcSendParams) => {
-        if (!connector) {
+        if (!connector || !address) {
             onError?.(new Error('No wallet connected'));
             return;
         }
@@ -24,7 +25,18 @@ export function useArcSend() {
         setIsPending(true);
         try {
             const provider = (await connector.getProvider()) as EIP1193Provider;
-            const adapter = await createViemAdapterFromProvider({ provider });
+
+            // Build ViemAdapter directly with the already-known address.
+            // Avoids calling eth_requestAccounts which Dynamic Labs embedded
+            // wallets do not support (the session is already established).
+            const adapter = new ViemAdapter({
+                getWalletClient: ({ chain }: { chain: Chain }) =>
+                    createWalletClient({
+                        account: address,
+                        chain,
+                        transport: custom(provider as any),
+                    }),
+            });
 
             const result = await arcKit.send({
                 from: { adapter, chain: 'Arc_Testnet' },
