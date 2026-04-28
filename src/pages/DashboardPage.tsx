@@ -249,7 +249,7 @@ export default function DashboardPage() {
         <div className="container mx-auto px-4 py-8">
             <h1 className="text-3xl font-bold gradient-text mb-8">Dashboard</h1>
 
-            <Tabs defaultValue={defaultTab} onValueChange={(v) => setSearchParams({ tab: v })}>
+            <Tabs value={defaultTab} onValueChange={(v) => setSearchParams({ tab: v })}>
                 <TabsList className="bg-secondary/50 border border-border p-1 mb-8 w-full justify-start overflow-x-auto flex-nowrap">
                     <TabsTrigger value="wallet" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">Wallet</TabsTrigger>
                     <TabsTrigger value="links" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">My Links</TabsTrigger>

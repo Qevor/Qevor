@@ -11,10 +11,24 @@ import { Link, useNavigate } from 'react-router-dom';
 
 export function WalletTab() {
     const { address } = useAccount();
-    const { data: balance, refetch } = useBalance({
+    // Fetch native balance (USDC is the native token on Arc)
+    const { data: nativeBalance, refetch: refetchNative } = useBalance({
         address,
-        query: { refetchInterval: 5000 },  // poll every 5 s — wagmi v3 replaces deprecated watch:true
+        query: { refetchInterval: 5000 },
     });
+    // Also fetch USDC ERC-20 balance as a fallback (some faucets send ERC-20 USDC)
+    const { data: erc20Balance, refetch: refetchErc20 } = useBalance({
+        address,
+        token: '0x3600000000000000000000000000000000000000',
+        query: { refetchInterval: 5000 },
+    });
+
+    // Use whichever balance is non-zero; prefer native
+    const balance = (nativeBalance && parseFloat(nativeBalance.formatted) > 0)
+        ? nativeBalance
+        : erc20Balance ?? nativeBalance;
+
+    const refetch = () => { refetchNative(); refetchErc20(); };
     const navigate = useNavigate();
 
     const [sendOpen, setSendOpen] = useState(false);
