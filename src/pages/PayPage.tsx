@@ -1,8 +1,7 @@
 import { useSearchParams, Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { useAccount, useConnect, useSendTransaction, useSwitchChain, usePublicClient } from 'wagmi'
-import { parseUnits, parseGwei } from 'viem'
-import { arcTestnet } from '@/lib/arcChain'
+import { useAccount, useConnect } from 'wagmi'
+import { useArcSend } from '@/hooks/useArcSend'
 import { Loader2, Wallet, ExternalLink, MessageSquare, CheckCircle2, DollarSign, AlertCircle, Receipt as ReceiptIcon } from 'lucide-react'
 import Confetti from 'react-confetti'
 import { usePaymentLinks } from '@/hooks/usePaymentLinks'
@@ -28,10 +27,7 @@ const PayPage = () => {
   const [memo, setMemo] = useState('')
   const [windowSize, setWindowSize] = useState({ w: window.innerWidth, h: window.innerHeight })
 
-  // Manual TX state — replaces useWaitForTransactionReceipt
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>(undefined)
-  const [isSending, setIsSending] = useState(false)
-  const [isConfirming, setIsConfirming] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [txError, setTxError] = useState<string | null>(null)
 
@@ -42,14 +38,9 @@ const PayPage = () => {
   const { createReceipt } = useReceipts()
   const { resolveUsernameToWallet } = useProfiles()
 
-  const { address, isConnected, chainId } = useAccount()
+  const { address, isConnected } = useAccount()
   const { connect, connectors, isPending: isConnecting } = useConnect()
-  const { switchChain, isPending: isSwitching } = useSwitchChain()
-  // Reverting to Native SendTransaction per user requirement for "USDC on Arc"
-  const { sendTransactionAsync } = useSendTransaction()
-  const publicClient = usePublicClient({ chainId: arcTestnet.id })
-
-  const isWrongChain = isConnected && chainId !== arcTestnet.id
+  const { sendTransaction, isPending: isSending } = useArcSend()
 
   // Fetch link data
   useEffect(() => {
@@ -158,70 +149,32 @@ const PayPage = () => {
     )
   }
 
-  const handlePay = async () => {
-    if (!address || !to || !amount || !publicClient) return
+  const handlePay = () => {
+    if (!address || !to || !amount) return
 
     setTxError(null)
     setIsSuccess(false)
     setTxHash(undefined)
 
-    // Native USDC on Arc uses 18 decimals
-    const amountInUnits = parseUnits(amount, 18)
-    console.log('🚀 Initiating payment...')
-    console.log('📊 Amount in native units (18 dec):', amountInUnits.toString())
+    toast.loading('Confirm in your wallet...')
 
-    try {
-      setIsSending(true)
-      toast.loading('Confirm in your wallet...')
-
-      const hash = await sendTransactionAsync({
-        to,
-        value: amountInUnits,
-        chain: arcTestnet,
-        // Arc Testnet strictly requires a minimum base fee to prevent spam. 
-        // 160 Gwei on Arc is exactly 0.00000016 USDC (true nanopayment fees).
-        // Without this, the transaction is underpriced and immediately dropped by the nodes (causing a 'fake hash').
-        maxFeePerGas: parseGwei('160'),
-        maxPriorityFeePerGas: parseGwei('160'),
-      })
-
-      setIsSending(false)
-      setTxHash(hash)
-      console.log('✅ TX Hash:', hash)
-      toast.dismiss()
-      toast.loading('Payment confirming on blockchain...')
-      setIsConfirming(true)
-
-      // Reliable polling with timeout so we don't hang indefinitely
-      const receipt = await publicClient.waitForTransactionReceipt({
-        hash,
-        confirmations: 1,
-        pollingInterval: 1000,
-        timeout: 90000, // 90 second timeout
-      })
-
-      setIsConfirming(false)
-
-      if (receipt.status === 'success') {
-        console.log('🎉 Transaction confirmed!')
+    sendTransaction({
+      to,
+      amount, // decimal string, e.g. "1.0" — Arc Kit handles conversion
+      onSuccess(hash) {
+        const h = (hash || '') as `0x${string}`
+        setTxHash(h)
         toast.dismiss()
         toast.success('Payment confirmed!')
         setIsSuccess(true)
-      } else {
-        console.error('❌ Transaction reverted:', receipt)
-        setTxError('Transaction was reverted or failed on chain.')
+      },
+      onError(error) {
+        const msg = error.message || 'Transaction failed'
+        setTxError(msg)
         toast.dismiss()
-        toast.error('Transaction reverted.')
-      }
-    } catch (err: any) {
-      setIsSending(false)
-      setIsConfirming(false)
-      const msg = err?.shortMessage || err?.message || 'Transaction failed'
-      console.error('❌ Error:', msg, err)
-      setTxError(msg)
-      toast.dismiss()
-      toast.error(msg)
-    }
+        toast.error(msg)
+      },
+    })
   }
 
   const shortAddr = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`
@@ -325,32 +278,18 @@ const PayPage = () => {
                 {isConnecting ? <Loader2 size={18} className="animate-spin" /> : <Wallet size={18} />}
                 {isConnecting ? 'Connecting...' : 'Connect Wallet'}
               </button>
-            ) : isWrongChain ? (
-              <button
-                onClick={() => switchChain({ chainId: arcTestnet.id })}
-                disabled={isSwitching}
-                className="w-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/50 hover:bg-yellow-500/20 font-semibold rounded-lg py-3 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60"
-              >
-                {isSwitching && <Loader2 size={18} className="animate-spin" />}
-                {isSwitching ? 'Switching...' : 'Switch to Arc Testnet'}
-              </button>
             ) : (
               <button
-                onClick={() => {
-                  console.log('🔴 BUTTON CLICKED!!!')
-                  handlePay()
-                }}
-                disabled={isSending || isConfirming || isVerifyingLink}
+                onClick={handlePay}
+                disabled={isSending || isVerifyingLink}
                 className="w-full gradient-primary text-primary-foreground font-semibold rounded-lg py-3 flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60 shadow-glow"
               >
-                {(isSending || isConfirming || isVerifyingLink) && <Loader2 size={18} className="animate-spin" />}
+                {(isSending || isVerifyingLink) && <Loader2 size={18} className="animate-spin" />}
                 {isVerifyingLink
                   ? 'Verifying Link...'
                   : isSending
-                    ? 'Confirm in Wallet...'
-                    : isConfirming
-                      ? 'Confirming...'
-                      : `Pay ${parseFloat(amount!).toFixed(2)} USDC`}
+                    ? 'Processing...'
+                    : `Pay ${parseFloat(amount!).toFixed(2)} USDC`}
               </button>
             )}
 
