@@ -149,12 +149,29 @@ export function useBatchRequests() {
         }
     };
 
+    const getBatchPaymentsByWallet = async (wallet: string): Promise<BatchPayment[]> => {
+        try {
+            const { data, error } = await supabase
+                .from('batch_payments')
+                .select('*')
+                .eq('payer_wallet', wallet)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            return (data || []) as BatchPayment[];
+        } catch (err) {
+            console.error('Error fetching batch payments by wallet:', err);
+            return [];
+        }
+    };
+
     return {
         createBatchRequest,
         getBatchRequest,
         getBatchRequestsByWallet,
         recordBatchPayment,
         getBatchPayments,
+        getBatchPaymentsByWallet,
         updateBatchStatus,
         loading,
         error

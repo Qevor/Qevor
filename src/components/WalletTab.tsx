@@ -73,7 +73,7 @@ export function WalletTab() {
                 <p className="text-primary/80 font-medium mb-10">USDC (Arc Native)</p>
 
                 {/* Primary action buttons — Send & Receive */}
-                <div className="flex gap-4 w-full max-w-sm mb-4">
+                <div className="flex gap-4 w-full max-w-sm">
                     {/* Send Dialog */}
                     <Dialog open={sendOpen} onOpenChange={setSendOpen}>
                         <DialogTrigger asChild>
@@ -162,19 +162,7 @@ export function WalletTab() {
                     </Dialog>
                 </div>
 
-                {/* Secondary action buttons — Send Batch & Payment Links */}
-                <div className="flex gap-4 w-full max-w-sm">
-                    <Link to="/dashboard?tab=batch" className="flex-1">
-                        <Button size="lg" variant="outline" className="w-full border-primary/30 hover:border-primary/60 hover:bg-primary/5 transition-all h-12 rounded-2xl text-base">
-                            <Users className="mr-2 w-4 h-4" /> Send Batch
-                        </Button>
-                    </Link>
-                    <Link to="/dashboard?tab=links" className="flex-1">
-                        <Button size="lg" variant="outline" className="w-full border-primary/30 hover:border-primary/60 hover:bg-primary/5 transition-all h-12 rounded-2xl text-base">
-                            <LinkIcon className="mr-2 w-4 h-4" /> Payment Links
-                        </Button>
-                    </Link>
-                </div>
+
             </div>
 
             {/* Quick Actions / Info row — clickable cards */}
