@@ -4,7 +4,7 @@ import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2, LogIn, ExternalLink, Receipt as ReceiptIcon, Copy, Check, Link2, ArrowDownLeft, ArrowUpRight, Users } from 'lucide-react';
+import { Plus, Loader2, LogIn, ExternalLink, Receipt as ReceiptIcon, Copy, Check, Link2, ArrowDownLeft, ArrowUpRight, Users, CheckCircle2, XCircle } from 'lucide-react';
 import { PaymentLinkCard } from '@/components/PaymentLinkCard';
 import { BatchPaymentCard } from '@/components/BatchPaymentCard';
 import { SplitInput } from '@/components/SplitInput';
@@ -13,6 +13,7 @@ import { useBatchPayments, BatchRecipient, BatchPayment } from '@/hooks/useBatch
 import { useProfiles } from '@/hooks/useProfiles';
 import { usePaymentLinks } from '@/hooks/usePaymentLinks';
 import { WalletTab } from '@/components/WalletTab';
+import { useArcSend } from '@/hooks/useArcSend';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
@@ -30,12 +31,19 @@ export default function DashboardPage() {
     const [loadingLinks, setLoadingLinks] = useState(false);
     const [loadingReceipts, setLoadingReceipts] = useState(false);
 
-    const { getBatchesByWallet, createBatch, getBatchPaymentsByWallet, loading: batchLoading } = useBatchPayments();
+    const { getBatchesByWallet, createBatch, getBatchPaymentsByWallet, recordBatchPayment, updateBatchStatus, loading: batchLoading } = useBatchPayments();
+    const { sendTransaction } = useArcSend();
 
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [batchTitle, setBatchTitle] = useState('');
     const [batchDesc, setBatchDesc] = useState('');
     const [batchRecipients, setBatchRecipients] = useState<BatchRecipient[]>([{ wallet: '', amount: 0, label: '' }]);
+
+    type SendStep = 'form' | 'sending' | 'done';
+    type SendResult = { wallet: string; amount: number; label?: string; txHash?: string; success: boolean };
+    const [batchSendStep, setBatchSendStep] = useState<SendStep>('form');
+    const [batchSendProgress, setBatchSendProgress] = useState({ current: 0, total: 0 });
+    const [batchSendResults, setBatchSendResults] = useState<SendResult[]>([]);
 
     const { resolveUsernameToWallet } = useProfiles();
     const { createLinks, loading: linkCreating } = usePaymentLinks();
@@ -177,22 +185,28 @@ export default function DashboardPage() {
         setTimeout(() => setCopiedLinkIds(prev => { const n = new Set(prev); n.delete(linkId); return n; }), 2000);
     };
 
-    const handleCreateBatch = async () => {
+    const resetBatchForm = () => {
+        setBatchTitle('');
+        setBatchDesc('');
+        setBatchRecipients([{ wallet: '', amount: 0, label: '' }]);
+        setBatchSendStep('form');
+        setBatchSendProgress({ current: 0, total: 0 });
+        setBatchSendResults([]);
+    };
+
+    const handleSendBatch = async () => {
         if (!address) return;
 
-        // Validation & Username Resolution
+        // Validate & resolve usernames
         const resolvedRecipients: BatchRecipient[] = [];
-
         for (const r of batchRecipients) {
             if (!r.wallet || r.amount <= 0) continue;
-
             let finalWallet = r.wallet;
-            // If it's not a standard ETH address, try resolving it as a username
             if (!r.wallet.startsWith('0x') || r.wallet.length !== 42) {
                 const resolved = await resolveUsernameToWallet(r.wallet);
                 if (!resolved) {
                     toast.error(`Could not resolve username: ${r.wallet}`);
-                    return; // abort creation
+                    return;
                 }
                 finalWallet = resolved;
             }
@@ -200,26 +214,61 @@ export default function DashboardPage() {
         }
 
         if (resolvedRecipients.length === 0) {
-            toast.error('Please add at least one valid recipient or username');
+            toast.error('Please add at least one valid recipient');
             return;
         }
 
         const totalAmount = resolvedRecipients.reduce((sum, r) => sum + Number(r.amount), 0);
 
+        // Create batch record before sending (acts as the receipt container)
         const newBatch = await createBatch({
-            title: batchTitle,
-            description: batchDesc,
+            title: batchTitle || undefined,
+            description: batchDesc || undefined,
             creator_wallet: address,
             recipients: resolvedRecipients,
             total_amount: totalAmount,
             expires_at: null,
         });
 
-        if (newBatch) {
-            toast.success('Batch payment created!');
-            setIsCreateOpen(false);
-            fetchBatches(); // refesh list
+        if (!newBatch) {
+            toast.error('Failed to initialise batch payment');
+            return;
         }
+
+        setBatchSendStep('sending');
+        setBatchSendProgress({ current: 0, total: resolvedRecipients.length });
+
+        const results: SendResult[] = [];
+
+        for (let i = 0; i < resolvedRecipients.length; i++) {
+            const recipient = resolvedRecipients[i];
+            setBatchSendProgress({ current: i + 1, total: resolvedRecipients.length });
+
+            try {
+                const txHash = await new Promise<string>((resolve, reject) => {
+                    sendTransaction({
+                        to: recipient.wallet,
+                        amount: recipient.amount.toString(),
+                        onSuccess: resolve,
+                        onError: reject,
+                    });
+                });
+                await recordBatchPayment(newBatch.id, address, recipient.wallet, recipient.amount, txHash);
+                results.push({ ...recipient, txHash, success: true });
+            } catch {
+                results.push({ ...recipient, success: false });
+            }
+        }
+
+        const successCount = results.filter(r => r.success).length;
+        await updateBatchStatus(
+            newBatch.id,
+            successCount === resolvedRecipients.length ? 'complete' : successCount > 0 ? 'partial' : 'pending'
+        );
+
+        setBatchSendResults(results);
+        setBatchSendStep('done');
+        fetchBatches();
     };
 
     if (!isConnected) {
@@ -474,7 +523,14 @@ export default function DashboardPage() {
                 <TabsContent value="batch" className="space-y-6">
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-xl font-semibold">Your Batch Payments</h2>
-                        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                        <Dialog
+                            open={isCreateOpen}
+                            onOpenChange={(open) => {
+                                if (batchSendStep === 'sending') return; // block close while sending
+                                setIsCreateOpen(open);
+                                if (!open) resetBatchForm();
+                            }}
+                        >
                             <DialogTrigger asChild>
                                 <Button className="gap-2">
                                     <Plus size={16} /> New Batch Payment
@@ -482,95 +538,197 @@ export default function DashboardPage() {
                             </DialogTrigger>
                             <DialogContent className="max-w-2xl bg-card border-border max-h-[90vh] overflow-y-auto">
                                 <DialogHeader>
-                                    <DialogTitle>Create Batch Payment</DialogTitle>
+                                    <DialogTitle>
+                                        {batchSendStep === 'form' && 'Send Batch Payment'}
+                                        {batchSendStep === 'sending' && 'Sending…'}
+                                        {batchSendStep === 'done' && 'Batch Complete'}
+                                    </DialogTitle>
                                 </DialogHeader>
-                                <div className="space-y-4 py-4">
-                                    <div>
-                                        <label className="text-sm font-medium mb-1 block">Title (optional)</label>
-                                        <input
-                                            value={batchTitle}
-                                            onChange={e => setBatchTitle(e.target.value)}
-                                            className="w-full bg-secondary border border-border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary"
-                                            placeholder="Quarterly Bonus..."
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium mb-1 block">Description (optional)</label>
-                                        <textarea
-                                            value={batchDesc}
-                                            onChange={e => setBatchDesc(e.target.value)}
-                                            className="w-full bg-secondary border border-border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary min-h-[80px]"
-                                            placeholder="Payment for Q3 milestones..."
-                                        />
-                                    </div>
 
-                                    <div className="space-y-3 pt-4 border-t border-border">
-                                        <div className="flex justify-between items-center">
-                                            <h4 className="font-medium">Recipients</h4>
-                                        </div>
-                                        {batchRecipients.map((rec, i) => (
-                                            <div key={i} className="flex gap-3 items-start">
-                                                <div className="flex-1">
-                                                    <input
-                                                        value={rec.wallet}
-                                                        onChange={e => {
-                                                            const newR = [...batchRecipients];
-                                                            newR[i].wallet = e.target.value;
-                                                            setBatchRecipients(newR);
-                                                        }}
-                                                        placeholder="0x..."
-                                                        className="w-full bg-secondary border border-border rounded-lg p-2.5 text-sm font-mono outline-none focus:ring-1 focus:ring-primary"
-                                                    />
-                                                </div>
-                                                <div className="w-24">
-                                                    <input
-                                                        type="number"
-                                                        value={rec.amount || ''}
-                                                        onChange={e => {
-                                                            const newR = [...batchRecipients];
-                                                            newR[i].amount = Number(e.target.value);
-                                                            setBatchRecipients(newR);
-                                                        }}
-                                                        placeholder="USDC"
-                                                        className="w-full bg-secondary border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
-                                                    />
-                                                </div>
-                                                <div className="w-32">
-                                                    <input
-                                                        value={rec.label || ''}
-                                                        onChange={e => {
-                                                            const newR = [...batchRecipients];
-                                                            newR[i].label = e.target.value;
-                                                            setBatchRecipients(newR);
-                                                        }}
-                                                        placeholder="Label"
-                                                        className="w-full bg-secondary border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
-                                                    />
-                                                </div>
-                                                {batchRecipients.length > 1 && (
-                                                    <Button variant="ghost" className="text-destructive px-2" onClick={() => setBatchRecipients(batchRecipients.filter((_, idx) => idx !== i))}>
-                                                        ×
-                                                    </Button>
-                                                )}
+                                {/* ── FORM ── */}
+                                {batchSendStep === 'form' && (
+                                    <>
+                                        <div className="space-y-4 py-4">
+                                            <div>
+                                                <label className="text-sm font-medium mb-1 block">Title (optional)</label>
+                                                <input
+                                                    value={batchTitle}
+                                                    onChange={e => setBatchTitle(e.target.value)}
+                                                    className="w-full bg-secondary border border-border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary"
+                                                    placeholder="Team salaries, Q3 bonuses…"
+                                                />
                                             </div>
-                                        ))}
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="w-full border-dashed"
-                                            onClick={() => setBatchRecipients([...batchRecipients, { wallet: '', amount: 0, label: '' }])}
-                                        >
-                                            <Plus size={14} className="mr-1" /> Add Recipient
+                                            <div>
+                                                <label className="text-sm font-medium mb-1 block">Description (optional)</label>
+                                                <textarea
+                                                    value={batchDesc}
+                                                    onChange={e => setBatchDesc(e.target.value)}
+                                                    className="w-full bg-secondary border border-border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary min-h-[72px]"
+                                                    placeholder="Payment for Q3 milestones…"
+                                                />
+                                            </div>
+
+                                            <div className="space-y-3 pt-4 border-t border-border">
+                                                <div className="flex items-center justify-between">
+                                                    <h4 className="font-medium">Recipients</h4>
+                                                    <p className="text-xs text-muted-foreground">Wallet or @username · USDC amount</p>
+                                                </div>
+                                                {batchRecipients.map((rec, i) => (
+                                                    <div key={i} className="flex gap-2 items-start">
+                                                        <input
+                                                            value={rec.wallet}
+                                                            onChange={e => {
+                                                                const newR = [...batchRecipients];
+                                                                newR[i].wallet = e.target.value;
+                                                                setBatchRecipients(newR);
+                                                            }}
+                                                            placeholder="0x… or @username"
+                                                            className="flex-1 bg-secondary border border-border rounded-lg p-2.5 text-sm font-mono outline-none focus:ring-1 focus:ring-primary"
+                                                        />
+                                                        <input
+                                                            type="number"
+                                                            value={rec.amount || ''}
+                                                            onChange={e => {
+                                                                const newR = [...batchRecipients];
+                                                                newR[i].amount = Number(e.target.value);
+                                                                setBatchRecipients(newR);
+                                                            }}
+                                                            placeholder="USDC"
+                                                            min="0"
+                                                            step="0.01"
+                                                            className="w-24 bg-secondary border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                                                        />
+                                                        <input
+                                                            value={rec.label || ''}
+                                                            onChange={e => {
+                                                                const newR = [...batchRecipients];
+                                                                newR[i].label = e.target.value;
+                                                                setBatchRecipients(newR);
+                                                            }}
+                                                            placeholder="Label"
+                                                            className="w-28 bg-secondary border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-primary"
+                                                        />
+                                                        {batchRecipients.length > 1 && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                className="text-destructive px-2 shrink-0"
+                                                                onClick={() => setBatchRecipients(batchRecipients.filter((_, idx) => idx !== i))}
+                                                            >
+                                                                ×
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="w-full border-dashed"
+                                                    onClick={() => setBatchRecipients([...batchRecipients, { wallet: '', amount: 0, label: '' }])}
+                                                >
+                                                    <Plus size={14} className="mr-1" /> Add Recipient
+                                                </Button>
+                                            </div>
+
+                                            {/* Total summary */}
+                                            {batchRecipients.some(r => r.amount > 0) && (
+                                                <div className="flex justify-between items-center bg-primary/5 border border-primary/20 rounded-xl px-4 py-3">
+                                                    <span className="text-sm text-muted-foreground">Total to send</span>
+                                                    <span className="font-bold text-primary">
+                                                        {batchRecipients.reduce((s, r) => s + Number(r.amount || 0), 0).toFixed(2)} USDC
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex justify-end gap-3 pt-4 border-t border-border">
+                                            <Button variant="ghost" onClick={() => { setIsCreateOpen(false); resetBatchForm(); }}>Cancel</Button>
+                                            <Button
+                                                onClick={handleSendBatch}
+                                                disabled={batchLoading || !batchRecipients.some(r => r.wallet && r.amount > 0)}
+                                                className="gap-2"
+                                            >
+                                                {batchLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <Users size={16} />}
+                                                Send to {batchRecipients.filter(r => r.wallet && r.amount > 0).length} Recipient{batchRecipients.filter(r => r.wallet && r.amount > 0).length !== 1 ? 's' : ''}
+                                            </Button>
+                                        </div>
+                                    </>
+                                )}
+
+                                {/* ── SENDING ── */}
+                                {batchSendStep === 'sending' && (
+                                    <div className="py-6 space-y-6">
+                                        <div className="text-center space-y-2">
+                                            <Loader2 className="animate-spin text-primary w-10 h-10 mx-auto" />
+                                            <p className="text-sm text-muted-foreground">
+                                                Confirm payment <span className="font-semibold text-foreground">{batchSendProgress.current}</span> of <span className="font-semibold text-foreground">{batchSendProgress.total}</span> in your wallet
+                                            </p>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {batchRecipients.filter(r => r.wallet && r.amount > 0).map((r, i) => {
+                                                const done = i < batchSendProgress.current - 1;
+                                                const active = i === batchSendProgress.current - 1;
+                                                return (
+                                                    <div key={i} className={`flex items-center justify-between px-4 py-3 rounded-xl border transition-all ${active ? 'border-primary/40 bg-primary/5' : done ? 'border-green-500/30 bg-green-500/5' : 'border-border bg-secondary/30 opacity-50'}`}>
+                                                        <div className="flex items-center gap-3">
+                                                            {done
+                                                                ? <CheckCircle2 size={16} className="text-green-400 shrink-0" />
+                                                                : active
+                                                                    ? <Loader2 size={16} className="animate-spin text-primary shrink-0" />
+                                                                    : <div className="w-4 h-4 rounded-full border border-muted-foreground/30 shrink-0" />
+                                                            }
+                                                            <span className="font-mono text-xs">{r.wallet.slice(0, 6)}…{r.wallet.slice(-4)}</span>
+                                                            {r.label && <span className="text-xs text-muted-foreground">· {r.label}</span>}
+                                                        </div>
+                                                        <span className="text-sm font-semibold">{r.amount} USDC</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── DONE ── */}
+                                {batchSendStep === 'done' && (
+                                    <div className="py-6 space-y-5">
+                                        <div className="text-center space-y-1">
+                                            {batchSendResults.every(r => r.success)
+                                                ? <><CheckCircle2 className="text-green-400 w-10 h-10 mx-auto" /><p className="font-semibold text-green-400">All payments sent!</p></>
+                                                : <><XCircle className="text-yellow-400 w-10 h-10 mx-auto" /><p className="font-semibold text-yellow-400">Partially completed</p></>
+                                            }
+                                        </div>
+                                        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                                            {batchSendResults.map((r, i) => (
+                                                <div key={i} className={`flex items-center justify-between px-4 py-3 rounded-xl border ${r.success ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
+                                                    <div className="flex items-center gap-3">
+                                                        {r.success
+                                                            ? <CheckCircle2 size={15} className="text-green-400 shrink-0" />
+                                                            : <XCircle size={15} className="text-red-400 shrink-0" />
+                                                        }
+                                                        <div>
+                                                            <p className="font-mono text-xs">{r.wallet.slice(0, 6)}…{r.wallet.slice(-4)}</p>
+                                                            {r.label && <p className="text-xs text-muted-foreground">{r.label}</p>}
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-sm font-semibold">{r.amount} USDC</p>
+                                                        {r.txHash && (
+                                                            <a
+                                                                href={`https://testnet.arcscan.app/tx/${r.txHash}`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="text-xs text-primary hover:underline flex items-center gap-1 justify-end"
+                                                            >
+                                                                <ExternalLink size={10} /> Explorer
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <Button className="w-full" onClick={() => { setIsCreateOpen(false); resetBatchForm(); }}>
+                                            Done
                                         </Button>
                                     </div>
-                                </div>
-                                <div className="flex justify-end gap-3 pt-4 border-t border-border">
-                                    <Button variant="ghost" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-                                    <Button onClick={handleCreateBatch} disabled={batchLoading}>
-                                        {batchLoading ? <Loader2 className="animate-spin mr-2 w-4 h-4" /> : null}
-                                        Create Batch Payment
-                                    </Button>
-                                </div>
+                                )}
                             </DialogContent>
                         </Dialog>
                     </div>
