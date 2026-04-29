@@ -192,6 +192,15 @@ export default function DashboardPage() {
         setBatchSendResults([]);
     };
 
+    // Called by a card's Send button — pre-fills the dialog with only the unsent recipients
+    const handleSendUnsent = (unsentRecipients: BatchRecipient[]) => {
+        resetBatchForm();
+        if (unsentRecipients.length > 0) {
+            setBatchRecipients(unsentRecipients);
+        }
+        setIsCreateOpen(true);
+    };
+
     // Parse a CSV file into recipient rows.
     // Supported columns (with or without header row): address, amount[, label]
     const handleCsvImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -739,7 +748,7 @@ export default function DashboardPage() {
                                                         <span className="font-mono text-xs text-muted-foreground">{r.wallet.slice(0, 6)}…{r.wallet.slice(-4)}</span>
                                                         {r.label && <span className="text-xs text-muted-foreground">· {r.label}</span>}
                                                     </div>
-                                                    <span className="text-xs font-semibold">{r.amount} USDC</span>
+                                                    <span className="text-xs font-semibold">{Number(r.amount).toFixed(2)} USDC</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -769,7 +778,7 @@ export default function DashboardPage() {
                                                             <span className="font-mono text-xs">{r.wallet.slice(0, 6)}…{r.wallet.slice(-4)}</span>
                                                             {r.label && <span className="text-xs text-muted-foreground">· {r.label}</span>}
                                                         </div>
-                                                        <span className="text-xs font-semibold">{r.amount} USDC</span>
+                                                        <span className="text-xs font-semibold">{Number(r.amount).toFixed(2)} USDC</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -803,7 +812,7 @@ export default function DashboardPage() {
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {batches.map((b) => (
-                                <BatchPaymentCard key={b.id} batch={b} />
+                                <BatchPaymentCard key={b.id} batch={b} onSend={handleSendUnsent} />
                             ))}
                         </div>
                     )}
