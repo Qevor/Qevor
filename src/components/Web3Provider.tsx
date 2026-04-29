@@ -20,11 +20,11 @@ export function Web3Provider({ children }: { children: ReactNode }) {
         overrides: {
           evmNetworks: [{
             blockExplorerUrls: ['https://testnet.arcscan.app'],
-            chainId: 4242,
+            chainId: 5042002,
             iconUrls: ['https://rpc.testnet.arc.network/favicon.ico'],
             name: 'Arc Testnet',
-            nativeCurrency: { decimals: 18, name: 'Arc', symbol: 'ARC' },
-            networkId: 4242,
+            nativeCurrency: { decimals: 18, name: 'USDC', symbol: 'USDC' },
+            networkId: 5042002,
             rpcUrls: ['https://rpc.testnet.arc.network'],
           }]
         },
