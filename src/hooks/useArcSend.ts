@@ -30,11 +30,11 @@ export function useArcSend() {
             // the Dynamic Labs embedded wallet doesn't support it and the
             // session is already scoped to Arc Testnet.
             const provider = {
-                request: async (args: { method: string; params?: unknown[] }) => {
+                request: async (args: { method: string; params: unknown[] }) => {
                     if (args.method === 'wallet_switchEthereumChain' || args.method === 'wallet_addEthereumChain') {
                         return null;
                     }
-                    return rawProvider.request(args);
+                    return rawProvider.request(args as any);
                 },
             };
 
