@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { arcKit } from '@/lib/arcKit';
 import { ViemAdapter } from '@circle-fin/adapter-viem-v2';
-import { createWalletClient, custom, type Chain } from 'viem';
+import { createWalletClient, createPublicClient, custom, http, type Chain } from 'viem';
 import type { EIP1193Provider } from 'viem';
 
 interface ArcSendParams {
@@ -30,6 +30,11 @@ export function useArcSend() {
             // Avoids calling eth_requestAccounts which Dynamic Labs embedded
             // wallets do not support (the session is already established).
             const adapter = new ViemAdapter({
+                getPublicClient: ({ chain }: { chain: Chain }) =>
+                    createPublicClient({
+                        chain,
+                        transport: http('https://rpc.testnet.arc.network'),
+                    }),
                 getWalletClient: ({ chain }: { chain: Chain }) =>
                     createWalletClient({
                         account: address,
