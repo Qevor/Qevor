@@ -65,7 +65,7 @@ export function useArcSend() {
                 from: { adapter, chain: 'Arc_Testnet' },
                 to,
                 amount,
-                token: 'NATIVE',
+                token: 'USDC',
             });
 
             if (result.state === 'error') {
