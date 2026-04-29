@@ -173,7 +173,7 @@ export function WalletTab() {
                                         onClick={() => { setSendOpen(false); navigate('/dashboard?tab=batch'); }}
                                         className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
                                     >
-                                        Need to send to multiple people? <span className="underline">Create a Batch Request</span>
+                                        Need to send to multiple people? <span className="underline">Create a Batch Payment</span>
                                     </button>
                                 </div>
                             </div>

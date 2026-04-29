@@ -3,31 +3,31 @@ import { Copy, QrCode, CheckCircle2, ChevronRight } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
-import { BatchRequest, useBatchRequests } from '@/hooks/useBatchRequests';
+import { Batch, useBatchPayments } from '@/hooks/useBatchPayments';
 
-interface BatchRequestCardProps {
-    request: BatchRequest;
+interface BatchPaymentCardProps {
+    batch: Batch;
 }
 
-export function BatchRequestCard({ request }: BatchRequestCardProps) {
+export function BatchPaymentCard({ batch }: BatchPaymentCardProps) {
     const [copied, setCopied] = useState(false);
     const [paidCount, setPaidCount] = useState(0);
-    const { getBatchPayments } = useBatchRequests();
+    const { getBatchPayments } = useBatchPayments();
 
-    const requestUrl = `${import.meta.env.VITE_APP_URL || 'https://qevor.app'}/request/${request.id}`;
+    const batchUrl = `${import.meta.env.VITE_APP_URL || 'https://qevor.app'}/request/${batch.id}`;
 
     useEffect(() => {
         const fetchPayments = async () => {
-            const payments = await getBatchPayments(request.id);
+            const payments = await getBatchPayments(batch.id);
             setPaidCount(payments.length);
         };
         fetchPayments();
-    }, [request.id]);
+    }, [batch.id]);
 
     const handleCopy = async () => {
-        await navigator.clipboard.writeText(requestUrl);
+        await navigator.clipboard.writeText(batchUrl);
         setCopied(true);
-        toast.success("Link copied!");
+        toast.success('Link copied!');
         setTimeout(() => setCopied(false), 2000);
     };
 
@@ -41,11 +41,11 @@ export function BatchRequestCard({ request }: BatchRequestCardProps) {
         <div className="glass-card p-5 rounded-2xl flex flex-col gap-4 border border-border/50 hover:border-primary/30 transition-colors">
             <div className="flex justify-between items-start">
                 <div>
-                    <h3 className="font-semibold text-lg text-foreground line-clamp-1">{request.title || 'Batch Request'}</h3>
-                    <p className="text-sm text-muted-foreground line-clamp-1">{request.description || 'No description provided'}</p>
+                    <h3 className="font-semibold text-lg text-foreground line-clamp-1">{batch.title || 'Batch Payment'}</h3>
+                    <p className="text-sm text-muted-foreground line-clamp-1">{batch.description || 'No description provided'}</p>
                 </div>
-                <div className={`px-2.5 py-1 rounded-full text-xs font-semibold lowercase border ${statusColors[request.status]}`}>
-                    {request.status}
+                <div className={`px-2.5 py-1 rounded-full text-xs font-semibold lowercase border ${statusColors[batch.status]}`}>
+                    {batch.status}
                 </div>
             </div>
 
@@ -53,18 +53,18 @@ export function BatchRequestCard({ request }: BatchRequestCardProps) {
                 <div className="flex-1 space-y-1.5">
                     <div className="flex justify-between text-xs text-muted-foreground">
                         <span>Progress</span>
-                        <span>{paidCount} / {request.recipients.length} paid</span>
+                        <span>{paidCount} / {batch.recipients.length} paid</span>
                     </div>
                     <div className="h-2 rounded-full bg-secondary overflow-hidden">
                         <div
                             className="h-full bg-primary"
-                            style={{ width: `${(paidCount / request.recipients.length) * 100}%` }}
+                            style={{ width: `${(paidCount / batch.recipients.length) * 100}%` }}
                         />
                     </div>
                 </div>
                 <div className="text-right">
                     <div className="text-xs text-muted-foreground">Total USDC</div>
-                    <div className="font-semibold text-foreground">{request.total_amount.toFixed(2)}</div>
+                    <div className="font-semibold text-foreground">{batch.total_amount.toFixed(2)}</div>
                 </div>
             </div>
 
@@ -84,18 +84,18 @@ export function BatchRequestCard({ request }: BatchRequestCardProps) {
                         </button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-md bg-card border-border flex flex-col items-center p-8">
-                        <h3 className="text-xl font-bold gradient-text mb-4 text-center">Batch Request</h3>
+                        <h3 className="text-xl font-bold gradient-text mb-4 text-center">Batch Payment</h3>
                         <div className="bg-white p-4 rounded-xl shadow-glow">
-                            <QRCode value={requestUrl} size={200} />
+                            <QRCode value={batchUrl} size={200} />
                         </div>
                         <p className="text-sm text-muted-foreground text-center mt-6 break-all w-full leading-relaxed border border-border p-3 rounded-lg bg-secondary/50">
-                            {requestUrl}
+                            {batchUrl}
                         </p>
                     </DialogContent>
                 </Dialog>
 
                 <a
-                    href={requestUrl}
+                    href={batchUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary/20 px-4 py-2.5 transition-colors"

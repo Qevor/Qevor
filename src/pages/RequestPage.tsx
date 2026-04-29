@@ -6,11 +6,11 @@ import { arcTestnet } from '@/lib/arcChain';
 import { Loader2, Share2, Wallet, CheckCircle2, Copy } from 'lucide-react';
 import Confetti from 'react-confetti';
 import { toast } from 'sonner';
-import { useBatchRequests, BatchRequest, BatchPayment } from '@/hooks/useBatchRequests';
+import { useBatchPayments, Batch, BatchPayment } from '@/hooks/useBatchPayments';
 
 export default function RequestPage() {
     const { id } = useParams<{ id: string }>();
-    const [request, setRequest] = useState<BatchRequest | null>(null);
+    const [request, setRequest] = useState<Batch | null>(null);
     const [payments, setPayments] = useState<BatchPayment[]>([]);
     const [isSuccess, setIsSuccess] = useState(false);
 
@@ -18,7 +18,7 @@ export default function RequestPage() {
     const [isPaying, setIsPaying] = useState(false);
     const [isConfirming, setIsConfirming] = useState(false);
 
-    const { getBatchRequest, getBatchPayments, recordBatchPayment, updateBatchStatus, loading } = useBatchRequests();
+    const { getBatch, getBatchPayments, recordBatchPayment, updateBatchStatus, loading } = useBatchPayments();
 
     const { address, isConnected } = useAccount();
     const { connect, connectors } = useConnect();
@@ -27,7 +27,7 @@ export default function RequestPage() {
 
     const fetchData = async () => {
         if (!id) return;
-        const req = await getBatchRequest(id);
+        const req = await getBatch(id);
         setRequest(req);
         if (req) {
             const pays = await getBatchPayments(id);
@@ -125,7 +125,7 @@ export default function RequestPage() {
 
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold gradient-text">{request.title || 'Batch Payment Request'}</h1>
+                        <h1 className="text-3xl font-bold gradient-text">{request.title || 'Batch Payment'}</h1>
                         <p className="text-muted-foreground mt-2">{request.description}</p>
                     </div>
                     <div className="text-left sm:text-right">
@@ -227,7 +227,7 @@ export default function RequestPage() {
                     </div>
                 ) : (
                     <div className="text-center text-sm text-muted-foreground">
-                        Your wallet ({shortAddr(address)}) is not on the recipients list for this batch request.
+                        Your wallet ({shortAddr(address)}) is not on the recipients list for this batch payment.
                     </div>
                 )}
             </div>

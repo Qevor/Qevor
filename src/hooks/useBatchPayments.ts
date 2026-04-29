@@ -7,7 +7,7 @@ export interface BatchRecipient {
     label?: string;
 }
 
-export interface BatchRequest {
+export interface Batch {
     id: string;
     creator_wallet: string;
     title?: string;
@@ -30,13 +30,13 @@ export interface BatchPayment {
     created_at: string;
 }
 
-export function useBatchRequests() {
+export function useBatchPayments() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const createBatchRequest = async (
-        data: Omit<BatchRequest, 'id' | 'created_at' | 'status'>
-    ): Promise<BatchRequest | null> => {
+    const createBatch = async (
+        data: Omit<Batch, 'id' | 'created_at' | 'status'>
+    ): Promise<Batch | null> => {
         setLoading(true);
         setError(null);
         try {
@@ -47,9 +47,9 @@ export function useBatchRequests() {
                 .single();
 
             if (sbError) throw sbError;
-            return result as BatchRequest;
+            return result as Batch;
         } catch (err: any) {
-            console.error('Error creating batch request:', err);
+            console.error('Error creating batch payment:', err);
             setError(err.message);
             return null;
         } finally {
@@ -57,7 +57,7 @@ export function useBatchRequests() {
         }
     };
 
-    const getBatchRequest = async (id: string): Promise<BatchRequest | null> => {
+    const getBatch = async (id: string): Promise<Batch | null> => {
         setLoading(true);
         setError(null);
         try {
@@ -68,9 +68,9 @@ export function useBatchRequests() {
                 .single();
 
             if (sbError) throw sbError;
-            return data as BatchRequest;
+            return data as Batch;
         } catch (err: any) {
-            console.error('Error fetching batch request:', err);
+            console.error('Error fetching batch payment:', err);
             setError(err.message);
             return null;
         } finally {
@@ -78,7 +78,7 @@ export function useBatchRequests() {
         }
     };
 
-    const getBatchRequestsByWallet = async (wallet: string): Promise<BatchRequest[]> => {
+    const getBatchesByWallet = async (wallet: string): Promise<Batch[]> => {
         setLoading(true);
         setError(null);
         try {
@@ -89,9 +89,9 @@ export function useBatchRequests() {
                 .order('created_at', { ascending: false });
 
             if (sbError) throw sbError;
-            return (data || []) as BatchRequest[];
+            return (data || []) as Batch[];
         } catch (err: any) {
-            console.error('Error fetching batch requests:', err);
+            console.error('Error fetching batch payments:', err);
             setError(err.message);
             return [];
         } finally {
@@ -117,9 +117,6 @@ export function useBatchRequests() {
             }]);
 
             if (insertError) throw insertError;
-
-            // Automatically evaluate status update for the batch!
-            // Here we just let RequestPage handle status if we want, or do a quick re-check
         } catch (err: any) {
             console.error('Error recording batch payment:', err);
             throw err;
@@ -129,10 +126,10 @@ export function useBatchRequests() {
     const updateBatchStatus = async (batchId: string, status: 'pending' | 'partial' | 'complete') => {
         try {
             await supabase.from('batch_requests').update({ status }).eq('id', batchId);
-        } catch (error) {
-            console.error("error updating batch status", error)
+        } catch (err) {
+            console.error('Error updating batch status:', err);
         }
-    }
+    };
 
     const getBatchPayments = async (batchId: string): Promise<BatchPayment[]> => {
         try {
@@ -166,9 +163,9 @@ export function useBatchRequests() {
     };
 
     return {
-        createBatchRequest,
-        getBatchRequest,
-        getBatchRequestsByWallet,
+        createBatch,
+        getBatch,
+        getBatchesByWallet,
         recordBatchPayment,
         getBatchPayments,
         getBatchPaymentsByWallet,

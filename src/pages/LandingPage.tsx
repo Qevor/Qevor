@@ -15,7 +15,7 @@ export default function LandingPage() {
                 </div>
 
                 <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mb-10 text-balance">
-                    The decentralized payment layer for Arc. Create versatile payment links and request batch payments seamlessly.
+                    The decentralized payment layer for Arc. Create versatile payment links and send batch payments seamlessly.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-6 items-center justify-center w-full max-w-lg">
@@ -62,9 +62,9 @@ export default function LandingPage() {
                             <div className="p-3 rounded-xl bg-primary/10 text-primary mb-5 group-hover:scale-110 transition-transform">
                                 <LayoutList className="w-6 h-6" />
                             </div>
-                            <h3 className="text-xl font-bold mb-3">Batch Requests</h3>
+                            <h3 className="text-xl font-bold mb-3">Batch Payments</h3>
                             <p className="text-muted-foreground leading-relaxed">
-                                Request payments from multiple wallets simultaneously. Track progress and handle group expenses with ease.
+                                Send payments to multiple wallets simultaneously. Track progress and manage group payouts with ease.
                             </p>
                         </div>
                     </div>

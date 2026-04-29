@@ -6,10 +6,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Plus, Loader2, LogIn, ExternalLink, Receipt as ReceiptIcon, Copy, Check, Link2, ArrowDownLeft, ArrowUpRight, Users } from 'lucide-react';
 import { PaymentLinkCard } from '@/components/PaymentLinkCard';
-import { BatchRequestCard } from '@/components/BatchRequestCard';
+import { BatchPaymentCard } from '@/components/BatchPaymentCard';
 import { SplitInput } from '@/components/SplitInput';
 import { supabase } from '@/integrations/supabase/client';
-import { useBatchRequests, BatchRecipient, BatchPayment } from '@/hooks/useBatchRequests';
+import { useBatchPayments, BatchRecipient, BatchPayment } from '@/hooks/useBatchPayments';
 import { useProfiles } from '@/hooks/useProfiles';
 import { usePaymentLinks } from '@/hooks/usePaymentLinks';
 import { WalletTab } from '@/components/WalletTab';
@@ -25,12 +25,12 @@ export default function DashboardPage() {
 
     const [links, setLinks] = useState<any[]>([]);
     const [receipts, setReceipts] = useState<any[]>([]);
-    const [batchRequests, setBatchRequests] = useState<any[]>([]);
+    const [batches, setBatches] = useState<any[]>([]);
 
     const [loadingLinks, setLoadingLinks] = useState(false);
     const [loadingReceipts, setLoadingReceipts] = useState(false);
 
-    const { getBatchRequestsByWallet, createBatchRequest, getBatchPaymentsByWallet, loading: batchLoading } = useBatchRequests();
+    const { getBatchesByWallet, createBatch, getBatchPaymentsByWallet, loading: batchLoading } = useBatchPayments();
 
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [batchTitle, setBatchTitle] = useState('');
@@ -98,8 +98,8 @@ export default function DashboardPage() {
 
     const fetchBatches = async () => {
         if (!address) return;
-        const requests = await getBatchRequestsByWallet(address);
-        setBatchRequests(requests);
+        const results = await getBatchesByWallet(address);
+        setBatches(results);
     };
 
     const fetchBatchReceiptGroups = async () => {
@@ -206,17 +206,17 @@ export default function DashboardPage() {
 
         const totalAmount = resolvedRecipients.reduce((sum, r) => sum + Number(r.amount), 0);
 
-        const newBatch = await createBatchRequest({
+        const newBatch = await createBatch({
             title: batchTitle,
             description: batchDesc,
             creator_wallet: address,
             recipients: resolvedRecipients,
             total_amount: totalAmount,
-            expires_at: null, // optional feature
+            expires_at: null,
         });
 
         if (newBatch) {
-            toast.success('Batch request created!');
+            toast.success('Batch payment created!');
             setIsCreateOpen(false);
             fetchBatches(); // refesh list
         }
@@ -253,7 +253,7 @@ export default function DashboardPage() {
                 <TabsList className="bg-secondary/50 border border-border p-1 mb-8 w-full justify-start overflow-x-auto flex-nowrap">
                     <TabsTrigger value="wallet" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">Wallet</TabsTrigger>
                     <TabsTrigger value="links" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">My Links</TabsTrigger>
-                    <TabsTrigger value="batch" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">Batch Requests</TabsTrigger>
+                    <TabsTrigger value="batch" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">Batch Payments</TabsTrigger>
                     <TabsTrigger value="receipts" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">Receipts</TabsTrigger>
                 </TabsList>
 
@@ -470,19 +470,19 @@ export default function DashboardPage() {
                     )}
                 </TabsContent>
 
-                {/* BATCH REQUESTS TAB */}
+                {/* BATCH PAYMENTS TAB */}
                 <TabsContent value="batch" className="space-y-6">
                     <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-xl font-semibold">Your Batch Requests</h2>
+                        <h2 className="text-xl font-semibold">Your Batch Payments</h2>
                         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                             <DialogTrigger asChild>
                                 <Button className="gap-2">
-                                    <Plus size={16} /> New Batch Request
+                                    <Plus size={16} /> New Batch Payment
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-2xl bg-card border-border max-h-[90vh] overflow-y-auto">
                                 <DialogHeader>
-                                    <DialogTitle>Create Batch Request</DialogTitle>
+                                    <DialogTitle>Create Batch Payment</DialogTitle>
                                 </DialogHeader>
                                 <div className="space-y-4 py-4">
                                     <div>
@@ -568,21 +568,21 @@ export default function DashboardPage() {
                                     <Button variant="ghost" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
                                     <Button onClick={handleCreateBatch} disabled={batchLoading}>
                                         {batchLoading ? <Loader2 className="animate-spin mr-2 w-4 h-4" /> : null}
-                                        Create Request
+                                        Create Batch Payment
                                     </Button>
                                 </div>
                             </DialogContent>
                         </Dialog>
                     </div>
 
-                    {batchLoading && batchRequests.length === 0 ? (
+                    {batchLoading && batches.length === 0 ? (
                         <div className="flex justify-center p-12"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>
-                    ) : batchRequests.length === 0 ? (
-                        <div className="text-center py-20 text-muted-foreground">No batch requests found.</div>
+                    ) : batches.length === 0 ? (
+                        <div className="text-center py-20 text-muted-foreground">No batch payments found.</div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {batchRequests.map((req) => (
-                                <BatchRequestCard key={req.id} request={req} />
+                            {batches.map((b) => (
+                                <BatchPaymentCard key={b.id} batch={b} />
                             ))}
                         </div>
                     )}
