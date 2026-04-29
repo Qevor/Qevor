@@ -24,7 +24,19 @@ export function useArcSend() {
 
         setIsPending(true);
         try {
-            const provider = (await connector.getProvider()) as EIP1193Provider;
+            const rawProvider = (await connector.getProvider()) as EIP1193Provider;
+
+            // Wrap provider to silently ignore wallet_switchEthereumChain —
+            // the Dynamic Labs embedded wallet doesn't support it and the
+            // session is already scoped to Arc Testnet.
+            const provider = {
+                request: async (args: { method: string; params?: unknown[] }) => {
+                    if (args.method === 'wallet_switchEthereumChain' || args.method === 'wallet_addEthereumChain') {
+                        return null;
+                    }
+                    return rawProvider.request(args);
+                },
+            };
 
             // Build ViemAdapter directly with the already-known address.
             // Avoids calling eth_requestAccounts which Dynamic Labs embedded
