@@ -1,6 +1,6 @@
 # Qevor
 
-A production-ready decentralized payment application for creating, sharing, and managing crypto payment links, batch requests, and seamless wallet-to-wallet transfers. Formed by unifying the Arc-pay and ArcPayto projects, Qevor is designed for the Arc Testnet.
+A production-ready decentralized payment application for creating, sharing, and managing crypto payment links, batch requests, and seamless wallet-to-wallet transfers. Qevor is designed for the Arc Testnet.
 
 ## ✨ Features
 
