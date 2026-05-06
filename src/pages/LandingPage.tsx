@@ -137,7 +137,7 @@ export default function LandingPage() {
 
           {/* visual card */}
           <div className="rounded-3xl border border-border bg-card shadow-elegant overflow-hidden relative">
-            <div className="w-full h-[420px] relative" style={{background:'radial-gradient(ellipse at 30% 30%, hsl(211 85% 25% / 0.7), transparent 50%), radial-gradient(ellipse at 70% 60%, hsl(222 70% 20% / 0.6), transparent 50%), radial-gradient(ellipse at 50% 80%, hsl(200 90% 15% / 0.5), transparent 40%), hsl(232 17% 8%)'}}>
+            <div className="w-full h-[420px] relative" style={{background:'radial-gradient(ellipse at 30% 30%, hsl(191 100% 30% / 0.7), transparent 50%), radial-gradient(ellipse at 70% 60%, hsl(191 100% 20% / 0.6), transparent 50%), radial-gradient(ellipse at 50% 80%, hsl(191 100% 15% / 0.5), transparent 40%), hsl(223 84% 5%)'}}>
               {/* Floating payment visualizations */}
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="relative w-full max-w-md">
@@ -201,7 +201,7 @@ export default function LandingPage() {
             num: '01', tag: 'QEVOR ID', title: 'Username System',
             body: 'Claim a unique @handle tied to your wallet. Share it instead of a 42-character address — safer, faster, human-readable.',
             icon: <Users className="h-4 w-4" />,
-            visual: <div className="w-full h-full flex items-center justify-center" style={{background:'radial-gradient(ellipse at 30% 50%, hsl(211 85% 30% / 0.6), transparent 70%), radial-gradient(ellipse at 70% 20%, hsl(222 70% 25% / 0.5), transparent 60%), hsl(232 17% 10%)'}}>
+            visual: <div className="w-full h-full flex items-center justify-center" style={{background:'radial-gradient(ellipse at 30% 50%, hsl(191 100% 20% / 0.6), transparent 70%), radial-gradient(ellipse at 70% 20%, hsl(191 100% 15% / 0.5), transparent 60%), hsl(222 47% 11%)'}}>
               <div className="text-center space-y-2">
                 <div className="w-16 h-16 rounded-full border-2 border-primary/60 flex items-center justify-center mx-auto bg-primary/10 shadow-glow">
                   <span className="font-mono text-xl text-primary font-bold">@</span>
@@ -214,7 +214,7 @@ export default function LandingPage() {
             num: '02', tag: 'PAYMENT LINKS', title: 'Signed URLs',
             body: 'Generate shareable payment links that specify amount and receiver. Anyone can pay you in seconds from any wallet.',
             icon: <Link2 className="h-4 w-4" />,
-            visual: <div className="w-full h-full flex items-center justify-center" style={{background:'radial-gradient(ellipse at 60% 40%, hsl(200 90% 25% / 0.6), transparent 70%), radial-gradient(ellipse at 20% 70%, hsl(215 80% 20% / 0.5), transparent 60%), hsl(232 17% 10%)'}}>
+            visual: <div className="w-full h-full flex items-center justify-center" style={{background:'radial-gradient(ellipse at 60% 40%, hsl(191 100% 25% / 0.6), transparent 70%), radial-gradient(ellipse at 20% 70%, hsl(191 100% 15% / 0.5), transparent 60%), hsl(222 47% 11%)'}}>
               <div className="space-y-2 w-full px-6">
                 <div className="rounded-xl border border-primary/30 bg-card/60 px-3 py-2 font-mono text-xs text-primary/80 truncate">
                   qevor.vercel.app/pay?to=@aria&amount=250
@@ -229,7 +229,7 @@ export default function LandingPage() {
             num: '03', tag: 'BATCH PAYOUTS', title: 'CSV → 1 Transaction',
             body: 'Paste a CSV of addresses and amounts. Qevor fans them into a single on-chain batch — gas-efficient mass distribution.',
             icon: <Receipt className="h-4 w-4" />,
-            visual: <div className="w-full h-full flex items-center justify-center" style={{background:'radial-gradient(ellipse at 50% 30%, hsl(225 65% 25% / 0.6), transparent 70%), radial-gradient(ellipse at 80% 70%, hsl(200 80% 20% / 0.5), transparent 60%), hsl(232 17% 10%)'}}>
+            visual: <div className="w-full h-full flex items-center justify-center" style={{background:'radial-gradient(ellipse at 50% 30%, hsl(191 100% 20% / 0.6), transparent 70%), radial-gradient(ellipse at 80% 70%, hsl(191 100% 15% / 0.5), transparent 60%), hsl(222 47% 11%)'}}>
               <div className="space-y-1.5 px-6 w-full">
                 {['@aria · 250','@bola · 180','@dao · 5,000','@satoshi · 1,000'].map((r,i) => (
                   <div key={i} className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/50 px-3 py-1.5">

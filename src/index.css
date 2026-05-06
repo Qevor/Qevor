@@ -6,43 +6,43 @@
 
 @layer base {
   :root {
-    /* Qevor Design System — oklch palette mapped to HSL for Tailwind */
-    --background: 230 18% 11%;        /* oklch(0.16 0.02 240) deep midnight navy */
-    --foreground: 225 40% 96%;        /* oklch(0.97 0.01 230) near-white */
+    /* Qevor Design System — Exact match to Lovable app reference */
+    --background: 223 84% 5%;         /* #020817 Deep Midnight */
+    --foreground: 210 40% 98%;        /* #F8FAFC Slate 50 */
 
-    --card: 232 17% 15%;              /* oklch(0.21 0.025 240) raised midnight */
-    --card-foreground: 225 40% 96%;
+    --card: 222 47% 11%;              /* #0F172A Slate 900 */
+    --card-foreground: 210 40% 98%;
 
-    --popover: 232 17% 15%;
-    --popover-foreground: 225 40% 96%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 211 85% 62%;           /* oklch(0.78 0.16 225) electric cyan */
-    --primary-foreground: 230 18% 8%;
+    --primary: 191 100% 50%;          /* #00D1FF Bright Cyan */
+    --primary-foreground: 0 0% 0%;
 
-    --secondary: 232 15% 18%;
-    --secondary-foreground: 225 20% 85%;
+    --secondary: 217 33% 17%;         /* #1E293B Slate 800 */
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 232 15% 18%;
-    --muted-foreground: 228 12% 62%;  /* oklch(0.7 0.03 235) subdued slate */
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 25% 65%;  /* #94A3B8 Slate 400 */
 
-    --accent: 222 55% 45%;            /* oklch(0.55 0.18 230) saturated blue */
-    --accent-foreground: 225 40% 96%;
+    --accent: 191 100% 50%;           
+    --accent-foreground: 0 0% 0%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 228 20% 28%;            /* oklch(0.3 0.04 240 / 60%) translucent */
-    --input: 228 20% 20%;
-    --ring: 211 85% 62%;
+    --border: 217 33% 17%;            /* #1E293B Slate 800 */
+    --input: 217 33% 17%;
+    --ring: 191 100% 50%;
 
     --radius: 1rem;
 
     /* Brand gradients */
-    --gradient-brand: linear-gradient(135deg, hsl(211, 85%, 62%), hsl(222, 70%, 48%));
-    --gradient-glow: radial-gradient(60% 60% at 50% 0%, hsl(225 65% 50% / 0.35), transparent 70%);
-    --shadow-elegant: 0 30px 80px -30px hsl(225 65% 50% / 0.45);
-    --shadow-glow: 0 0 30px -5px hsl(211 85% 62% / 0.4);
-    --shadow-glow-lg: 0 0 60px -10px hsl(211 85% 62% / 0.3);
+    --gradient-brand: linear-gradient(135deg, hsl(191, 100%, 50%), hsl(222, 70%, 48%));
+    --gradient-glow: radial-gradient(60% 60% at 50% 0%, hsl(191 100% 50% / 0.15), transparent 70%);
+    --shadow-elegant: 0 30px 80px -30px hsl(191 100% 50% / 0.25);
+    --shadow-glow: 0 0 30px -5px hsl(191 100% 50% / 0.4);
+    --shadow-glow-lg: 0 0 60px -10px hsl(191 100% 50% / 0.3);
   }
 }
 
