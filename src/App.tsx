@@ -14,8 +14,10 @@ import SendPage from '@/pages/SendPage'
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
-  const hideNavPaths = ['/pay', '/receipt', '/request'];
-  const showNav = !hideNavPaths.some(path => location.pathname.startsWith(path));
+  const hideNavPaths = ['/pay', '/receipt', '/request', '/'];
+  const showNav = !hideNavPaths.some(path =>
+    path === '/' ? location.pathname === '/' : location.pathname.startsWith(path)
+  );
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-sans">
