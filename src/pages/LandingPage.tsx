@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight, Link2, Users, Wallet, ShieldCheck, Sparkles,
-  Receipt, Github, Copy, Check, Search, LayoutDashboard
+  Receipt, Github, Copy, Check, Search, LayoutDashboard, Twitter
 } from 'lucide-react';
 
 /* ── helpers ──────────────────────────────────── */
@@ -487,9 +487,14 @@ USDC_TOKEN=0xNative`}
           <div className="rounded-3xl p-8 flex flex-col gap-4" style={{ background: 'var(--gradient-brand)' }}>
             <p className="font-display text-2xl text-primary-foreground">Building on Arc?</p>
             <p className="text-sm text-primary-foreground/80">Qevor is open-source. Fork it, extend it, or contribute.</p>
-            <a href="https://github.com/Qevor/Qevor" target="_blank" rel="noreferrer" className="self-start flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-medium bg-primary-foreground text-background hover-scale">
-              <Github className="h-4 w-4" />View on GitHub
-            </a>
+            <div className="flex gap-4">
+              <a href="https://github.com/Qevor/Qevor" target="_blank" rel="noreferrer" className="self-start flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-medium bg-primary-foreground text-background hover-scale">
+                <Github className="h-4 w-4" />View on GitHub
+              </a>
+              <a href="https://x.com/Qevorpay" target="_blank" rel="noreferrer" className="self-start flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-medium border border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10 hover-scale transition-colors">
+                <Twitter className="h-4 w-4" />Follow updates
+              </a>
+            </div>
           </div>
         </div>
       </section>
@@ -502,10 +507,13 @@ USDC_TOKEN=0xNative`}
             <span className="font-display text-sm">Qevor</span>
             <span className="text-muted-foreground text-xs">· Payment hub for Arc</span>
           </div>
-          <nav className="flex gap-6 text-sm text-muted-foreground">
+          <nav className="flex gap-6 text-sm text-muted-foreground items-center">
             {[['#product','Product'],['#how','How it works'],['#network','Network'],['https://qevor.vercel.app/dashboard','App']].map(([h,l])=>(
               <a key={h} href={h} className="hover:text-foreground transition-colors">{l}</a>
             ))}
+            <a href="https://x.com/Qevorpay" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors ml-4 border-l border-border/60 pl-6 flex items-center gap-2">
+              <Twitter className="h-4 w-4" /> X
+            </a>
           </nav>
           <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Qevor Labs</p>
         </div>
