@@ -20,6 +20,8 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url)
+  const requestOrigin = req.headers.get('origin') || url.origin
+  const appOrigin = APP_ORIGIN || requestOrigin
   let to = url.searchParams.get('to') || ''
   let amount = url.searchParams.get('amount') || '0'
   const linkId = url.searchParams.get('link')
@@ -39,8 +41,8 @@ Deno.serve(async (req) => {
   }
 
   const spaUrl = linkId
-    ? `${APP_ORIGIN}/pay?link=${encodeURIComponent(linkId)}&to=${encodeURIComponent(to)}&amount=${encodeURIComponent(amount)}`
-    : `${APP_ORIGIN}/pay?to=${encodeURIComponent(to)}&amount=${encodeURIComponent(amount)}`
+    ? `${appOrigin}/pay?link=${encodeURIComponent(linkId)}&to=${encodeURIComponent(to)}&amount=${encodeURIComponent(amount)}`
+    : `${appOrigin}/pay?to=${encodeURIComponent(to)}&amount=${encodeURIComponent(amount)}`
 
   const ogImageUrl = `${OG_IMAGE_URL}?amount=${encodeURIComponent(amount)}&to=${encodeURIComponent(to)}`
   const displayAmount = parseFloat(amount).toFixed(2)

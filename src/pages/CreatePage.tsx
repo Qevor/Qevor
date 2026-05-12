@@ -6,6 +6,7 @@ import { SplitInput } from '@/components/SplitInput'
 import { usePaymentLinks } from '@/hooks/usePaymentLinks'
 import { useAccount } from 'wagmi'
 import { useProfiles } from '@/hooks/useProfiles'
+import { getAppUrl } from '@/lib/appUrl'
 
 const CreatePage = () => {
   const { createLinks, loading: isCreatingLinks } = usePaymentLinks()
@@ -47,7 +48,7 @@ const CreatePage = () => {
   const [splitExpiresAt, setSplitExpiresAt] = useState<string[]>([])
   const [splitMaxUses, setSplitMaxUses] = useState<string[]>([])
 
-  const appUrl = import.meta.env.VITE_APP_URL || window.location.origin
+  const appUrl = getAppUrl()
   const shareUrl = generatedLinkId
     ? `${appUrl}/pay?link=${generatedLinkId}`
     : `${appUrl}/pay?to=${recipientInput}&amount=${amount}`

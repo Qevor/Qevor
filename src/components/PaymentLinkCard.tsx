@@ -10,6 +10,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { getAppUrl } from '@/lib/appUrl';
 
 interface PaymentLinkCardProps {
     linkData: PaymentLinkData;
@@ -18,7 +19,7 @@ interface PaymentLinkCardProps {
 export function PaymentLinkCard({ linkData }: PaymentLinkCardProps) {
     const [copied, setCopied] = useState(false);
 
-    const payUrl = `${import.meta.env.VITE_APP_URL || 'https://qevor.app'}/pay?link=${linkData.id}`;
+    const payUrl = `${getAppUrl()}/pay?link=${linkData.id}`;
 
     const isExpired = linkData.expires_at ? new Date(linkData.expires_at) < new Date() : false;
     const isMaxed = linkData.max_uses !== null && linkData.current_uses! >= linkData.max_uses!;

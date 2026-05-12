@@ -16,6 +16,7 @@ import { WalletTab } from '@/components/WalletTab';
 import { useBatchSend } from '@/hooks/useBatchSend';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { getAppUrl } from '@/lib/appUrl';
 
 export default function DashboardPage() {
     const { address, isConnected } = useAccount();
@@ -68,7 +69,7 @@ export default function DashboardPage() {
         createdAt: string;
     }>>([]);
 
-    const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+    const appUrl = getAppUrl();
 
     useEffect(() => {
         if (address) {
