@@ -62,3 +62,15 @@ npm run build
 ```
 
 Deploy the resulting `dist/` folder to Vercel, Netlify, or any compatible static hosting provider.
+
+## Agent Wallets (AI Treasurer)
+
+Register Circle Agent Wallets as first-class Qevor primitives. Set spending policies (per-tx, daily, weekly, monthly caps, allowlists, blocklists, time-of-day, cosign thresholds) via a guided UI. Policies mirror Circle's native `wallet limit set` model on mainnet while Qevor enforces them on testnet. Every action is logged to an immutable audit trail. See [docs/agent-stack.md](docs/agent-stack.md) for architecture details.
+
+## Autonomous Batches
+
+Enable policy-gated autonomous batch execution via a dedicated executor service. The executor evaluates each batch line item against the wallet's policy: auto-executing approved lines, escalating cosign-threshold lines to a human approval queue, and blocking policy violations. All decisions are audit-logged with on-chain tx hashes. See [docs/agent-stack.md](docs/agent-stack.md) for the execution flow.
+
+## Self-hosting on a VPS
+
+Qevor can be self-hosted on a single Ubuntu VPS with a Namecheap domain. The `deploy/` directory contains everything needed: bootstrap script, systemd units, nginx config, env templates, and operational runbooks. See [deploy/README.md](deploy/README.md) for full instructions.

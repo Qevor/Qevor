@@ -1,0 +1,24 @@
+[Unit]
+Description=Qevor Executor (autonomous batch processor)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=qevor-executor
+Group=qevor-executor
+WorkingDirectory=/opt/qevor/server
+EnvironmentFile=/etc/qevor/qevor-executor.env
+ExecStart=/usr/bin/node /opt/qevor/server/dist/executor/index.js
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/qevor-executor /var/log/qevor
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

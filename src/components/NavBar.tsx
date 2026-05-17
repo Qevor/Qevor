@@ -49,6 +49,7 @@ export default function NavBar() {
                         <Link to="/create" className="text-muted-foreground hover:text-primary transition-colors">Create</Link>
                         <Link to="/send" className="text-muted-foreground hover:text-primary transition-colors">Send</Link>
                         <Link to="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">Dashboard</Link>
+                        <Link to="/agents" className="text-muted-foreground hover:text-primary transition-colors">Agents</Link>
                     </div>
                     {isConnected && address ? (
                         <>
@@ -67,6 +68,9 @@ export default function NavBar() {
                                     </DropdownMenuItem>
                                     <DropdownMenuItem asChild className="md:hidden">
                                         <Link to="/dashboard">Dashboard</Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem asChild className="md:hidden">
+                                        <Link to="/agents">Agents</Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator className="md:hidden" />
                                     <DropdownMenuItem

@@ -11,6 +11,7 @@ import ReceiptPage from '@/pages/ReceiptPage'
 import DashboardPage from '@/pages/DashboardPage'
 import RequestPage from '@/pages/RequestPage'
 import SendPage from '@/pages/SendPage'
+import AgentsPage from '@/pages/AgentsPage'
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
@@ -42,6 +43,8 @@ const App = () => (
             <Route path="/send" element={<SendPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/request/:id" element={<RequestPage />} />
+            <Route path="/agents" element={<AgentsPage />} />
+            <Route path="/agents/cosign" element={<AgentsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Layout>
