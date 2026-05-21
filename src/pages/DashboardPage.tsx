@@ -14,6 +14,8 @@ import { useProfiles } from '@/hooks/useProfiles';
 import { usePaymentLinks } from '@/hooks/usePaymentLinks';
 import { WalletTab } from '@/components/WalletTab';
 import { useBatchSend } from '@/hooks/useBatchSend';
+import { fetchAgentWallets } from '@/lib/agents/queries';
+import type { AgentWallet } from '@/lib/agents/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getAppUrl } from '@/lib/appUrl';
@@ -40,10 +42,15 @@ export default function DashboardPage() {
     const [batchDesc, setBatchDesc] = useState('');
     const [batchRecipients, setBatchRecipients] = useState<BatchRecipient[]>([{ wallet: '', amount: 0, label: '' }]);
 
-    type SendStep = 'form' | 'sending' | 'done';
+    type SendStep = 'form' | 'sending' | 'done' | 'queued';
     type SendResult = { wallet: string; amount: number; label?: string; txHash?: string; success: boolean };
     const [batchSendStep, setBatchSendStep] = useState<SendStep>('form');
     const [batchSendResults, setBatchSendResults] = useState<SendResult[]>([]);
+
+    // Agent execution: list of usable agent wallets (escrow_address must be set),
+    // and which one (if any) the user picked for this batch. null = manual (wagmi sign).
+    const [agentWallets, setAgentWallets] = useState<AgentWallet[]>([]);
+    const [executorAgentId, setExecutorAgentId] = useState<string | null>(null);
 
     const { resolveUsernameToWallet } = useProfiles();
     const { createLinks, loading: linkCreating } = usePaymentLinks();
@@ -77,6 +84,9 @@ export default function DashboardPage() {
             fetchReceipts();
             fetchBatches();
             fetchBatchReceiptGroups();
+            fetchAgentWallets(address)
+              .then((all) => setAgentWallets(all.filter((w) => w.executor_mode === 'escrow' && !!w.escrow_address)))
+              .catch(() => setAgentWallets([]));
         }
     }, [address]);
 
@@ -191,6 +201,7 @@ export default function DashboardPage() {
         setBatchRecipients([{ wallet: '', amount: 0, label: '' }]);
         setBatchSendStep('form');
         setBatchSendResults([]);
+        setExecutorAgentId(null);
     };
 
     // Called by a card's Send button — pre-fills the dialog with only the unsent recipients
@@ -271,10 +282,20 @@ export default function DashboardPage() {
             recipients:     resolvedRecipients,
             total_amount:   totalAmount,
             expires_at:     null,
+            executor_agent_wallet_id: executorAgentId ?? undefined,
         });
 
         if (!newBatch) {
             toast.error('Failed to initialise batch payment');
+            return;
+        }
+
+        // Agent-executed branch: the executor service on the VPS will pick this up,
+        // evaluate it against the policy, and submit transfers via Circle. The user
+        // does not sign anything. Show a queued state and exit.
+        if (executorAgentId) {
+            setBatchSendStep('queued');
+            fetchBatches();
             return;
         }
 
@@ -577,6 +598,7 @@ export default function DashboardPage() {
                                         {batchSendStep === 'form'    && 'Send Batch Payment'}
                                         {batchSendStep === 'sending' && 'Waiting for confirmation…'}
                                         {batchSendStep === 'done'    && 'Batch Payment Complete'}
+                                        {batchSendStep === 'queued'  && 'Queued for Agent Executor'}
                                     </DialogTitle>
                                 </DialogHeader>
 
@@ -604,6 +626,29 @@ export default function DashboardPage() {
                                                     />
                                                 </div>
                                             </div>
+
+                                            {agentWallets.length > 0 && (
+                                                <div className="space-y-2 pt-2 border-t border-border">
+                                                    <label className="text-sm font-medium block">Execute with</label>
+                                                    <select
+                                                        value={executorAgentId ?? ''}
+                                                        onChange={(e) => setExecutorAgentId(e.target.value || null)}
+                                                        className="w-full bg-secondary border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+                                                    >
+                                                        <option value="">Send manually (I sign in my wallet)</option>
+                                                        {agentWallets.map((w) => (
+                                                            <option key={w.id} value={w.id}>
+                                                                Agent: {w.label || `${w.wallet_address.slice(0, 6)}…${w.wallet_address.slice(-4)}`}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    {executorAgentId && (
+                                                        <p className="text-xs text-muted-foreground">
+                                                            The executor will evaluate this batch against the agent's policy and submit transfers automatically. You won't sign anything.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
 
                                             <div className="space-y-3 pt-2 border-t border-border">
                                                 <div className="flex items-center justify-between">
@@ -716,7 +761,7 @@ export default function DashboardPage() {
                                                     ? <Loader2 className="animate-spin w-4 h-4" />
                                                     : <Users size={15} />
                                                 }
-                                                Send Batch
+                                                {executorAgentId ? 'Queue for Agent' : 'Send Batch'}
                                             </Button>
                                         </div>
                                     </>
@@ -802,6 +847,29 @@ export default function DashboardPage() {
                                         </div>
                                     );
                                 })()}
+
+                                {/* ── QUEUED FOR EXECUTOR ── */}
+                                {batchSendStep === 'queued' && (
+                                    <div className="py-8 space-y-5 text-center">
+                                        <div className="relative w-16 h-16 mx-auto">
+                                            <div className="absolute inset-0 rounded-full bg-primary/10 animate-ping" />
+                                            <div className="relative flex items-center justify-center w-16 h-16 rounded-full bg-primary/10">
+                                                <Users className="text-primary w-7 h-7" />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p className="font-semibold text-foreground">Queued for the agent executor</p>
+                                            <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
+                                                The executor polls every 15 seconds. It will evaluate this batch against the policy on
+                                                {' '}<span className="font-mono">{agentWallets.find(w => w.id === executorAgentId)?.label || 'your agent wallet'}</span>{' '}
+                                                and submit transfers when approved. Watch the Receipts tab or the agent's audit log to see results.
+                                            </p>
+                                        </div>
+                                        <Button className="w-full gradient-primary" onClick={() => { setIsCreateOpen(false); resetBatchForm(); }}>
+                                            Done
+                                        </Button>
+                                    </div>
+                                )}
                             </DialogContent>
                         </Dialog>
                     </div>

@@ -2,19 +2,14 @@
 -- Migration is idempotent (create if not exists, add column if not exists)
 
 -- 0. Ensure profiles.wallet is unique so it can be referenced by FK.
+-- Safe to re-run: if a unique/PK constraint on wallet already exists,
+-- the duplicate-object exception is swallowed.
 do $$
 begin
-  if not exists (
-    select 1 from pg_constraint c
-    join pg_class t on t.oid = c.conrelid
-    where t.relname = 'profiles'
-      and c.contype in ('p', 'u')
-      and (select array_agg(a.attname order by a.attname)
-           from pg_attribute a
-           where a.attrelid = t.oid and a.attnum = any(c.conkey)) = array['wallet']
-  ) then
-    alter table profiles add constraint profiles_wallet_unique unique (wallet);
-  end if;
+  alter table profiles add constraint profiles_wallet_unique unique (wallet);
+exception
+  when duplicate_object then null;
+  when duplicate_table then null;
 end $$;
 
 -- 1. Agent wallets linked to a Qevor profile

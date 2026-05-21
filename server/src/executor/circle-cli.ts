@@ -47,13 +47,13 @@ export class RealCircleCliRunner implements CircleCliRunner {
   async status(): Promise<{ authenticated: boolean; expiresAt?: Date }> {
     try {
       const raw = await this.exec(['wallet', 'status', '--type', 'agent', '--output', 'json']);
-      const data = JSON.parse(raw);
-      // TODO: Verify the exact JSON shape from `circle wallet status --output json`.
-      // Conservative interpretation: if we get valid JSON back, session is active.
-      return {
-        authenticated: true,
-        expiresAt: data.expiresAt ? new Date(data.expiresAt) : undefined,
-      };
+      const parsed = JSON.parse(raw);
+      const body = parsed.data ?? parsed;
+      // Real shape: { data: { type, email, testnet: { tokenStatus, expiresIn }, mainnet: { ... } } }
+      // We're testnet-first; consider authenticated if either side is VALID.
+      const tValid = body.testnet?.tokenStatus === 'VALID';
+      const mValid = body.mainnet?.tokenStatus === 'VALID';
+      return { authenticated: tValid || mValid };
     } catch {
       return { authenticated: false };
     }
@@ -73,17 +73,18 @@ export class RealCircleCliRunner implements CircleCliRunner {
       '--chain', args.chain,
       '--output', 'json',
     ];
-    // TODO: Verify if `circle wallet transfer` supports --idempotency-key.
-    // The CLI command reference does not list this flag for transfer.
-    // If not supported, idempotency is handled at the application layer
-    // by checking agent_audit_log before executing.
+    if (args.idempotencyKey) {
+      cliArgs.push('--idempotency-key', args.idempotencyKey);
+    }
 
     const raw = await this.exec(cliArgs);
-    const data = JSON.parse(raw);
-    // TODO: Verify exact JSON output shape of circle wallet transfer --output json
+    const parsed = JSON.parse(raw);
+    const body = parsed.data ?? parsed;
+    // Agent-wallet transfers return a transactionId; the on-chain txHash
+    // may be available immediately or fill in after settlement.
     return {
-      txHash: data.txHash ?? data.transactionHash ?? '',
-      circleTxId: data.id ?? data.transactionId ?? '',
+      txHash: body.txHash ?? body.transactionHash ?? body.hash ?? '',
+      circleTxId: body.id ?? body.transactionId ?? '',
     };
   }
 
@@ -97,11 +98,15 @@ export class RealCircleCliRunner implements CircleCliRunner {
       '--chain', args.chain,
       '--output', 'json',
     ]);
-    const data = JSON.parse(raw);
-    // TODO: Verify exact JSON output shape of circle wallet balance --output json
-    // Conservative: parse as string, convert to micro-USDC bigint
-    const usdcStr = data.usdc ?? data.balance ?? '0';
-    const parts = String(usdcStr).split('.');
+    const parsed = JSON.parse(raw);
+    // Real shape: { data: { balances: [{ amount: "5", token: { symbol, decimals, isNative } }] } }
+    const balances: Array<{ amount: string; token: { symbol?: string } }> =
+      parsed.data?.balances ?? parsed.balances ?? [];
+    const usdcEntry = balances.find((b) => b.token?.symbol?.toUpperCase() === 'USDC');
+    const usdcStr = String(usdcEntry?.amount ?? '0');
+    // The CLI returns the amount in USDC units (e.g. "5", "5.123"),
+    // not raw token integers. Convert to bigint micro-USDC for policy comparison.
+    const parts = usdcStr.split('.');
     const whole = BigInt(parts[0] ?? '0') * 1_000_000n;
     const frac = parts[1] ? BigInt(parts[1].padEnd(6, '0').slice(0, 6)) : 0n;
     return { usdc: whole + frac };
@@ -111,17 +116,24 @@ export class RealCircleCliRunner implements CircleCliRunner {
     testnet: boolean;
     idempotencyKey: string;
   }): Promise<{ address: string }> {
+    // Circle CLI v0.0.3 `wallet create` has no --testnet flag; the active
+    // session (login --testnet vs without) determines the network.
     const cliArgs = [
       'wallet', 'create',
       '--type', 'agent',
       '--idempotency-key', args.idempotencyKey,
       '--output', 'json',
     ];
-    if (args.testnet) cliArgs.push('--testnet');
-
+    void args.testnet;
     const raw = await this.exec(cliArgs);
-    const data = JSON.parse(raw);
-    // TODO: Verify exact JSON output shape of circle wallet create --output json
-    return { address: data.address ?? data.walletAddress ?? '' };
+    const parsed = JSON.parse(raw);
+    const body = parsed.data ?? parsed;
+    // Shape candidates: { data: { address } } | { data: { wallet: { address } } } | { data: { wallets: [{ address }] } }
+    const address: string =
+      body.address ??
+      body.wallet?.address ??
+      body.wallets?.[0]?.address ??
+      '';
+    return { address };
   }
 }

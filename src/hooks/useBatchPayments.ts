@@ -17,6 +17,8 @@ export interface Batch {
     status: 'pending' | 'partial' | 'complete';
     expires_at?: string | null;
     created_at: string;
+    executor_agent_wallet_id?: string | null;
+    executor_state?: 'manual' | 'pending_evaluation' | 'in_progress' | 'complete' | 'cosign_required' | 'failed' | null;
 }
 
 export interface BatchPayment {
@@ -40,9 +42,13 @@ export function useBatchPayments() {
         setLoading(true);
         setError(null);
         try {
+            const row: Record<string, unknown> = { ...data, status: 'pending' };
+            if (data.executor_agent_wallet_id) {
+                row.executor_state = data.executor_state ?? 'pending_evaluation';
+            }
             const { data: result, error: sbError } = await supabase
                 .from('batch_requests')
-                .insert([{ ...data, status: 'pending' }])
+                .insert([row])
                 .select()
                 .single();
 
