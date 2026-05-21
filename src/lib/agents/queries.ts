@@ -1,11 +1,11 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { AgentWallet, AgentPolicy, AgentAuditEntry, CosignQueueEntry } from './types';
 
-export async function fetchAgentWallets(profileId: string): Promise<AgentWallet[]> {
+export async function fetchAgentWallets(profileWallet: string): Promise<AgentWallet[]> {
   const { data, error } = await supabase
     .from('agent_wallets')
     .select('*')
-    .eq('profile_id', profileId)
+    .ilike('profile_wallet', profileWallet)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -13,7 +13,7 @@ export async function fetchAgentWallets(profileId: string): Promise<AgentWallet[
 }
 
 export async function registerAgentWallet(
-  profileId: string,
+  profileWallet: string,
   walletAddress: string,
   chain: string,
   label?: string,
@@ -21,7 +21,7 @@ export async function registerAgentWallet(
   const { data, error } = await supabase
     .from('agent_wallets')
     .insert({
-      profile_id: profileId,
+      profile_wallet: profileWallet,
       wallet_address: walletAddress,
       chain,
       label: label ?? null,

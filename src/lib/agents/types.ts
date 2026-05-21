@@ -1,6 +1,6 @@
 export interface AgentWallet {
   id: string;
-  profile_id: string;
+  profile_wallet: string;
   wallet_address: string;
   chain: string;
   label: string | null;

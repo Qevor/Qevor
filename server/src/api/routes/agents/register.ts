@@ -6,7 +6,7 @@ import { supabase } from '../../../lib/supabase.js';
 const router = Router();
 
 const registerSchema = z.object({
-  profile_id: z.string().uuid(),
+  profile_wallet: z.string().refine((v) => isAddress(v), 'Invalid EVM address'),
   wallet_address: z.string().refine((v) => isAddress(v), 'Invalid EVM address'),
   chain: z.string().min(1),
   label: z.string().optional(),
@@ -19,12 +19,12 @@ router.post('/register', async (req, res) => {
     return;
   }
 
-  const { profile_id, wallet_address, chain, label } = parsed.data;
+  const { profile_wallet, wallet_address, chain, label } = parsed.data;
 
   const { data, error } = await supabase
     .from('agent_wallets')
     .insert({
-      profile_id,
+      profile_wallet,
       wallet_address,
       chain,
       label: label ?? null,

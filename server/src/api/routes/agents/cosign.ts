@@ -8,7 +8,7 @@ router.post('/cosign/:id/approve', async (req, res) => {
   const { approved_by } = req.body;
 
   if (!approved_by) {
-    res.status(400).json({ error: 'approved_by (profile_id) is required' });
+    res.status(400).json({ error: 'approved_by (profile_wallet) is required' });
     return;
   }
 

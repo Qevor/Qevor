@@ -22,7 +22,7 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [profileId, setProfileId] = useState<string | null>(null);
+  const [profileWallet, setProfileWallet] = useState<string | null>(null);
   const [editingWallet, setEditingWallet] = useState<AgentWallet | null>(null);
 
   const loadWallets = useCallback(async () => {
@@ -31,12 +31,8 @@ export default function AgentsPage() {
     try {
       const profile = await getProfileByWallet(address);
       if (!profile) return;
-      // Profile has wallet/username but we need the id for FK.
-      // The profiles table should have an id column — use it if available.
-      // Fallback: use wallet as a lookup key.
-      const pid = (profile as any).id ?? profile.wallet;
-      setProfileId(pid);
-      const data = await fetchAgentWallets(pid);
+      setProfileWallet(profile.wallet);
+      const data = await fetchAgentWallets(profile.wallet);
       setWallets(data);
     } catch (err) {
       console.error('Failed to load agent wallets:', err);
@@ -52,13 +48,13 @@ export default function AgentsPage() {
   }, [isConnected, address, loadWallets]);
 
   const handleRegister = async (walletAddress: string, label: string) => {
-    if (!profileId) {
+    if (!profileWallet) {
       toast.error('Please create a username first on the Dashboard.');
       return;
     }
     setRegistering(true);
     try {
-      await registerAgentWallet(profileId, walletAddress, 'ARC-TESTNET', label || undefined);
+      await registerAgentWallet(profileWallet, walletAddress, 'ARC-TESTNET', label || undefined);
       toast.success('Agent wallet registered!');
       setShowOnboarding(false);
       await loadWallets();
@@ -136,8 +132,8 @@ export default function AgentsPage() {
       )}
 
       {/* Cosign queue for enrolled wallets */}
-      {profileId && wallets.filter((w) => w.executor_mode).map((w) => (
-        <CosignQueue key={`cosign-${w.id}`} agentWalletId={w.id} profileId={profileId} />
+      {profileWallet && wallets.filter((w) => w.executor_mode).map((w) => (
+        <CosignQueue key={`cosign-${w.id}`} agentWalletId={w.id} profileWallet={profileWallet} />
       ))}
 
       {/* Policy editor dialog */}

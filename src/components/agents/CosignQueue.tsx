@@ -9,10 +9,10 @@ import type { CosignQueueEntry } from '@/lib/agents/types';
 
 interface Props {
   agentWalletId: string;
-  profileId: string;
+  profileWallet: string;
 }
 
-export function CosignQueue({ agentWalletId, profileId }: Props) {
+export function CosignQueue({ agentWalletId, profileWallet }: Props) {
   const [entries, setEntries] = useState<CosignQueueEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -34,7 +34,7 @@ export function CosignQueue({ agentWalletId, profileId }: Props) {
   const handleApprove = async (entry: CosignQueueEntry) => {
     setActionLoading(entry.id);
     try {
-      await approveCosignEntry(entry.id, profileId);
+      await approveCosignEntry(entry.id, profileWallet);
       toast.success('Approved. The executor will process the transfer shortly.');
       await load();
     } catch (err: any) {

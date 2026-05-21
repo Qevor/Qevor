@@ -1,10 +1,26 @@
 -- Agent Stack: wallets, policies, audit log, cosign queue, executor health
 -- Migration is idempotent (create if not exists, add column if not exists)
 
+-- 0. Ensure profiles.wallet is unique so it can be referenced by FK.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint c
+    join pg_class t on t.oid = c.conrelid
+    where t.relname = 'profiles'
+      and c.contype in ('p', 'u')
+      and (select array_agg(a.attname order by a.attname)
+           from pg_attribute a
+           where a.attrelid = t.oid and a.attnum = any(c.conkey)) = array['wallet']
+  ) then
+    alter table profiles add constraint profiles_wallet_unique unique (wallet);
+  end if;
+end $$;
+
 -- 1. Agent wallets linked to a Qevor profile
 create table if not exists agent_wallets (
   id uuid primary key default gen_random_uuid(),
-  profile_id uuid not null references profiles(id) on delete cascade,
+  profile_wallet text not null references profiles(wallet) on delete cascade,
   wallet_address text not null,
   chain text not null,                           -- 'ARC-TESTNET' | 'BASE' | etc.
   label text,
@@ -12,7 +28,7 @@ create table if not exists agent_wallets (
   executor_mode text default null,               -- null | 'escrow' | 'delegate' (future)
   escrow_address text,
   created_at timestamptz not null default now(),
-  unique (profile_id, wallet_address, chain)
+  unique (profile_wallet, wallet_address, chain)
 );
 
 -- 2. Spending / behavior policies attached to an agent wallet
@@ -67,7 +83,7 @@ create table if not exists agent_cosign_queue (
   amount_usdc numeric(20,6) not null,
   reason text not null,
   status text not null default 'pending',        -- 'pending' | 'approved' | 'rejected' | 'expired'
-  approved_by uuid references profiles(id),
+  approved_by text references profiles(wallet),
   approved_at timestamptz,
   expires_at timestamptz not null default (now() + interval '72 hours'),
   created_at timestamptz not null default now()
@@ -131,14 +147,23 @@ alter table agent_audit_log enable row level security;
 alter table agent_cosign_queue enable row level security;
 alter table executor_health enable row level security;
 
--- Service role can do everything (executor uses service role key)
-create policy if not exists "service_role_all_agent_wallets"
-  on agent_wallets for all using (true) with check (true);
-create policy if not exists "service_role_all_agent_policies"
-  on agent_policies for all using (true) with check (true);
-create policy if not exists "service_role_all_agent_audit_log"
-  on agent_audit_log for all using (true) with check (true);
-create policy if not exists "service_role_all_agent_cosign_queue"
-  on agent_cosign_queue for all using (true) with check (true);
-create policy if not exists "service_role_all_executor_health"
-  on executor_health for all using (true) with check (true);
+-- Service role can do everything (executor uses service role key).
+-- CREATE POLICY doesn't support IF NOT EXISTS, so we guard each one.
+do $$
+begin
+  if not exists (select 1 from pg_policies where tablename = 'agent_wallets' and policyname = 'service_role_all_agent_wallets') then
+    create policy "service_role_all_agent_wallets" on agent_wallets for all using (true) with check (true);
+  end if;
+  if not exists (select 1 from pg_policies where tablename = 'agent_policies' and policyname = 'service_role_all_agent_policies') then
+    create policy "service_role_all_agent_policies" on agent_policies for all using (true) with check (true);
+  end if;
+  if not exists (select 1 from pg_policies where tablename = 'agent_audit_log' and policyname = 'service_role_all_agent_audit_log') then
+    create policy "service_role_all_agent_audit_log" on agent_audit_log for all using (true) with check (true);
+  end if;
+  if not exists (select 1 from pg_policies where tablename = 'agent_cosign_queue' and policyname = 'service_role_all_agent_cosign_queue') then
+    create policy "service_role_all_agent_cosign_queue" on agent_cosign_queue for all using (true) with check (true);
+  end if;
+  if not exists (select 1 from pg_policies where tablename = 'executor_health' and policyname = 'service_role_all_executor_health') then
+    create policy "service_role_all_executor_health" on executor_health for all using (true) with check (true);
+  end if;
+end $$;
