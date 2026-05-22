@@ -3,7 +3,7 @@ import { createLogger } from '../lib/logger.js';
 import { writeHeartbeat } from './heartbeat.js';
 import { RealCircleCliRunner } from './circle-cli.js';
 import { provisionPendingEscrows } from './escrow-provisioner.js';
-import { processPendingBatches } from './batch-processor.js';
+import { processPendingBatches, processPendingReserves } from './batch-processor.js';
 import { sweepExpiredCosigns, processApprovedCosigns } from './cosign-sweeper.js';
 
 const log = createLogger('executor');
@@ -39,6 +39,7 @@ async function pollLoop() {
     if (sessionState === 'authenticated') {
       log.debug('Polling for pending batch requests...');
       await provisionPendingEscrows(cli, log);
+      await processPendingReserves(cli, log);
       await processPendingBatches(cli, log);
       await sweepExpiredCosigns(log);
       await processApprovedCosigns(cli, log);

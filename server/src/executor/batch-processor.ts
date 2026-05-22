@@ -28,11 +28,16 @@ interface BatchPaymentRow {
 interface BatchRequestRow extends AttestationRow {
   executor_agent_wallet_id: string;
   executor_state: string;
+  notary_case_id?: string | null;
+  reserve_wallet?: string | null;
+  reserve_source_wallet?: string | null;
+  reserve_amount_usdc?: number | null;
   recipients: Array<{ wallet: string; amount: number; label?: string }>;
 }
 
 interface AgentWalletRow {
   id: string;
+  wallet_address: string;
   escrow_address: string | null;
   chain: string;
   attestation_mode: 'off' | 'optional' | 'required';
@@ -83,6 +88,216 @@ export function __setNotaryRuntimeForTests(r: ReturnType<typeof buildNotaryRunti
   runtime = r;
 }
 
+export async function processPendingReserves(
+  cli: CircleCliRunner,
+  log: Logger,
+): Promise<void> {
+  const { data: reserves, error } = await supabase
+    .from('batch_requests')
+    .select('*')
+    .eq('executor_state', 'pending_reserve')
+    .not('executor_agent_wallet_id', 'is', null);
+
+  if (error) {
+    log.error({ error }, 'Failed to query pending conditional reserves');
+    return;
+  }
+
+  if (!reserves || reserves.length === 0) return;
+
+  for (const reserve of reserves as BatchRequestRow[]) {
+    await processReserve(reserve, cli, log);
+  }
+}
+
+async function processReserve(
+  batch: BatchRequestRow,
+  cli: CircleCliRunner,
+  log: Logger,
+): Promise<void> {
+  const batchLog = log.child({ batch_id: batch.id, reserve: true });
+  batchLog.info('Processing conditional reserve');
+
+  await supabase
+    .from('batch_requests')
+    .update({ executor_state: 'reserve_in_progress' })
+    .eq('id', batch.id);
+
+  const { data: walletData } = await supabase
+    .from('agent_wallets')
+    .select('id, wallet_address, escrow_address, chain, attestation_mode')
+    .eq('id', batch.executor_agent_wallet_id)
+    .single();
+
+  const wallet = walletData as AgentWalletRow | null;
+  if (!wallet?.wallet_address || !wallet.escrow_address) {
+    await failReserve(batch, 'reserve_wallet_not_ready');
+    return;
+  }
+
+  const amount = Number(batch.reserve_amount_usdc ?? batch.recipients?.[0]?.amount ?? 0);
+  const finalRecipient = batch.recipients?.[0]?.wallet ?? null;
+  if (!amount || amount <= 0 || !finalRecipient) {
+    await failReserve(batch, 'invalid_reserve_request');
+    return;
+  }
+
+  const { data: policyRow } = await supabase
+    .from('agent_policies')
+    .select('*')
+    .eq('agent_wallet_id', wallet.id)
+    .eq('active', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  const policy: PolicyFields = policyRow ?? {
+    max_per_tx_usdc: null,
+    daily_cap_usdc: null,
+    weekly_cap_usdc: null,
+    monthly_cap_usdc: null,
+    allowlist_addresses: [],
+    blocklist_addresses: [],
+    allowlist_usernames: [],
+    blocklist_usernames: [],
+    allowed_hours_utc: null,
+    cosign_threshold_usdc: null,
+  };
+
+  const now = new Date();
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('username')
+    .ilike('wallet', finalRecipient)
+    .limit(1)
+    .single();
+
+  const decision = evaluate(policy, {
+    recipientAddress: finalRecipient,
+    amountMicroUsdc: BigInt(Math.round(amount * 1_000_000)),
+  }, {
+    now,
+    todaySpendMicroUsdc: await spendSince(wallet.id, new Date(now.getTime() - 24 * 60 * 60 * 1000)),
+    weekSpendMicroUsdc: await spendSince(wallet.id, new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)),
+    monthSpendMicroUsdc: await spendSince(wallet.id, new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)),
+    resolvedUsername: profile?.username ?? null,
+  });
+
+  const { data: payments } = await supabase
+    .from('batch_payments')
+    .select('*')
+    .eq('batch_request_id', batch.id)
+    .limit(1);
+  const payment = payments?.[0] as BatchPaymentRow | undefined;
+
+  if (decision.outcome !== 'execute') {
+    await supabase.from('agent_audit_log').insert({
+      agent_wallet_id: wallet.id,
+      policy_id: policyRow?.id ?? null,
+      batch_request_id: batch.id,
+      batch_payment_id: payment?.id ?? null,
+      action: 'conditional_reserve_fund',
+      recipient_username: profile?.username ?? null,
+      recipient_address: finalRecipient,
+      amount_usdc: amount,
+      outcome: decision.outcome === 'cosign_required' ? 'cosign_required' : 'blocked',
+      reason: decision.reason,
+    });
+    await supabase
+      .from('batch_requests')
+      .update({ executor_state: decision.outcome === 'cosign_required' ? 'reserve_cosign_required' : 'reserve_blocked' })
+      .eq('id', batch.id);
+    if (payment) {
+      await supabase
+        .from('batch_payments')
+        .update({ status: decision.outcome === 'cosign_required' ? 'awaiting_cosign' : 'blocked' })
+        .eq('id', payment.id);
+      await notifyNotaryIfApplicable(batch, payment, decision.outcome, batchLog, {
+        reason: decision.reason,
+      });
+    }
+    return;
+  }
+
+  try {
+    const result = await cli.walletTransfer({
+      toAddress: wallet.escrow_address,
+      amount: amount.toString(),
+      fromAddress: wallet.wallet_address,
+      chain: wallet.chain,
+      idempotencyKey: `reserve-${batch.id}`,
+    });
+
+    await supabase.from('agent_audit_log').insert({
+      agent_wallet_id: wallet.id,
+      policy_id: policyRow?.id ?? null,
+      batch_request_id: batch.id,
+      batch_payment_id: payment?.id ?? null,
+      action: 'conditional_reserve_fund',
+      recipient_username: profile?.username ?? null,
+      recipient_address: finalRecipient,
+      amount_usdc: amount,
+      outcome: 'executed',
+      tx_hash: result.txHash,
+      circle_tx_id: result.circleTxId,
+    });
+    await supabase
+      .from('batch_requests')
+      .update({ executor_state: 'reserve_funded', reserve_wallet: wallet.escrow_address })
+      .eq('id', batch.id);
+    if (payment) {
+      await supabase
+        .from('batch_payments')
+        .update({ status: 'funded', tx_hash: result.txHash || 'pending_circle_settlement' })
+        .eq('id', payment.id);
+      await notifyNotaryIfApplicable(batch, payment, 'funded', batchLog, {
+        tx_hash: result.txHash,
+      });
+    }
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    batchLog.error({ err: errMsg }, 'Conditional reserve funding failed');
+    await failReserve(batch, errMsg);
+    if (payment) {
+      await notifyNotaryIfApplicable(batch, payment, 'failed', batchLog, {
+        reason: errMsg,
+      });
+    }
+  }
+}
+
+async function spendSince(agentWalletId: string, since: Date): Promise<bigint> {
+  const { data } = await supabase
+    .from('agent_audit_log')
+    .select('amount_usdc')
+    .eq('agent_wallet_id', agentWalletId)
+    .eq('outcome', 'executed')
+    .gte('created_at', since.toISOString());
+
+  if (!data) return 0n;
+  return data.reduce((sum: bigint, row: { amount_usdc: number | null }) => {
+    return sum + BigInt(Math.round((row.amount_usdc ?? 0) * 1_000_000));
+  }, 0n);
+}
+
+async function failReserve(batch: BatchRequestRow, reason: string): Promise<void> {
+  await supabase
+    .from('batch_requests')
+    .update({ executor_state: 'reserve_failed' })
+    .eq('id', batch.id);
+  await supabase
+    .from('batch_payments')
+    .update({ status: 'failed' })
+    .eq('batch_request_id', batch.id);
+  await supabase.from('agent_audit_log').insert({
+    agent_wallet_id: batch.executor_agent_wallet_id,
+    batch_request_id: batch.id,
+    action: 'conditional_reserve_fund',
+    outcome: 'failed',
+    reason: reason.slice(0, 200),
+  });
+}
+
 /**
  * Process all batch_requests with executor_state = 'pending_evaluation'.
  */
@@ -125,7 +340,7 @@ async function processBatch(
   // 2. Load the agent wallet (and its attestation_mode).
   const { data: walletData } = await supabase
     .from('agent_wallets')
-    .select('id, escrow_address, chain, attestation_mode')
+    .select('id, wallet_address, escrow_address, chain, attestation_mode')
     .eq('id', batch.executor_agent_wallet_id)
     .single();
 
@@ -489,7 +704,7 @@ async function notifyNotaryIfApplicable(
   log: Logger,
   extras: { tx_hash?: string; reason?: string } = {},
 ): Promise<void> {
-  if (!batch.attestation_id) return;
+  if (!batch.attestation_id && batch.executor_state !== 'pending_reserve' && batch.executor_state !== 'reserve_in_progress') return;
   const { webhook } = getRuntime();
   if (!webhook.url || !webhook.secret) {
     // Mark pending so a future operator-triggered redelivery is easy to spot.
@@ -510,6 +725,7 @@ async function notifyNotaryIfApplicable(
     state,
     amount_usdc: payment.amount,
     recipient_wallet: payment.recipient_wallet,
+    reserve_wallet: batch.reserve_wallet ?? undefined,
     tx_hash: extras.tx_hash,
     reason: extras.reason,
     emitted_at: new Date().toISOString(),

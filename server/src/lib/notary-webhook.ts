@@ -12,7 +12,7 @@ export interface NotaryWebhookConfig {
   timeoutMs?: number; // default 10_000
 }
 
-export type SettlementState = 'paid' | 'failed' | 'blocked' | 'cosign_required';
+export type SettlementState = 'paid' | 'funded' | 'failed' | 'blocked' | 'cosign_required';
 
 export interface SettlementEvent {
   batch_request_id: string;
@@ -22,6 +22,7 @@ export interface SettlementEvent {
   state: SettlementState;
   amount_usdc: number;
   recipient_wallet: string;
+  reserve_wallet?: string;
   tx_hash?: string;
   reason?: string;
   emitted_at: string; // ISO timestamp
