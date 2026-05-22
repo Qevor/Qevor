@@ -193,15 +193,18 @@ should be created with `attestation_mode='required'`; mixed-mode wallets
 ### Env vars (server/.env)
 
 ```
-NOTARY_ATTESTATION_REGISTRY=0x...     # AttestationRegistry contract address
-NOTARY_IDENTITY_REGISTRY=0x...        # NotaryIdentityRegistry contract address
-NOTARY_RPC_URL=https://rpc.testnet.arc.network
-NOTARY_CHAIN_ID=5042002
-NOTARY_DOMAIN_NAME=NOTARY              # EIP-712 domain.name
-NOTARY_DOMAIN_VERSION=1                # EIP-712 domain.version
+NOTARY_ATTESTATION_REGISTRY=0x...      # AttestationRegistry contract address
+NOTARY_IDENTITY_REGISTRY=0x...         # NotaryIdentityRegistry contract address
+NOTARY_ARC_RPC_URL=https://rpc.testnet.arc.network
+NOTARY_ARC_CHAIN_ID=5042002
+NOTARY_EIP712_DOMAIN_NAME=NOTARY       # EIP-712 domain.name
+NOTARY_EIP712_DOMAIN_VERSION=1         # EIP-712 domain.version
+NOTARY_RPC_TIMEOUT_MS=8000             # per-call Arc RPC timeout
+NOTARY_RPC_RETRIES=2                   # transient-error retries
 NOTARY_WEBHOOK_URL=                    # https://notary.example/webhooks/qevorpay/settlement
-NOTARY_WEBHOOK_SECRET=                 # shared HMAC secret
+NOTARY_WEBHOOK_SECRET=                 # shared HMAC secret (matches NOTARY's QEVORPAY_WEBHOOK_SECRET)
 NOTARY_WEBHOOK_SIGNATURE_HEADER=x-signature
+NOTARY_WEBHOOK_TIMEOUT_MS=10000        # outbound webhook timeout
 ```
 
 If `NOTARY_*_REGISTRY` is unset, the verifier short-circuits to
