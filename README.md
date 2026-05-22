@@ -7,6 +7,7 @@ A production-ready decentralized payment application for creating, sharing, and 
 - **Global Username System:** Maps unique usernames to wallet addresses for easier and safer payments.
 - **Payment Links:** Generates shareable payment links that specify amount and receiver or group criteria.
 - **Batch Requests:** Built-in dashboard for requesting and distributing batch payments to multiple recipients at once.
+- **NOTARY Conditional Reserves:** Supports witness-to-pay cases where a payer's agent wallet reserves USDC in escrow before a payee starts work.
 - **Unified Dashboard:** Comprehensive dashboard for tracking payment history, managing usernames, and handling batch payments.
 - **Web3 Onboarding:** Seamless wallet integration leveraging Dynamic Labs and Web3 authentication.
 - **Supabase Backend:** Powerful backend for storing transaction receipts, payment links, profiles, and batch requests data.
@@ -70,6 +71,63 @@ Register Circle Agent Wallets as first-class Qevor primitives. Set spending poli
 ## Autonomous Batches
 
 Enable policy-gated autonomous batch execution via a dedicated executor service. The executor evaluates each batch line item against the wallet's policy: auto-executing approved lines, escalating cosign-threshold lines to a human approval queue, and blocking policy violations. All decisions are audit-logged with on-chain tx hashes. See [docs/agent-stack.md](docs/agent-stack.md) for the execution flow.
+
+## NOTARY Witness-To-Pay Integration
+
+Qevor is the payment rail for NOTARY. NOTARY judges whether an obligation was fulfilled; Qevor moves USDC and records payment execution.
+
+The current integration has two separate executor phases:
+
+1. **Pre-work reserve funding**
+   - NOTARY creates a conditional reserve row in `batch_requests` with `executor_state = 'pending_reserve'`.
+   - The row includes `notary_case_id`, `reserve_source_wallet`, `reserve_wallet`, and `reserve_amount_usdc`.
+   - Qevor's executor loads the payer's enrolled `agent_wallets` row.
+   - The executor evaluates the payer policy against the final payee address/username.
+   - If policy allows it, Circle CLI transfers USDC from the payer agent wallet to the payer escrow wallet.
+   - Qevor marks the request `reserve_funded`, marks the payment `funded`, and sends NOTARY a signed webhook with `state: funded`.
+
+2. **Post-verdict release**
+   - After NOTARY receives evidence and signs an attested verdict, it creates the normal attestation-gated batch release.
+   - Qevor verifies the NOTARY EIP-712 signature and Arc attestation before moving reserved USDC to the payee.
+   - If verification fails and the wallet requires attestations, the batch fails closed and no USDC moves.
+
+This protects payees from unfunded promises while preserving Qevor's role as the only component that executes payments.
+
+Required migrations, in order:
+
+```sh
+supabase/migrations/01_qevor_schema.sql
+supabase/migrations/02_agent_stack.sql
+supabase/migrations/03_notary_attestation.sql
+supabase/migrations/04_conditional_reserves.sql
+```
+
+`04_conditional_reserves.sql` must be applied after `03_notary_attestation.sql`.
+
+Qevor executor environment:
+
+```env
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+ARC_RPC_URL=https://rpc.testnet.arc.network
+ARC_CHAIN_ID=5042002
+CIRCLE_CLI_HOME=/path/to/.circle-cli
+CIRCLE_ACCEPT_TERMS=1
+NOTARY_ATTESTATION_REGISTRY=
+NOTARY_IDENTITY_REGISTRY=
+NOTARY_ARC_RPC_URL=https://rpc.testnet.arc.network
+NOTARY_ARC_CHAIN_ID=5042002
+NOTARY_WEBHOOK_URL=https://your-notary-domain/webhooks/qevorpay/settlement
+NOTARY_WEBHOOK_SECRET=
+```
+
+Circle CLI must be installed and logged in on the executor host:
+
+```sh
+npm install -g @circle-fin/cli
+circle terms accept
+circle wallet login you@example.com --type agent
+```
 
 ## Self-hosting on a VPS
 

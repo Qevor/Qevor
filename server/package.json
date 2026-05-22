@@ -8,10 +8,14 @@
     "dev:api": "tsx watch src/api/index.ts",
     "dev:executor": "tsx watch src/executor/index.ts",
     "start:api": "node dist/api/index.js",
-    "start:executor": "node dist/executor/index.js"
+    "start:executor": "node dist/executor/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
+    "dotenv": "17.4.2",
     "express": "^4.21.0",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
@@ -22,6 +26,7 @@
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "vitest": "^2.1.0"
   }
 }
