@@ -118,3 +118,106 @@ Circle CLI sessions expire after 7 days. The executor must detect expiry and the
 - Same-chain USDC transfers: free
 - CCTP bridging: variable fees
 - Swaps: 2 bps
+
+---
+
+## NOTARY Attestation Gating (added 2026-05-22)
+
+NOTARY is a separate AI agent that runs the **Witness Pipeline** (Intake →
+Verify → Judge → Attest → Pay → Learn). It produces signed EIP-712 verdicts
+on-chain (Arc) and instructs Qevor to release payment only after a verdict
+has been recorded.
+
+This integration makes Qevor's executor refuse to release funds for a batch
+unless it can verify the NOTARY attestation on-chain. Existing
+direct-from-app batch flows (no attestation) keep working — verification is
+gated per-wallet by `agent_wallets.attestation_mode`.
+
+### Contract Boundary
+
+NOTARY publishes two upstream contracts on Arc Testnet:
+
+| Contract | Purpose | Reader |
+|----------|---------|--------|
+| `AttestationRegistry` | Stores `(attestationId → notaryId, evidenceHash, reasoningTraceHash, confidenceBps, signer, status)` | `server/src/lib/abi/attestation-registry.ts` |
+| `NotaryIdentityRegistry` | Stores `(notaryId → agentWallet, status, ...)` | `server/src/lib/abi/notary-identity-registry.ts` |
+
+We read both via viem (no writes). NOTARY's deploy script writes the
+addresses; we receive them via env (`NOTARY_ATTESTATION_REGISTRY`,
+`NOTARY_IDENTITY_REGISTRY`).
+
+### Bidirectional Wire
+
+**NOTARY → Qevor (intake):** NOTARY's `qevorpay.QevorpayClient` inserts
+into `batch_requests` with `executor_state='pending_evaluation'` plus the
+attestation fields documented in migration 03. The unique index on
+`attestation_id` provides replay protection.
+
+**Qevor → NOTARY (settlement):** Each terminal `batch_payments` row
+(paid/failed/blocked/cosign_required) fires a signed webhook
+(`x-signature: hmac_sha256(secret, body)`) to NOTARY's
+`/webhooks/qevorpay/settlement`. Header name and secret match NOTARY's
+`notary/services/qevorpay.py::verify_webhook`.
+
+### Verification Invariants (fail-closed)
+
+`NotaryAttestationVerifier.verify()` returns one of:
+
+- `verified` — all 10 invariants pass; batch proceeds
+- `rejected` — at least one invariant fails; batch fails terminally,
+  payments marked `blocked`, audit row in `notary_verifications`
+- `rpc_unavailable` — Arc RPC unreachable after retries; batch rolls back
+  to `pending_evaluation` for retry (no payment lost)
+
+The invariants:
+1. AttestationRegistry returns a row for `attestationId`
+2. Row status is `Signed` (1) or `Submitted` (2) (not `Disputed` /
+   `Rejected` / `Resolved`)
+3. Recovered EIP-712 signer matches `row.signer`
+4. `row.notaryId == batch.notary_id`
+5. `row.evidenceHash == batch.evidence_hash`
+6. `row.reasoningTraceHash == batch.reasoning_trace_hash`
+7. `row.confidenceBps == batch.confidence_bps`
+8. NotaryIdentityRegistry returns a row for `notaryId`
+9. Notary status is `Active` (1)
+10. `notary.agentWallet == row.signer` (signer is operationally
+    authorized for that notaryId)
+
+### Backwards Compatibility
+
+`agent_wallets.attestation_mode` defaults to `off`. Existing wallets that
+predate NOTARY get the default and behave as before. NOTARY-driven wallets
+should be created with `attestation_mode='required'`; mixed-mode wallets
+(human + agent) can use `optional`.
+
+### Env vars (server/.env)
+
+```
+NOTARY_ATTESTATION_REGISTRY=0x...     # AttestationRegistry contract address
+NOTARY_IDENTITY_REGISTRY=0x...        # NotaryIdentityRegistry contract address
+NOTARY_RPC_URL=https://rpc.testnet.arc.network
+NOTARY_CHAIN_ID=5042002
+NOTARY_DOMAIN_NAME=NOTARY              # EIP-712 domain.name
+NOTARY_DOMAIN_VERSION=1                # EIP-712 domain.version
+NOTARY_WEBHOOK_URL=                    # https://notary.example/webhooks/qevorpay/settlement
+NOTARY_WEBHOOK_SECRET=                 # shared HMAC secret
+NOTARY_WEBHOOK_SIGNATURE_HEADER=x-signature
+```
+
+If `NOTARY_*_REGISTRY` is unset, the verifier short-circuits to
+`rpc_unavailable` so a misconfigured deploy fails closed rather than open.
+
+### Testing
+
+```bash
+cd server
+npm install
+npm test           # 22 tests across notary-attestation + notary-webhook
+npm run typecheck
+```
+
+The verifier tests use a deterministic test key
+(`0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d`,
+address `0x70997970C51812dc3A010C7d01b50e0d17dc79C8` — Anvil account 1) and
+sign real EIP-712 payloads; viem clients are mocked at the
+`readContract` boundary.
