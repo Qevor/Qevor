@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { createLogger } from '../lib/logger.js';
 import { writeHeartbeat } from './heartbeat.js';
 import { RealCircleCliRunner } from './circle-cli.js';
