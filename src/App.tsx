@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { ThemeProvider, useTheme } from 'next-themes'
 import { Web3Provider } from '@/components/Web3Provider'
 import { Toaster } from 'sonner'
 import ErrorBoundary from '@/components/ErrorBoundary'
@@ -12,6 +13,11 @@ import DashboardPage from '@/pages/DashboardPage'
 import RequestPage from '@/pages/RequestPage'
 import SendPage from '@/pages/SendPage'
 import AgentsPage from '@/pages/AgentsPage'
+
+const ThemedToaster = () => {
+  const { resolvedTheme } = useTheme();
+  return <Toaster theme={resolvedTheme === 'light' ? 'light' : 'dark'} />;
+};
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
@@ -31,27 +37,29 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 };
 
 const App = () => (
-  <Web3Provider>
-    <BrowserRouter>
-      <ErrorBoundary>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/create" element={<CreatePage />} />
-            <Route path="/pay" element={<PayPage />} />
-            <Route path="/receipt/:id" element={<ReceiptPage />} />
-            <Route path="/send" element={<SendPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/request/:id" element={<RequestPage />} />
-            <Route path="/agents" element={<AgentsPage />} />
-            <Route path="/agents/cosign" element={<AgentsPage />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Layout>
-      </ErrorBoundary>
-      <Toaster theme="dark" />
-    </BrowserRouter>
-  </Web3Provider>
+  <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
+    <Web3Provider>
+      <BrowserRouter>
+        <ErrorBoundary>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/create" element={<CreatePage />} />
+              <Route path="/pay" element={<PayPage />} />
+              <Route path="/receipt/:id" element={<ReceiptPage />} />
+              <Route path="/send" element={<SendPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/request/:id" element={<RequestPage />} />
+              <Route path="/agents" element={<AgentsPage />} />
+              <Route path="/agents/cosign" element={<AgentsPage />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Layout>
+        </ErrorBoundary>
+        <ThemedToaster />
+      </BrowserRouter>
+    </Web3Provider>
+  </ThemeProvider>
 )
 
 export default App

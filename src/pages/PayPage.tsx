@@ -8,6 +8,7 @@ import { usePaymentLinks } from '@/hooks/usePaymentLinks'
 import { useReceipts } from '@/hooks/useReceipts'
 import { useProfiles } from '@/hooks/useProfiles'
 import { toast } from 'sonner'
+import { DEFAULT_QEVOR_CHAIN_KEY, getExplorerTxUrl, getQevorChainById, getQevorChainByKey, type QevorChainKey } from '@/lib/chains'
 
 const OG_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/og-image`
 
@@ -17,9 +18,11 @@ const PayPage = () => {
   const linkId = searchParams.get('link')
   const fallbackTo = searchParams.get('to') as `0x${string}` | null
   const fallbackAmount = searchParams.get('amount')
+  const fallbackChainKey = searchParams.get('chain') as QevorChainKey | null
 
   const [to, setTo] = useState<`0x${string}` | null>(fallbackTo)
   const [amount, setAmount] = useState<string | null>(fallbackAmount)
+  const [chainKey, setChainKey] = useState<QevorChainKey>(fallbackChainKey ?? DEFAULT_QEVOR_CHAIN_KEY)
   const [dbLinkError, setDbLinkError] = useState<string | null>(null)
   const [currentUses, setCurrentUses] = useState(0)
   const [isLoadingLink, setIsLoadingLink] = useState(!!linkId && (!fallbackTo || !fallbackAmount))
@@ -41,6 +44,7 @@ const PayPage = () => {
   const { address, isConnected } = useAccount()
   const { connect, connectors, isPending: isConnecting } = useConnect()
   const { sendTransaction, isPending: isSending } = useArcSend()
+  const selectedNetwork = getQevorChainByKey(chainKey)
 
   // Fetch link data
   useEffect(() => {
@@ -57,6 +61,7 @@ const PayPage = () => {
           } else {
             if (!fallbackTo) setTo(linkData.receiver_wallet as `0x${string}`)
             if (!fallbackAmount) setAmount(linkData.amount.toString())
+            setChainKey(getQevorChainById(linkData.chain_id).key)
             setCurrentUses(linkData.current_uses || 0)
           }
         } else {
@@ -93,11 +98,11 @@ const PayPage = () => {
         el.setAttribute('content', content)
       }
       setMeta('og:image', ogUrl)
-      setMeta('og:title', `Pay ${parseFloat(amount).toFixed(2)} USDC on Qevor`)
-      setMeta('og:description', `Payment request for ${parseFloat(amount).toFixed(2)} USDC on Qevor (Arc Testnet)`)
-      document.title = `Pay ${parseFloat(amount).toFixed(2)} USDC | Qevor`
+      setMeta('og:title', `Pay ${parseFloat(amount).toFixed(2)} ${selectedNetwork.paymentAsset} on Qevor`)
+      setMeta('og:description', `Payment request for ${parseFloat(amount).toFixed(2)} ${selectedNetwork.paymentAsset} on Qevor (${selectedNetwork.label})`)
+      document.title = `Pay ${parseFloat(amount).toFixed(2)} ${selectedNetwork.paymentAsset} | Qevor`
     }
-  }, [to, amount])
+  }, [to, amount, selectedNetwork])
 
   // Window resize
   useEffect(() => {
@@ -118,6 +123,8 @@ const PayPage = () => {
             receiver: to,
             amount: parseFloat(amount),
             tx_hash: txHash,
+            chain_id: selectedNetwork.chain.id,
+            token_symbol: selectedNetwork.paymentAsset,
             status: 'paid',
             memo: memo,
           })
@@ -128,7 +135,7 @@ const PayPage = () => {
       }
       logPayment()
     }
-  }, [isSuccess, receiptGenerated, to, amount, txHash, linkId, address, currentUses, incrementUsage, createReceipt])
+  }, [isSuccess, receiptGenerated, to, amount, txHash, linkId, address, currentUses, incrementUsage, createReceipt, selectedNetwork])
 
   if (isLoadingLink) {
     return (
@@ -161,6 +168,7 @@ const PayPage = () => {
     sendTransaction({
       to,
       amount, // decimal string, e.g. "1.0" — Arc Kit handles conversion
+      chainKey,
       onSuccess(hash) {
         const h = (hash || '') as `0x${string}`
         setTxHash(h)
@@ -186,10 +194,11 @@ const PayPage = () => {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-1">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Payment Request</p>
-          <h1 className="text-4xl font-bold gradient-text">{parseFloat(amount).toFixed(2)} USDC</h1>
+          <h1 className="text-4xl font-bold gradient-text">{parseFloat(amount).toFixed(2)} {selectedNetwork.paymentAsset}</h1>
           <p className="text-sm text-muted-foreground">
             to <span className="text-foreground font-mono">{shortAddr(to)}</span>
           </p>
+          <p className="text-xs text-muted-foreground">{selectedNetwork.label}</p>
         </div>
 
         {isSuccess ? (
@@ -200,14 +209,14 @@ const PayPage = () => {
               </div>
               <div>
                 <p className="font-semibold text-foreground">Payment Complete!</p>
-                <p className="text-xs text-muted-foreground">Transaction confirmed on Arc Testnet</p>
+                <p className="text-xs text-muted-foreground">Transaction confirmed on {selectedNetwork.label}</p>
               </div>
             </div>
 
             <div className="space-y-2 text-sm border-t border-border pt-4">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Amount</span>
-                <span className="text-foreground font-semibold">{parseFloat(amount).toFixed(2)} USDC</span>
+                <span className="text-foreground font-semibold">{parseFloat(amount).toFixed(2)} {selectedNetwork.paymentAsset}</span>
               </div>
               {memo && (
                 <div className="flex justify-between">
@@ -219,7 +228,7 @@ const PayPage = () => {
 
             <div className="flex flex-col gap-3">
               <a
-                href={`https://testnet.arcscan.app/tx/${txHash}`}
+                href={getExplorerTxUrl(selectedNetwork.chain.id, txHash ?? '')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 w-full rounded-lg border border-border bg-secondary py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
@@ -244,7 +253,7 @@ const PayPage = () => {
               <DollarSign size={18} className="text-muted-foreground" />
               <div className="flex-1">
                 <p className="text-xs text-muted-foreground">You're paying</p>
-                <p className="text-foreground font-semibold">{parseFloat(amount).toFixed(2)} USDC</p>
+                <p className="text-foreground font-semibold">{parseFloat(amount).toFixed(2)} {selectedNetwork.paymentAsset}</p>
               </div>
             </div>
 
@@ -289,7 +298,7 @@ const PayPage = () => {
                   ? 'Verifying Link...'
                   : isSending
                     ? 'Processing...'
-                    : `Pay ${parseFloat(amount!).toFixed(2)} USDC`}
+                    : `Pay ${parseFloat(amount!).toFixed(2)} ${selectedNetwork.paymentAsset}`}
               </button>
             )}
 
@@ -302,7 +311,7 @@ const PayPage = () => {
         )}
 
         <p className="text-center text-xs text-muted-foreground">
-          Powered by <span className="gradient-text font-semibold">Qevor</span> on Arc Testnet
+          Powered by <span className="gradient-text font-semibold">Qevor</span> on {selectedNetwork.label}
         </p>
       </div>
     </div>

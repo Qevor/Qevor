@@ -6,7 +6,7 @@ import { type ReactNode, useState } from 'react'
 import { DynamicContextProvider } from '@dynamic-labs/sdk-react-core';
 import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
 import { DynamicWagmiConnector } from '@dynamic-labs/wagmi-connector';
-import { arcTestnet } from '@/lib/arcChain';
+import { qevorChains } from '@/lib/chains';
 
 export function Web3Provider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient())
@@ -18,15 +18,15 @@ export function Web3Provider({ children }: { children: ReactNode }) {
         walletConnectors: [EthereumWalletConnectors],
         walletsFilter: () => [], // Hides external wallets, forcing email-based embedded smart wallets
         overrides: {
-          evmNetworks: [{
-            blockExplorerUrls: ['https://testnet.arcscan.app'],
-            chainId: 5042002,
-            iconUrls: ['https://rpc.testnet.arc.network/favicon.ico'],
-            name: 'Arc Testnet',
-            nativeCurrency: { decimals: 18, name: 'USDC', symbol: 'USDC' },
-            networkId: 5042002,
-            rpcUrls: ['https://rpc.testnet.arc.network'],
-          }]
+          evmNetworks: qevorChains.map(network => ({
+            blockExplorerUrls: [network.explorerUrl],
+            chainId: network.chain.id,
+            iconUrls: [],
+            name: network.label,
+            nativeCurrency: network.chain.nativeCurrency,
+            networkId: network.chain.id,
+            rpcUrls: [...network.rpcUrls],
+          })),
         },
       }}
     >

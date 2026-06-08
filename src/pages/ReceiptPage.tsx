@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useReceipts, Receipt } from '@/hooks/useReceipts';
 import { CheckCircle2, Copy, ExternalLink, ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getExplorerTxUrl, getQevorChainById } from '@/lib/chains';
 
 export default function ReceiptPage() {
     const { id } = useParams<{ id: string }>();
@@ -19,6 +20,7 @@ export default function ReceiptPage() {
     }, [id]);
 
     const shortAddr = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+    const receiptNetwork = getQevorChainById(receipt?.chain_id);
 
     const handleCopy = async () => {
         if (receipt?.tx_hash) {
@@ -71,7 +73,12 @@ export default function ReceiptPage() {
                     <div className="space-y-4 pt-4 border-t border-border">
                         <div className="flex justify-between items-center">
                             <span className="text-xs text-muted-foreground uppercase tracking-wider">Amount</span>
-                            <span className="text-xl font-bold gradient-text">{receipt.amount.toFixed(2)} USDC</span>
+                            <span className="text-xl font-bold gradient-text">{receipt.amount.toFixed(2)} {receipt.token_symbol ?? receiptNetwork.paymentAsset}</span>
+                        </div>
+
+                        <div className="flex justify-between items-center">
+                            <span className="text-xs text-muted-foreground uppercase tracking-wider">Network</span>
+                            <span className="text-sm text-foreground font-medium">{receiptNetwork.label}</span>
                         </div>
 
                         {receipt.memo && (
@@ -122,7 +129,7 @@ export default function ReceiptPage() {
                     </div>
 
                     <a
-                        href={`https://testnet.arcscan.app/tx/${receipt.tx_hash}`}
+                        href={getExplorerTxUrl(receipt.chain_id, receipt.tx_hash)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="w-full flex items-center justify-center gap-2 rounded-lg border border-border bg-secondary py-3 text-sm font-medium text-foreground hover:bg-muted transition-colors"

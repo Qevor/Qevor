@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { getQevorChainById } from '@/lib/chains';
 
 export interface BatchRecipient {
     wallet: string;
@@ -14,6 +15,8 @@ export interface Batch {
     description?: string;
     recipients: BatchRecipient[];
     total_amount: number;
+    chain_id?: number;
+    token_symbol?: string;
     status: 'pending' | 'partial' | 'complete';
     expires_at?: string | null;
     created_at: string;
@@ -28,6 +31,8 @@ export interface BatchPayment {
     recipient_wallet: string;
     amount: number;
     tx_hash: string;
+    chain_id?: number;
+    token_symbol?: string;
     status: string;
     created_at: string;
 }
@@ -53,11 +58,17 @@ export function useBatchPayments() {
                 .single();
 
             if (sbError) throw sbError;
-            return result as Batch;
+            const batch = result as Batch;
+            const network = getQevorChainById(batch.chain_id);
+            return {
+                ...batch,
+                chain_id: batch.chain_id ?? network.chain.id,
+                token_symbol: batch.token_symbol ?? network.paymentAsset,
+            };
         } catch (err: any) {
             console.error('Error creating batch payment:', err);
             setError(err.message);
-            return null;
+            throw err;
         } finally {
             setLoading(false);
         }
@@ -74,7 +85,13 @@ export function useBatchPayments() {
                 .single();
 
             if (sbError) throw sbError;
-            return data as Batch;
+            const batch = data as Batch;
+            const network = getQevorChainById(batch.chain_id);
+            return {
+                ...batch,
+                chain_id: batch.chain_id ?? network.chain.id,
+                token_symbol: batch.token_symbol ?? network.paymentAsset,
+            };
         } catch (err: any) {
             console.error('Error fetching batch payment:', err);
             setError(err.message);
@@ -95,7 +112,14 @@ export function useBatchPayments() {
                 .order('created_at', { ascending: false });
 
             if (sbError) throw sbError;
-            return (data || []) as Batch[];
+            return ((data || []) as Batch[]).map(batch => {
+                const network = getQevorChainById(batch.chain_id);
+                return {
+                    ...batch,
+                    chain_id: batch.chain_id ?? network.chain.id,
+                    token_symbol: batch.token_symbol ?? network.paymentAsset,
+                };
+            });
         } catch (err: any) {
             console.error('Error fetching batch payments:', err);
             setError(err.message);
@@ -110,7 +134,9 @@ export function useBatchPayments() {
         payerWallet: string,
         recipientWallet: string,
         amount: number,
-        txHash: string
+        txHash: string,
+        chainId?: number,
+        tokenSymbol?: string
     ): Promise<void> => {
         try {
             const { error: insertError } = await supabase.from('batch_payments').insert([{
@@ -119,6 +145,8 @@ export function useBatchPayments() {
                 recipient_wallet: recipientWallet,
                 amount,
                 tx_hash: txHash,
+                chain_id: chainId,
+                token_symbol: tokenSymbol,
                 status: 'paid'
             }]);
 
@@ -145,7 +173,14 @@ export function useBatchPayments() {
                 .eq('batch_request_id', batchId);
 
             if (error) throw error;
-            return (data || []) as BatchPayment[];
+            return ((data || []) as BatchPayment[]).map(payment => {
+                const network = getQevorChainById(payment.chain_id);
+                return {
+                    ...payment,
+                    chain_id: payment.chain_id ?? network.chain.id,
+                    token_symbol: payment.token_symbol ?? network.paymentAsset,
+                };
+            });
         } catch (err) {
             console.error('Error fetching batch payments:', err);
             return [];
@@ -161,7 +196,14 @@ export function useBatchPayments() {
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            return (data || []) as BatchPayment[];
+            return ((data || []) as BatchPayment[]).map(payment => {
+                const network = getQevorChainById(payment.chain_id);
+                return {
+                    ...payment,
+                    chain_id: payment.chain_id ?? network.chain.id,
+                    token_symbol: payment.token_symbol ?? network.paymentAsset,
+                };
+            });
         } catch (err) {
             console.error('Error fetching batch payments by wallet:', err);
             return [];

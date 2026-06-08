@@ -11,6 +11,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { getAppUrl } from '@/lib/appUrl';
+import { getQevorChainById } from '@/lib/chains';
 
 interface PaymentLinkCardProps {
     linkData: PaymentLinkData;
@@ -20,6 +21,8 @@ export function PaymentLinkCard({ linkData }: PaymentLinkCardProps) {
     const [copied, setCopied] = useState(false);
 
     const payUrl = `${getAppUrl()}/pay?link=${linkData.id}`;
+    const network = getQevorChainById(linkData.chain_id);
+    const tokenSymbol = linkData.token_symbol ?? network.paymentAsset;
 
     const isExpired = linkData.expires_at ? new Date(linkData.expires_at) < new Date() : false;
     const isMaxed = linkData.max_uses !== null && linkData.current_uses! >= linkData.max_uses!;
@@ -46,9 +49,9 @@ export function PaymentLinkCard({ linkData }: PaymentLinkCardProps) {
         <div className="glass-card rounded-xl p-5 space-y-4 shadow-glow border border-border/50 hover:border-primary/30 transition-colors">
             <div className="flex justify-between items-start">
                 <div>
-                    <h3 className="text-xl font-bold text-foreground">{linkData.amount.toFixed(2)} USDC</h3>
+                    <h3 className="text-xl font-bold text-foreground">{linkData.amount.toFixed(2)} {tokenSymbol}</h3>
                     <p className="text-xs text-muted-foreground mt-1">
-                        Uses: {linkData.current_uses} {linkData.max_uses ? `/ ${linkData.max_uses}` : ''}
+                        {network.label} - Uses: {linkData.current_uses} {linkData.max_uses ? `/ ${linkData.max_uses}` : ''}
                     </p>
                 </div>
                 <div className={`px-2 py-1 rounded-md text-[10px] font-bold tracking-wider border ${statusColor}`}>
@@ -91,7 +94,7 @@ export function PaymentLinkCard({ linkData }: PaymentLinkCardProps) {
                     <DropdownMenuContent align="end" className="w-52 bg-secondary border-border text-foreground rounded-xl shadow-glow">
                         <DropdownMenuItem asChild className="cursor-pointer hover:bg-muted focus:bg-muted py-2.5">
                             <a
-                                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Pay me ${linkData.amount} USDC on Qevor ⚡`)}&url=${encodeURIComponent(payUrl)}`}
+                                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Pay me ${linkData.amount} ${tokenSymbol} on Qevor`)}&url=${encodeURIComponent(payUrl)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-2.5 w-full text-sm font-medium"
@@ -102,7 +105,7 @@ export function PaymentLinkCard({ linkData }: PaymentLinkCardProps) {
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild className="cursor-pointer hover:bg-muted focus:bg-muted py-2.5">
                             <a
-                                href={`https://t.me/share/url?url=${encodeURIComponent(payUrl)}&text=${encodeURIComponent(`Pay me ${linkData.amount} USDC on Qevor ⚡`)}`}
+                                href={`https://t.me/share/url?url=${encodeURIComponent(payUrl)}&text=${encodeURIComponent(`Pay me ${linkData.amount} ${tokenSymbol} on Qevor`)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-2.5 w-full text-sm font-medium"
@@ -113,7 +116,7 @@ export function PaymentLinkCard({ linkData }: PaymentLinkCardProps) {
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild className="cursor-pointer hover:bg-muted focus:bg-muted py-2.5">
                             <a
-                                href={`https://wa.me/?text=${encodeURIComponent(`Pay me ${linkData.amount} USDC on Qevor ⚡ ${payUrl}`)}`}
+                                href={`https://wa.me/?text=${encodeURIComponent(`Pay me ${linkData.amount} ${tokenSymbol} on Qevor ${payUrl}`)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-2.5 w-full text-sm font-medium"
@@ -132,7 +135,7 @@ export function PaymentLinkCard({ linkData }: PaymentLinkCardProps) {
                         </button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-md flex flex-col items-center justify-center p-8 bg-zinc-950 border-zinc-800">
-                        <h3 className="text-lg font-semibold mb-4 text-zinc-100">Scan to Pay {linkData.amount} USDC</h3>
+                        <h3 className="text-lg font-semibold mb-4 text-zinc-100">Scan to Pay {linkData.amount} {tokenSymbol}</h3>
                         <div className="bg-white p-4 rounded-xl">
                             <QRCode value={payUrl} size={200} />
                         </div>

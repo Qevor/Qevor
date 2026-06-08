@@ -9,11 +9,7 @@ import { toast } from 'sonner';
 import { useProfiles } from '@/hooks/useProfiles';
 import { useArcSend } from '@/hooks/useArcSend';
 import { Link, useNavigate } from 'react-router-dom';
-
-// Direct Arc RPC client — bypasses wagmi chain config to avoid chainId mismatch
-const arcClient = createPublicClient({
-    transport: http('https://rpc.testnet.arc.network'),
-});
+import { DEFAULT_QEVOR_CHAIN_KEY, getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains';
 
 const USDC_ADDRESS = '0x3600000000000000000000000000000000000000' as const;
 
@@ -31,18 +27,26 @@ const erc20Abi = [
 export function WalletTab() {
     const { address } = useAccount();
     const [displayBalance, setDisplayBalance] = useState('0.0000');
+    const [chainKey, setChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY);
+    const selectedNetwork = getQevorChainByKey(chainKey);
 
     const fetchBalance = useCallback(async () => {
         if (!address) return;
         try {
-            // Fetch native USDC balance (USDC is the native gas token on Arc)
-            const native = await arcClient.getBalance({ address });
+            const client = createPublicClient({
+                chain: selectedNetwork.chain,
+                transport: http(selectedNetwork.rpcUrls[0]),
+            });
+            const native = await client.getBalance({ address });
             if (native > 0n) {
-                setDisplayBalance(parseFloat(formatUnits(native, 18)).toFixed(4));
+                setDisplayBalance(parseFloat(formatUnits(native, selectedNetwork.chain.nativeCurrency.decimals)).toFixed(4));
                 return;
             }
-            // Fallback: check ERC-20 USDC contract
-            const erc20 = await arcClient.readContract({
+            if (selectedNetwork.key !== 'arc-testnet') {
+                setDisplayBalance('0.0000');
+                return;
+            }
+            const erc20 = await client.readContract({
                 address: USDC_ADDRESS,
                 abi: erc20Abi,
                 functionName: 'balanceOf',
@@ -52,7 +56,7 @@ export function WalletTab() {
         } catch {
             // silently keep last known value
         }
-    }, [address]);
+    }, [address, selectedNetwork]);
 
     useEffect(() => {
         fetchBalance();
@@ -98,6 +102,7 @@ export function WalletTab() {
         sendTransaction({
             to: finalRecipient,
             amount,
+            chainKey,
             onSuccess(hash) {
                 toast.success('Transaction sent!', { description: hash ? `Hash: ${hash.slice(0, 10)}...` : '' });
                 setSendOpen(false);
@@ -121,7 +126,23 @@ export function WalletTab() {
                 <div className="text-5xl md:text-6xl font-extrabold gradient-text mb-2">
                     {displayBalance}
                 </div>
-                <p className="text-primary/80 font-medium mb-10">USDC (Arc Testnet)</p>
+                <p className="text-primary/80 font-medium mb-4">{selectedNetwork.paymentAsset} ({selectedNetwork.label})</p>
+                <div className="w-full max-w-xs mb-8">
+                    <select
+                        value={chainKey}
+                        onChange={(e) => {
+                            setChainKey(e.target.value as QevorChainKey);
+                            setDisplayBalance('0.0000');
+                        }}
+                        className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
+                    >
+                        {qevorChains.map(network => (
+                            <option key={network.key} value={network.key}>
+                                {network.label} ({network.paymentAsset})
+                            </option>
+                        ))}
+                    </select>
+                </div>
 
                 {/* Primary action buttons — Send & Receive */}
                 <div className="flex gap-4 w-full max-w-sm">
@@ -134,7 +155,7 @@ export function WalletTab() {
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-md bg-card border-border">
                             <DialogHeader>
-                                <DialogTitle>Send USDC</DialogTitle>
+                                <DialogTitle>Send {selectedNetwork.paymentAsset}</DialogTitle>
                             </DialogHeader>
                             <div className="space-y-4 py-4">
                                 <div className="space-y-2">
@@ -147,7 +168,7 @@ export function WalletTab() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">Amount (USDC)</label>
+                                    <label className="text-sm font-medium">Amount ({selectedNetwork.paymentAsset})</label>
                                     <div className="relative">
                                         <input
                                             type="number"
@@ -189,8 +210,8 @@ export function WalletTab() {
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-md bg-card border-border flex flex-col items-center p-8">
                             <DialogHeader className="mb-4 w-full text-center">
-                                <DialogTitle className="text-center text-xl">Receive USDC</DialogTitle>
-                                <p className="text-muted-foreground text-sm">Scan to send funds on Arc Testnet</p>
+                                <DialogTitle className="text-center text-xl">Receive {selectedNetwork.paymentAsset}</DialogTitle>
+                                <p className="text-muted-foreground text-sm">Scan to send funds on {selectedNetwork.label}</p>
                             </DialogHeader>
                             <div className="bg-white p-4 rounded-3xl mb-6 shadow-glow">
                                 <QRCode value={address || '0x'} size={200} />
@@ -228,7 +249,7 @@ export function WalletTab() {
                     </div>
                     <div>
                         <h3 className="font-semibold mb-1">Send to anyone</h3>
-                        <p className="text-sm text-muted-foreground">Instantly transfer USDC across the Arc Testnet securely and cheaply.</p>
+                        <p className="text-sm text-muted-foreground">Instantly transfer {selectedNetwork.paymentAsset} across {selectedNetwork.label} securely and cheaply.</p>
                     </div>
                 </button>
                 <button
@@ -265,7 +286,7 @@ export function WalletTab() {
                     </div>
                     <div>
                         <h3 className="font-semibold mb-1">Payment Links</h3>
-                        <p className="text-sm text-muted-foreground">Generate shareable links to request exact USDC amounts from anyone on Arc.</p>
+                        <p className="text-sm text-muted-foreground">Generate shareable links to request exact amounts on Arc or Mantle Sepolia.</p>
                     </div>
                 </Link>
             </div>

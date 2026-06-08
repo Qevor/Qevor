@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { getQevorChainById } from '@/lib/chains';
 
 export interface Receipt {
     id: string;
@@ -7,6 +8,8 @@ export interface Receipt {
     receiver: string;
     amount: number;
     tx_hash: string;
+    chain_id?: number;
+    token_symbol?: string;
     status: string;
     memo?: string;
     created_at: string;
@@ -27,7 +30,13 @@ export function useReceipts() {
                 .single();
 
             if (sbError) throw sbError;
-            return data as Receipt;
+            const receipt = data as Receipt;
+            const network = getQevorChainById(receipt.chain_id);
+            return {
+                ...receipt,
+                chain_id: receipt.chain_id ?? network.chain.id,
+                token_symbol: receipt.token_symbol ?? network.paymentAsset,
+            };
         } catch (err: any) {
             console.error('Error fetching receipt:', err);
             setError(err.message);

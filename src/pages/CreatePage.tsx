@@ -7,6 +7,7 @@ import { usePaymentLinks } from '@/hooks/usePaymentLinks'
 import { useAccount } from 'wagmi'
 import { useProfiles } from '@/hooks/useProfiles'
 import { getAppUrl } from '@/lib/appUrl'
+import { DEFAULT_QEVOR_CHAIN_KEY, getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains'
 
 const CreatePage = () => {
   const { createLinks, loading: isCreatingLinks } = usePaymentLinks()
@@ -15,6 +16,8 @@ const CreatePage = () => {
 
   const [recipientInput, setRecipientInput] = useState('')
   const [amount, setAmount] = useState('')
+  const [chainKey, setChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY)
+  const selectedNetwork = getQevorChainByKey(chainKey)
 
   useEffect(() => {
     if (connectedWallet && !recipientInput) {
@@ -51,7 +54,7 @@ const CreatePage = () => {
   const appUrl = getAppUrl()
   const shareUrl = generatedLinkId
     ? `${appUrl}/pay?link=${generatedLinkId}`
-    : `${appUrl}/pay?to=${recipientInput}&amount=${amount}`
+    : `${appUrl}/pay?to=${recipientInput}&amount=${amount}&chain=${chainKey}`
   const isValid = recipientInput.length >= 3 && (isSplitMode ? splitAmounts.length > 0 : parseFloat(amount) > 0)
 
   const handleGenerate = async () => {
@@ -99,6 +102,8 @@ const CreatePage = () => {
         const linkObject = {
           receiver_wallet: finalAddress,
           amount: amt,
+          chain_id: selectedNetwork.chain.id,
+          token_symbol: selectedNetwork.paymentAsset,
           expires_at: currentExpiresAt ? new Date(currentExpiresAt).toISOString() : null,
           max_uses: currentMaxUses ? parseInt(currentMaxUses) : null,
           current_uses: 0,
@@ -148,6 +153,8 @@ const CreatePage = () => {
         const data = await createLinks([{
           receiver_wallet: finalAddress,
           amount: parseFloat(amount),
+          chain_id: selectedNetwork.chain.id,
+          token_symbol: selectedNetwork.paymentAsset,
           expires_at: null,
           max_uses: null,
           current_uses: 0,
@@ -239,7 +246,7 @@ const CreatePage = () => {
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground uppercase tracking-wider">Link {index + 1}</p>
-                      <p className="text-2xl font-bold gradient-text">{link.amount} USDC</p>
+                      <p className="text-2xl font-bold gradient-text">{link.amount} {selectedNetwork.paymentAsset}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">Receiver</p>
@@ -290,7 +297,7 @@ const CreatePage = () => {
 
                     {/* Twitter */}
                     <a
-                      href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Pay me ${link.amount} USDC on Qevor ⚡`)}&url=${encodeURIComponent(linkUrl)}`}
+                      href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Pay me ${link.amount} ${selectedNetwork.paymentAsset} on Qevor`)}&url=${encodeURIComponent(linkUrl)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-1 rounded-lg border border-border bg-secondary py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors"
@@ -303,7 +310,7 @@ const CreatePage = () => {
 
                     {/* Telegram */}
                     <a
-                      href={`https://t.me/share/url?url=${encodeURIComponent(linkUrl)}&text=${encodeURIComponent(`Pay me ${link.amount} USDC on Qevor ⚡`)}`}
+                      href={`https://t.me/share/url?url=${encodeURIComponent(linkUrl)}&text=${encodeURIComponent(`Pay me ${link.amount} ${selectedNetwork.paymentAsset} on Qevor`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-1 rounded-lg border border-border bg-secondary py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors"
@@ -314,7 +321,7 @@ const CreatePage = () => {
 
                     {/* WhatsApp */}
                     <a
-                      href={`https://wa.me/?text=${encodeURIComponent(`Pay me ${link.amount} USDC on Qevor ⚡ ${linkUrl}`)}`}
+                      href={`https://wa.me/?text=${encodeURIComponent(`Pay me ${link.amount} ${selectedNetwork.paymentAsset} on Qevor ${linkUrl}`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-1 rounded-lg border border-border bg-secondary py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors"
@@ -341,7 +348,7 @@ const CreatePage = () => {
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold gradient-text">Qevor</h1>
           <p className="text-muted-foreground text-sm">
-            Create a shareable payment link for USDC on Arc Testnet
+            Create a shareable payment link on Arc or Mantle Sepolia
           </p>
         </div>
 
@@ -359,7 +366,7 @@ const CreatePage = () => {
 
           {!isSplitMode && (
             <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-              <label className="text-sm font-medium text-foreground">Amount in USDC</label>
+              <label className="text-sm font-medium text-foreground">Amount in {selectedNetwork.paymentAsset}</label>
               <input
                 type="number"
                 placeholder="10.00"
@@ -371,6 +378,25 @@ const CreatePage = () => {
               />
             </div>
           )}
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Network</label>
+            <select
+              value={chainKey}
+              onChange={(e) => {
+                setChainKey(e.target.value as QevorChainKey)
+                setGenerated(false)
+                setGeneratedLinkId(null)
+              }}
+              className="w-full rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
+            >
+              {qevorChains.map(network => (
+                <option key={network.key} value={network.key}>
+                  {network.label} ({network.paymentAsset})
+                </option>
+              ))}
+            </select>
+          </div>
 
           <SplitInput onSplitChange={(amounts, isModeActive) => { setSplitAmounts(amounts); setIsSplitMode(isModeActive); setGenerated(false); setGeneratedLinkId(null) }} />
 
@@ -409,7 +435,7 @@ const CreatePage = () => {
                     <div key={idx} className="flex gap-3 items-end bg-background/50 p-3 rounded-lg border border-border animate-in fade-in slide-in-from-top-2">
                       <div className="w-20 shrink-0">
                         <label className="text-xs text-muted-foreground mb-1 block">Amount</label>
-                        <div className="text-sm font-semibold">{amt} USDC</div>
+                        <div className="text-sm font-semibold">{amt} {selectedNetwork.paymentAsset}</div>
                       </div>
                       <div className="flex-1">
                         <label className="text-xs text-muted-foreground mb-1 block">Expires</label>
@@ -488,7 +514,7 @@ const CreatePage = () => {
 
             <div className="flex gap-3 pt-1">
               <a
-                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Pay me ${amount} USDC on Qevor ⚡`)}&url=${encodeURIComponent(shareUrl)}`}
+                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Pay me ${amount} ${selectedNetwork.paymentAsset} on Qevor`)}&url=${encodeURIComponent(shareUrl)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-border bg-secondary py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
@@ -497,7 +523,7 @@ const CreatePage = () => {
                 X
               </a>
               <a
-                href={`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(`Pay me ${amount} USDC on Qevor ⚡`)}`}
+                href={`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(`Pay me ${amount} ${selectedNetwork.paymentAsset} on Qevor`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-border bg-secondary py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
@@ -506,7 +532,7 @@ const CreatePage = () => {
                 Telegram
               </a>
               <a
-                href={`https://wa.me/?text=${encodeURIComponent(`Pay me ${amount} USDC on Qevor ⚡ ${shareUrl}`)}`}
+                href={`https://wa.me/?text=${encodeURIComponent(`Pay me ${amount} ${selectedNetwork.paymentAsset} on Qevor ${shareUrl}`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-border bg-secondary py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, CheckCircle2, ExternalLink, XCircle } from 'lucide-react';
 import { useBatchPayments, Batch, BatchPayment } from '@/hooks/useBatchPayments';
+import { getExplorerTxUrl, getQevorChainById } from '@/lib/chains';
 
 export default function RequestPage() {
     const { id } = useParams<{ id: string }>();
@@ -40,6 +41,8 @@ export default function RequestPage() {
     };
 
     const paidCount = payments.length;
+    const network = getQevorChainById(batch.chain_id);
+    const tokenSymbol = batch.token_symbol ?? network.paymentAsset;
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
@@ -55,7 +58,7 @@ export default function RequestPage() {
                     </div>
                     <div className="text-left sm:text-right shrink-0">
                         <p className="text-sm text-muted-foreground">Total Sent</p>
-                        <p className="text-2xl font-bold text-foreground">{batch.total_amount.toFixed(2)} USDC</p>
+                        <p className="text-2xl font-bold text-foreground">{batch.total_amount.toFixed(2)} {tokenSymbol}</p>
                     </div>
                 </div>
 
@@ -68,6 +71,10 @@ export default function RequestPage() {
                     <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Progress</p>
                         <p className="text-sm font-semibold">{paidCount} / {batch.recipients.length} sent</p>
+                    </div>
+                    <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Network</p>
+                        <p className="text-sm font-semibold">{network.label}</p>
                     </div>
                     <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Status</p>
@@ -109,14 +116,14 @@ export default function RequestPage() {
                                 </div>
                                 <div className="flex items-center gap-3 shrink-0">
                                     <div className="text-right">
-                                        <p className="font-semibold">{rec.amount} USDC</p>
+                                        <p className="font-semibold">{rec.amount} {tokenSymbol}</p>
                                         <p className={`text-xs ${payment ? 'text-green-400' : 'text-muted-foreground'}`}>
                                             {payment ? 'Sent' : 'Not sent'}
                                         </p>
                                     </div>
                                     {payment?.tx_hash && (
                                         <a
-                                            href={`https://testnet.arcscan.app/tx/${payment.tx_hash}`}
+                                            href={getExplorerTxUrl(payment.chain_id ?? batch.chain_id, payment.tx_hash)}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="p-2 rounded-lg bg-secondary hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
@@ -133,7 +140,7 @@ export default function RequestPage() {
             </div>
 
             <p className="text-center text-xs text-muted-foreground mt-8">
-                Powered by <span className="gradient-text font-semibold">Qevor</span> on Arc Testnet
+                Powered by <span className="gradient-text font-semibold">Qevor</span> on {network.label}
             </p>
         </div>
     );

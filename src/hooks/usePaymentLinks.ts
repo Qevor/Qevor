@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { getQevorChainById } from '@/lib/chains';
 
 export interface PaymentLinkData {
     id?: string;
     receiver_wallet: string;
     amount: number;
+    chain_id?: number;
+    token_symbol?: string;
     expires_at?: string | null;
     max_uses?: number | null;
     current_uses?: number;
@@ -47,7 +50,13 @@ export function usePaymentLinks() {
                 .single();
 
             if (sbError) throw sbError;
-            return data;
+            const link = data as PaymentLinkData;
+            const network = getQevorChainById(link.chain_id);
+            return {
+                ...link,
+                chain_id: link.chain_id ?? network.chain.id,
+                token_symbol: link.token_symbol ?? network.paymentAsset,
+            };
         } catch (err: any) {
             console.error('Error fetching link:', err);
             setError(err.message);

@@ -19,6 +19,7 @@ import type { AgentWallet } from '@/lib/agents/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getAppUrl } from '@/lib/appUrl';
+import { DEFAULT_QEVOR_CHAIN_KEY, getExplorerTxUrl, getQevorChainById, getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains';
 
 export default function DashboardPage() {
     const { address, isConnected } = useAccount();
@@ -41,6 +42,8 @@ export default function DashboardPage() {
     const [batchTitle, setBatchTitle] = useState('');
     const [batchDesc, setBatchDesc] = useState('');
     const [batchRecipients, setBatchRecipients] = useState<BatchRecipient[]>([{ wallet: '', amount: 0, label: '' }]);
+    const [batchChainKey, setBatchChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY);
+    const selectedBatchNetwork = getQevorChainByKey(batchChainKey);
 
     type SendStep = 'form' | 'sending' | 'done' | 'queued';
     type SendResult = { wallet: string; amount: number; label?: string; txHash?: string; success: boolean };
@@ -64,7 +67,9 @@ export default function DashboardPage() {
     const [linkExpiresAt, setLinkExpiresAt] = useState('');
     const [linkUnlimitedUses, setLinkUnlimitedUses] = useState(true);
     const [linkMaxUses, setLinkMaxUses] = useState('');
-    const [createdLinks, setCreatedLinks] = useState<Array<{ id: string; amount: number }>>([]);
+    const [linkChainKey, setLinkChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY);
+    const selectedLinkNetwork = getQevorChainByKey(linkChainKey);
+    const [createdLinks, setCreatedLinks] = useState<Array<{ id: string; amount: number; token_symbol?: string }>>([]);
     const [copiedLinkIds, setCopiedLinkIds] = useState<Set<string>>(new Set());
 
     // Receipts — batch payment groups
@@ -74,6 +79,8 @@ export default function DashboardPage() {
         count: number;
         latestTxHash: string;
         createdAt: string;
+        chainId?: number;
+        tokenSymbol?: string;
     }>>([]);
 
     const appUrl = getAppUrl();
@@ -124,10 +131,10 @@ export default function DashboardPage() {
         if (!address) return;
         const payments = await getBatchPaymentsByWallet(address);
         // Group by batch_request_id
-        const groups: Record<string, { batchId: string; totalAmount: number; count: number; latestTxHash: string; createdAt: string }> = {};
+        const groups: Record<string, { batchId: string; totalAmount: number; count: number; latestTxHash: string; createdAt: string; chainId?: number; tokenSymbol?: string }> = {};
         for (const p of payments) {
             if (!groups[p.batch_request_id]) {
-                groups[p.batch_request_id] = { batchId: p.batch_request_id, totalAmount: 0, count: 0, latestTxHash: p.tx_hash, createdAt: p.created_at };
+                groups[p.batch_request_id] = { batchId: p.batch_request_id, totalAmount: 0, count: 0, latestTxHash: p.tx_hash, createdAt: p.created_at, chainId: p.chain_id, tokenSymbol: p.token_symbol };
             }
             groups[p.batch_request_id].totalAmount += Number(p.amount);
             groups[p.batch_request_id].count += 1;
@@ -162,6 +169,8 @@ export default function DashboardPage() {
         const linksPayload = amountsToCreate.map(amt => ({
             receiver_wallet: finalWallet,
             amount: amt,
+            chain_id: selectedLinkNetwork.chain.id,
+            token_symbol: selectedLinkNetwork.paymentAsset,
             expires_at: expiresAtISO,
             max_uses: maxUsesVal,
             current_uses: 0,
@@ -170,7 +179,7 @@ export default function DashboardPage() {
 
         const data = await createLinks(linksPayload);
         if (data && data.length > 0) {
-            setCreatedLinks(data.map((l: any) => ({ id: l.id, amount: l.amount })));
+            setCreatedLinks(data.map((l: any) => ({ id: l.id, amount: l.amount, token_symbol: l.token_symbol ?? selectedLinkNetwork.paymentAsset })));
             toast.success(linkSplitMode ? `${data.length} split links created!` : 'Payment link created!');
             fetchLinks();
         }
@@ -184,6 +193,7 @@ export default function DashboardPage() {
         setLinkExpiresAt('');
         setLinkUnlimitedUses(true);
         setLinkMaxUses('');
+        setLinkChainKey(DEFAULT_QEVOR_CHAIN_KEY);
         setCreatedLinks([]);
         setCopiedLinkIds(new Set());
     };
@@ -199,6 +209,7 @@ export default function DashboardPage() {
         setBatchTitle('');
         setBatchDesc('');
         setBatchRecipients([{ wallet: '', amount: 0, label: '' }]);
+        setBatchChainKey(DEFAULT_QEVOR_CHAIN_KEY);
         setBatchSendStep('form');
         setBatchSendResults([]);
         setExecutorAgentId(null);
@@ -226,7 +237,8 @@ export default function DashboardPage() {
 
             const parsed: BatchRecipient[] = [];
             for (const line of lines) {
-                const cols = line.split(',').map(c => c.trim());
+                const delimiter = line.includes(',') ? ',' : line.includes(';') ? ';' : '\t';
+                const cols = line.split(delimiter).map(c => c.trim().replace(/^\uFEFF/, '').replace(/^"|"$/g, ''));
                 const addr = cols[0];
                 const amt  = parseFloat(cols[1]);
                 const lbl  = cols[2] || '';
@@ -274,16 +286,31 @@ export default function DashboardPage() {
 
         const totalAmount = resolvedRecipients.reduce((s, r) => s + Number(r.amount), 0);
 
-        // Create the batch record in DB before sending — acts as the receipt container
-        const newBatch = await createBatch({
-            title:          batchTitle || undefined,
-            description:    batchDesc  || undefined,
-            creator_wallet: address,
-            recipients:     resolvedRecipients,
-            total_amount:   totalAmount,
-            expires_at:     null,
-            executor_agent_wallet_id: executorAgentId ?? undefined,
-        });
+        // Create the batch record in DB before sending - acts as the receipt container.
+        // If this fails, do not open a wallet tx; otherwise Mantle receipts could be lost.
+        let newBatch;
+        try {
+            newBatch = await createBatch({
+                title:          batchTitle || undefined,
+                description:    batchDesc  || undefined,
+                creator_wallet: address,
+                recipients:     resolvedRecipients,
+                total_amount:   totalAmount,
+                chain_id:       selectedBatchNetwork.chain.id,
+                token_symbol:   selectedBatchNetwork.paymentAsset,
+                expires_at:     null,
+                executor_agent_wallet_id: executorAgentId ?? undefined,
+            });
+        } catch (err: any) {
+            const message = String(err?.message || err?.details || err?.hint || err || '');
+            const schemaMissing = /chain_id|token_symbol|schema cache|column/i.test(message);
+            toast.error(
+                schemaMissing
+                    ? 'Supabase needs the multichain migration before Mantle batch sends. Run migration 03_multichain_mantle.sql.'
+                    : `Failed to initialise batch payment: ${message || 'database insert failed'}`
+            );
+            return;
+        }
 
         if (!newBatch) {
             toast.error('Failed to initialise batch payment');
@@ -304,13 +331,14 @@ export default function DashboardPage() {
         try {
             // ONE transaction → ONE wallet confirmation → distributes to all recipients
             const { txHash } = await sendBatch(
-                resolvedRecipients.map(r => ({ wallet: r.wallet as `0x${string}`, amount: r.amount }))
+                resolvedRecipients.map(r => ({ wallet: r.wallet as `0x${string}`, amount: r.amount })),
+                batchChainKey,
             );
 
             // Record each recipient's payment against the same txHash
             await Promise.all(
                 resolvedRecipients.map(r =>
-                    recordBatchPayment(newBatch.id, address, r.wallet, r.amount, txHash)
+                    recordBatchPayment(newBatch.id, address, r.wallet, r.amount, txHash, selectedBatchNetwork.chain.id, selectedBatchNetwork.paymentAsset)
                 )
             );
 
@@ -395,7 +423,7 @@ export default function DashboardPage() {
                                                 return (
                                                     <div key={link.id} className="border border-border rounded-xl p-3 space-y-2 bg-secondary/40">
                                                         {createdLinks.length > 1 && (
-                                                            <p className="text-xs font-semibold text-primary">{link.amount.toFixed(2)} USDC</p>
+                                                            <p className="text-xs font-semibold text-primary">{link.amount.toFixed(2)} {link.token_symbol ?? selectedLinkNetwork.paymentAsset}</p>
                                                         )}
                                                         <div className="flex items-center gap-2">
                                                             <code className="flex-1 text-xs font-mono break-all text-foreground bg-background/60 rounded-lg px-2 py-1.5 border border-border">
@@ -412,7 +440,7 @@ export default function DashboardPage() {
                                                         {/* Social sharing */}
                                                         <div className="flex gap-2 pt-1">
                                                             <a
-                                                                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Pay me ${link.amount} USDC on Qevor ⚡`)}&url=${encodeURIComponent(url)}`}
+                                                                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Pay me ${link.amount} ${link.token_symbol ?? selectedLinkNetwork.paymentAsset} on Qevor`)}&url=${encodeURIComponent(url)}`}
                                                                 target="_blank" rel="noopener noreferrer"
                                                                 className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-border bg-secondary py-1.5 text-xs font-medium hover:bg-muted transition-colors"
                                                             >
@@ -420,7 +448,7 @@ export default function DashboardPage() {
                                                                 X
                                                             </a>
                                                             <a
-                                                                href={`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`Pay me ${link.amount} USDC on Qevor ⚡`)}`}
+                                                                href={`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`Pay me ${link.amount} ${link.token_symbol ?? selectedLinkNetwork.paymentAsset} on Qevor`)}`}
                                                                 target="_blank" rel="noopener noreferrer"
                                                                 className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-border bg-secondary py-1.5 text-xs font-medium hover:bg-muted transition-colors"
                                                             >
@@ -428,7 +456,7 @@ export default function DashboardPage() {
                                                                 Telegram
                                                             </a>
                                                             <a
-                                                                href={`https://wa.me/?text=${encodeURIComponent(`Pay me ${link.amount} USDC on Qevor ⚡ ${url}`)}`}
+                                                                href={`https://wa.me/?text=${encodeURIComponent(`Pay me ${link.amount} ${link.token_symbol ?? selectedLinkNetwork.paymentAsset} on Qevor ${url}`)}`}
                                                                 target="_blank" rel="noopener noreferrer"
                                                                 className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-border bg-secondary py-1.5 text-xs font-medium hover:bg-muted transition-colors"
                                                             >
@@ -463,7 +491,7 @@ export default function DashboardPage() {
                                         {/* Single amount (hidden in split mode) */}
                                         {!linkSplitMode && (
                                             <div className="space-y-2">
-                                                <label className="text-sm font-medium">Amount (USDC)</label>
+                                                <label className="text-sm font-medium">Amount ({selectedLinkNetwork.paymentAsset})</label>
                                                 <div className="relative">
                                                     <input
                                                         type="number"
@@ -478,6 +506,21 @@ export default function DashboardPage() {
                                                 </div>
                                             </div>
                                         )}
+
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium">Network</label>
+                                            <select
+                                                value={linkChainKey}
+                                                onChange={(e) => setLinkChainKey(e.target.value as QevorChainKey)}
+                                                className="w-full bg-secondary border border-border rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                                            >
+                                                {qevorChains.map(network => (
+                                                    <option key={network.key} value={network.key}>
+                                                        {network.label} ({network.paymentAsset})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
 
                                         {/* Split Mode toggle */}
                                         <SplitInput onSplitChange={(amounts, isActive) => {
@@ -557,7 +600,7 @@ export default function DashboardPage() {
                         <div>
                             <p className="text-sm text-muted-foreground">Total Volume Requested</p>
                             <p className="text-2xl font-bold text-primary">
-                                {links.reduce((acc, curr) => acc + Number(curr.amount), 0).toFixed(2)} USDC
+                                {links.reduce((acc, curr) => acc + Number(curr.amount), 0).toFixed(2)} multi-chain
                             </p>
                         </div>
                     </div>
@@ -627,6 +670,21 @@ export default function DashboardPage() {
                                                 </div>
                                             </div>
 
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium">Network</label>
+                                                <select
+                                                    value={batchChainKey}
+                                                    onChange={(e) => setBatchChainKey(e.target.value as QevorChainKey)}
+                                                    className="w-full bg-secondary border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+                                                >
+                                                    {qevorChains.map(network => (
+                                                        <option key={network.key} value={network.key}>
+                                                            {network.label} ({network.paymentAsset})
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
                                             {agentWallets.length > 0 && (
                                                 <div className="space-y-2 pt-2 border-t border-border">
                                                     <label className="text-sm font-medium block">Execute with</label>
@@ -669,7 +727,7 @@ export default function DashboardPage() {
                                                 {/* Column headers */}
                                                 <div className="grid grid-cols-[1fr_5rem_6rem_1.5rem] gap-2 px-1">
                                                     <span className="text-xs text-muted-foreground">Wallet address or @username</span>
-                                                    <span className="text-xs text-muted-foreground">USDC</span>
+                                                    <span className="text-xs text-muted-foreground">{selectedBatchNetwork.paymentAsset}</span>
                                                     <span className="text-xs text-muted-foreground">Label</span>
                                                     <span />
                                                 </div>
@@ -738,7 +796,7 @@ export default function DashboardPage() {
                                                 return (
                                                     <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 text-sm">
                                                         <span className="text-muted-foreground">{valid.length} recipient{valid.length !== 1 ? 's' : ''} · 1 transaction · 1 gas fee</span>
-                                                        <span className="font-bold text-primary">{total.toFixed(2)} USDC</span>
+                                                        <span className="font-bold text-primary">{total.toFixed(2)} {selectedBatchNetwork.paymentAsset}</span>
                                                     </div>
                                                 );
                                             })()}
@@ -780,7 +838,7 @@ export default function DashboardPage() {
                                             <div>
                                                 <p className="font-semibold text-foreground">Confirm in your wallet</p>
                                                 <p className="text-sm text-muted-foreground mt-1">
-                                                    One signature distributes USDC to all {batchRecipients.filter(r => r.wallet && r.amount > 0).length} recipients
+                                                    One signature distributes {selectedBatchNetwork.paymentAsset} on {selectedBatchNetwork.label} to all {batchRecipients.filter(r => r.wallet && r.amount > 0).length} recipients
                                                 </p>
                                             </div>
                                         </div>
@@ -794,7 +852,7 @@ export default function DashboardPage() {
                                                         <span className="font-mono text-xs text-muted-foreground">{r.wallet.slice(0, 6)}…{r.wallet.slice(-4)}</span>
                                                         {r.label && <span className="text-xs text-muted-foreground">· {r.label}</span>}
                                                     </div>
-                                                    <span className="text-xs font-semibold">{Number(r.amount).toFixed(2)} USDC</span>
+                                                    <span className="text-xs font-semibold">{Number(r.amount).toFixed(2)} {selectedBatchNetwork.paymentAsset}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -811,7 +869,7 @@ export default function DashboardPage() {
                                                 <CheckCircle2 className="text-green-400 w-12 h-12 mx-auto" />
                                                 <p className="font-bold text-lg text-green-400">Batch payment sent!</p>
                                                 <p className="text-sm text-muted-foreground">
-                                                    {batchSendResults.length} recipients received a total of <span className="font-semibold text-foreground">{total.toFixed(2)} USDC</span>
+                                                    {batchSendResults.length} recipients received a total of <span className="font-semibold text-foreground">{total.toFixed(2)} {selectedBatchNetwork.paymentAsset}</span>
                                                 </p>
                                             </div>
 
@@ -824,7 +882,7 @@ export default function DashboardPage() {
                                                             <span className="font-mono text-xs">{r.wallet.slice(0, 6)}…{r.wallet.slice(-4)}</span>
                                                             {r.label && <span className="text-xs text-muted-foreground">· {r.label}</span>}
                                                         </div>
-                                                        <span className="text-xs font-semibold">{Number(r.amount).toFixed(2)} USDC</span>
+                                                        <span className="text-xs font-semibold">{Number(r.amount).toFixed(2)} {selectedBatchNetwork.paymentAsset}</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -832,7 +890,7 @@ export default function DashboardPage() {
                                             {/* Single transaction link */}
                                             {txHash && (
                                                 <a
-                                                    href={`https://testnet.arcscan.app/tx/${txHash}`}
+                                                    href={getExplorerTxUrl(selectedBatchNetwork.chain.id, txHash)}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-border bg-secondary hover:bg-muted transition-colors text-sm font-medium"
@@ -907,7 +965,7 @@ export default function DashboardPage() {
                                             </div>
                                             <div className="min-w-0">
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    <p className="font-semibold">{Number(r.amount).toFixed(2)} USDC</p>
+                                                    <p className="font-semibold">{Number(r.amount).toFixed(2)} {r.token_symbol ?? getQevorChainById(r.chain_id).paymentAsset}</p>
                                                     <span className={`text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full border ${isIncoming ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'}`}>
                                                         {isIncoming ? 'INCOMING' : 'OUTGOING'}
                                                     </span>
@@ -931,7 +989,7 @@ export default function DashboardPage() {
                                                 <ReceiptIcon size={13} /> Receipt
                                             </a>
                                             <a
-                                                href={`https://testnet.arcscan.app/tx/${r.tx_hash}`}
+                                                href={getExplorerTxUrl(r.chain_id, r.tx_hash)}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="px-3 py-2 rounded-lg bg-secondary hover:bg-muted transition-colors flex items-center gap-1.5 text-sm font-medium"
@@ -952,7 +1010,7 @@ export default function DashboardPage() {
                                         </div>
                                         <div className="min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
-                                                <p className="font-semibold">{grp.totalAmount.toFixed(2)} USDC</p>
+                                                <p className="font-semibold">{grp.totalAmount.toFixed(2)} {grp.tokenSymbol ?? getQevorChainById(grp.chainId).paymentAsset}</p>
                                                 <span className="text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full border bg-orange-500/10 text-orange-400 border-orange-500/30">
                                                     BATCH · OUTGOING
                                                 </span>
@@ -971,7 +1029,7 @@ export default function DashboardPage() {
                                             <Users size={13} /> View Batch Payments
                                         </a>
                                         <a
-                                            href={`https://testnet.arcscan.app/tx/${grp.latestTxHash}`}
+                                            href={getExplorerTxUrl(grp.chainId, grp.latestTxHash)}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="px-3 py-2 rounded-lg bg-secondary hover:bg-muted transition-colors flex items-center gap-1.5 text-sm font-medium"

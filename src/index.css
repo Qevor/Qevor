@@ -6,47 +6,79 @@
 
 @layer base {
   :root {
-    /* Qevor Design System — Exact match to Lovable app reference */
-    --background: 223 84% 5%;         /* #020817 Deep Midnight */
-    --foreground: 210 40% 98%;        /* #F8FAFC Slate 50 */
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
 
-    --card: 222 47% 11%;              /* #0F172A Slate 900 */
-    --card-foreground: 210 40% 98%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
 
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 191 100% 50%;          /* #00D1FF Bright Cyan */
+    --primary: 191 100% 42%;
     --primary-foreground: 0 0% 0%;
 
-    --secondary: 217 33% 17%;         /* #1E293B Slate 800 */
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 210 40% 94%;
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 25% 65%;  /* #94A3B8 Slate 400 */
+    --muted: 210 40% 94%;
+    --muted-foreground: 215 16% 42%;
 
-    --accent: 191 100% 50%;           
+    --accent: 191 100% 42%;
     --accent-foreground: 0 0% 0%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 217 33% 17%;            /* #1E293B Slate 800 */
-    --input: 217 33% 17%;
-    --ring: 191 100% 50%;
+    --border: 214 32% 88%;
+    --input: 214 32% 88%;
+    --ring: 191 100% 42%;
 
     --radius: 1rem;
 
-    /* Brand gradients */
+    --gradient-brand: linear-gradient(135deg, hsl(191, 100%, 42%), hsl(226, 76%, 52%));
+    --gradient-glow: radial-gradient(60% 60% at 50% 0%, hsl(191 100% 42% / 0.12), transparent 70%);
+    --shadow-elegant: 0 30px 80px -34px hsl(191 100% 30% / 0.3);
+    --shadow-glow: 0 0 30px -8px hsl(191 100% 42% / 0.38);
+    --shadow-glow-lg: 0 0 60px -14px hsl(191 100% 42% / 0.28);
+  }
+
+  .dark {
+    --background: 223 84% 5%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 191 100% 50%;
+    --primary-foreground: 0 0% 0%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 25% 65%;
+
+    --accent: 191 100% 50%;
+    --accent-foreground: 0 0% 0%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 191 100% 50%;
+
     --gradient-brand: linear-gradient(135deg, hsl(191, 100%, 50%), hsl(222, 70%, 48%));
     --gradient-glow: radial-gradient(60% 60% at 50% 0%, hsl(191 100% 50% / 0.15), transparent 70%);
     --shadow-elegant: 0 30px 80px -30px hsl(191 100% 50% / 0.25);
     --shadow-glow: 0 0 30px -5px hsl(191 100% 50% / 0.4);
     --shadow-glow-lg: 0 0 60px -10px hsl(191 100% 50% / 0.3);
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
@@ -63,14 +95,14 @@
 }
 
 @layer utilities {
-
-  /* ── Gradients ────────────────────────────── */
   .gradient-primary {
     background: var(--gradient-brand);
   }
+
   .gradient-glow {
     background: var(--gradient-glow);
   }
+
   .gradient-text {
     background: var(--gradient-brand);
     -webkit-background-clip: text;
@@ -78,63 +110,62 @@
     background-clip: text;
   }
 
-  /* ── Shadows ──────────────────────────────── */
   .shadow-glow {
     box-shadow: var(--shadow-glow);
   }
+
   .shadow-glow-lg {
     box-shadow: var(--shadow-glow-lg);
   }
+
   .shadow-elegant {
     box-shadow: var(--shadow-elegant);
   }
 
-  /* ── Glass card ───────────────────────────── */
   .glass-card {
     @apply bg-card border border-border backdrop-blur-sm;
   }
 
-  /* ── Subtle 56px dot-grid background ─────── */
   .grid-bg {
     background-image:
-      linear-gradient(hsl(var(--border) / 0.08) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--border) / 0.08) 1px, transparent 1px);
+      linear-gradient(hsl(var(--border) / 0.35) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.35) 1px, transparent 1px);
     background-size: 56px 56px;
   }
 
-  /* ── Marquee ticker ───────────────────────── */
   .marquee-track {
     display: flex;
     width: max-content;
     animation: marquee 40s linear infinite;
   }
+
   @keyframes marquee {
     from { transform: translateX(0); }
-    to   { transform: translateX(-50%); }
+    to { transform: translateX(-50%); }
   }
 
-  /* ── Live pulsing dot ─────────────────────── */
   @keyframes pulse-dot {
-    0%, 100% { transform: scale(1);   opacity: 1; }
-    50%       { transform: scale(1.4); opacity: 0.6; }
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.6; }
   }
+
   .animate-pulse-dot {
     animation: pulse-dot 1.6s ease-in-out infinite;
   }
 
-  /* ── Brand logo pulse ─────────────────────── */
   @keyframes qevor-pulse {
     0%, 100% { opacity: 1; }
-    50%       { opacity: 0.7; }
+    50% { opacity: 0.7; }
   }
+
   .qevor-logo-pulse {
     animation: qevor-pulse 3s ease-in-out infinite;
   }
 
-  /* ── Hover scale util ─────────────────────── */
   .hover-scale {
     transition: transform 0.2s ease;
   }
+
   .hover-scale:hover {
     transform: scale(1.02);
   }

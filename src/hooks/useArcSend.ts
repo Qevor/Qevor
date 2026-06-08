@@ -1,37 +1,40 @@
 import { useState } from 'react';
-import { useSendTransaction, usePublicClient } from 'wagmi';
-import { parseUnits, parseGwei } from 'viem';
-import { arcTestnet } from '@/lib/arcChain';
+import { useAccount, usePublicClient, useSendTransaction, useSwitchChain } from 'wagmi';
+import { parseUnits } from 'viem';
+import { DEFAULT_QEVOR_CHAIN_KEY, getQevorChainByKey, type QevorChainKey } from '@/lib/chains';
 
 interface ArcSendParams {
     to: string;
-    amount: string; // human-readable decimal, e.g. "0.5"
+    amount: string;
+    chainKey?: QevorChainKey;
     onSuccess?: (hash: string) => void;
     onError?: (error: Error) => void;
 }
 
 /**
- * Sends native USDC on Arc Testnet.
- *
- * USDC is Arc Testnet's native gas token (18 decimals) — transfers are plain
- * value-bearing transactions, not ERC-20 calls. Using wagmi's sendTransaction
- * directly is the correct approach; Circle's AppKit routes NATIVE→USDC as an
- * ERC-20 call with the wrong decimal scale, causing incorrect amounts.
+ * Sends the selected chain's native payment asset.
  */
 export function useArcSend() {
     const [isPending, setIsPending] = useState(false);
+    const { chainId } = useAccount();
+    const { switchChainAsync } = useSwitchChain();
     const { sendTransactionAsync } = useSendTransaction();
-    const publicClient = usePublicClient({ chainId: arcTestnet.id });
+    const arcClient = usePublicClient({ chainId: getQevorChainByKey(DEFAULT_QEVOR_CHAIN_KEY).chain.id });
+    const mantleClient = usePublicClient({ chainId: getQevorChainByKey('mantle-sepolia').chain.id });
 
-    const sendTransaction = async ({ to, amount, onSuccess, onError }: ArcSendParams) => {
+    const sendTransaction = async ({ to, amount, chainKey, onSuccess, onError }: ArcSendParams) => {
         setIsPending(true);
         try {
+            const network = getQevorChainByKey(chainKey);
+            const publicClient = network.key === 'mantle-sepolia' ? mantleClient : arcClient;
+            if (chainId !== network.chain.id) {
+                await switchChainAsync({ chainId: network.chain.id });
+            }
             const hash = await sendTransactionAsync({
-                to:                   to as `0x${string}`,
-                value:                parseUnits(amount, 18), // native USDC = 18 decimals
-                chain:                arcTestnet,
-                maxFeePerGas:         parseGwei('160'),
-                maxPriorityFeePerGas: parseGwei('160'),
+                to:    to as `0x${string}`,
+                value: parseUnits(amount, network.chain.nativeCurrency.decimals),
+                chain: network.chain,
+                chainId: network.chain.id,
             });
 
             await publicClient!.waitForTransactionReceipt({

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ExternalLink, ChevronRight, CheckCircle2, XCircle, Send } from 'lucide-react';
 import { Batch, BatchPayment, BatchRecipient, useBatchPayments } from '@/hooks/useBatchPayments';
+import { getExplorerTxUrl, getQevorChainById } from '@/lib/chains';
 
 interface BatchPaymentCardProps {
     batch: Batch;
@@ -24,6 +25,8 @@ export function BatchPaymentCard({ batch, onSend }: BatchPaymentCardProps) {
     const paidCount      = payments.length;
     const totalRecipients = batch.recipients.length;
     const isComplete     = batch.status === 'complete';
+    const network = getQevorChainById(batch.chain_id);
+    const tokenSymbol = batch.token_symbol ?? network.paymentAsset;
 
     const unsentRecipients = batch.recipients.filter(
         r => !payments.some(p => p.recipient_wallet.toLowerCase() === r.wallet.toLowerCase())
@@ -54,7 +57,7 @@ export function BatchPaymentCard({ batch, onSend }: BatchPaymentCardProps) {
                 <div className="flex justify-between text-xs text-muted-foreground">
                     <span>{paidCount} of {totalRecipients} sent</span>
                     <span className="font-semibold text-foreground">
-                        {batch.total_amount.toFixed(2)} USDC
+                        {batch.total_amount.toFixed(2)} {tokenSymbol}
                     </span>
                 </div>
                 <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
@@ -87,11 +90,11 @@ export function BatchPaymentCard({ batch, onSend }: BatchPaymentCardProps) {
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                                 <span className={`font-medium text-xs ${payment ? '' : 'text-muted-foreground'}`}>
-                                    {Number(rec.amount).toFixed(2)} USDC
+                                    {Number(rec.amount).toFixed(2)} {tokenSymbol}
                                 </span>
                                 {payment?.tx_hash && (
                                     <a
-                                        href={`https://testnet.arcscan.app/tx/${payment.tx_hash}`}
+                                        href={getExplorerTxUrl(payment.chain_id ?? batch.chain_id, payment.tx_hash)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-primary hover:text-primary/80 transition-colors"

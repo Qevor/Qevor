@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, User } from 'lucide-react';
 import { useProfiles, Profile } from '@/hooks/useProfiles';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { toast } from 'sonner';
 
 export default function NavBar() {
@@ -51,6 +52,7 @@ export default function NavBar() {
                         <Link to="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">Dashboard</Link>
                         <Link to="/agents" className="text-muted-foreground hover:text-primary transition-colors">Agents</Link>
                     </div>
+                    <ThemeToggle />
                     {isConnected && address ? (
                         <>
                             <DropdownMenu>

@@ -1,15 +1,31 @@
-import { useState, useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowRight, Link2, Users, Wallet, ShieldCheck, Sparkles,
-  Receipt, Github, Copy, Check, Search, LayoutDashboard, Twitter
+  AlertTriangle,
+  ArrowRight,
+  Bot,
+  Check,
+  Copy,
+  Github,
+  Layers,
+  LayoutDashboard,
+  Link2,
+  Receipt,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Twitter,
+  UploadCloud,
+  Users,
+  Wallet,
 } from 'lucide-react';
+import { getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
-/* ── helpers ──────────────────────────────────── */
 const SectionLabel = ({ n, label }: { n: string; label: string }) => (
-  <div className="flex items-center gap-3 mb-6">
+  <div className="mb-6 flex items-center gap-3">
     <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{n}</span>
-    <span className="h-px w-10 bg-border inline-block" />
+    <span className="inline-block h-px w-10 bg-border" />
     <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{label}</span>
   </div>
 );
@@ -22,30 +38,30 @@ const MOCK: Record<string, string> = {
 };
 
 const MARQUEE_ITEMS = [
-  '@aria → @bola · 250 USDC',
-  'Batch payout · 42 recipients · 18,400 USDC',
-  'Receipt #QV-8842 sealed',
-  '@dao-treasury funded · 5,000 USDC',
-  'Block 1,204,331 confirmed · 240 ms',
-  '@satoshi → @aria · 1,000 USDC',
-  'Payment link QV-7721 claimed',
-  'Split payout · 12 wallets · 3,600 USDC',
+  'Multi-chain payout confirmed',
+  'Batch import scanned for duplicate addresses',
+  'Payment link paid on the selected network',
+  '10 recipients, 1 signature',
+  'Receipt sealed with chain metadata',
+  'Agent policy simulation passed',
+  'Mainnet mode locked behind safety checks',
+  'Payment link shared to customer',
 ];
 
-/* ── main component ───────────────────────────── */
 export default function LandingPage() {
-  /* TryItLive state */
   const [handle, setHandle] = useState('');
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
+  const [chainKey, setChainKey] = useState<QevorChainKey>('mantle-sepolia');
   const [copied, setCopied] = useState(false);
   const [resolveHandle, setResolveHandle] = useState('');
   const [resolved, setResolved] = useState<{ handle: string; address: string } | null>(null);
   const [resolveError, setResolveError] = useState('');
   const tryRef = useRef<HTMLDivElement>(null);
 
+  const selectedNetwork = getQevorChainByKey(chainKey);
   const payLink = handle
-    ? `https://qevor.vercel.app/pay?to=${handle}&amount=${amount || '0'}&token=USDC${memo ? `&memo=${encodeURIComponent(memo)}` : ''}`
+    ? `https://qevor.vercel.app/pay?to=${handle}&amount=${amount || '0'}&chain=${selectedNetwork.key}${memo ? `&memo=${encodeURIComponent(memo)}` : ''}`
     : '';
 
   const copyLink = () => {
@@ -61,464 +77,412 @@ export default function LandingPage() {
     if (MOCK[key]) {
       setResolved({ handle: key, address: MOCK[key] });
       setResolveError('');
-    } else {
-      setResolved(null);
-      setResolveError('Handle not found');
+      return;
     }
+
+    setResolved(null);
+    setResolveError('Handle not found');
   };
 
   const useInLink = () => {
-    if (resolved) {
-      setHandle(resolved.handle);
-      tryRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (!resolved) return;
+    setHandle(resolved.handle);
+    tryRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
-    <div className="flex flex-col min-h-screen">
-
-      {/* ── 1. HEADER ───────────────────────────── */}
-      <header className="sticky top-0 z-50 border-b border-border/60 bg-background/70 backdrop-blur-xl">
-        <div className="mx-auto max-w-7xl px-6 h-16 flex items-center justify-between">
+    <div className="flex min-h-screen flex-col bg-background">
+      <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-6">
           <Link to="/" className="flex items-center gap-2">
-            <img src="/logo.png" alt="Qevor" className="w-8 h-8 rounded-md object-cover qevor-logo-pulse" />
-            <span className="font-display text-lg font-medium text-foreground">Qevor</span>
+            <img src="/logo.png" alt="Qevor" className="h-8 w-8 rounded object-cover qevor-logo-pulse" />
+            <span className="text-lg font-semibold text-foreground">Qevor</span>
           </Link>
-          <nav className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
-            {[['#product','Product'],['#how','How it works'],['#try','Try it'],['#network','Network'],['#start','Get started']].map(([h,l])=>(
-              <a key={h} href={h} className="hover:text-foreground transition-colors">{l}</a>
+          <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
+            {[
+              ['#product', 'Product'],
+              ['#safety', 'Safety'],
+              ['#try', 'Try it'],
+              ['#networks', 'Networks'],
+              ['#start', 'Start'],
+            ].map(([href, label]) => (
+              <a key={href} href={href} className="transition-colors hover:text-foreground">
+                {label}
+              </a>
             ))}
           </nav>
-          <Link
-            to="/dashboard"
-            className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium bg-primary text-primary-foreground shadow-elegant hover-scale"
-          >
-            <LayoutDashboard className="h-4 w-4" />
-            Go to dashboard
-          </Link>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <Link
+              to="/dashboard"
+              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-elegant hover-scale"
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              Dashboard
+            </Link>
+          </div>
         </div>
       </header>
 
-      {/* ── 2. HERO ─────────────────────────────── */}
-      <section className="relative overflow-hidden grid-bg py-28 md:py-36">
-        <div className="pointer-events-none absolute inset-0" style={{ background: 'var(--gradient-glow)' }} />
-        <div className="mx-auto max-w-7xl px-6 grid lg:grid-cols-2 gap-16 items-center">
-          {/* text side */}
-          <div>
-            {/* eyebrow */}
-            <div className="flex items-center gap-3 mb-8 flex-wrap">
-              {['Arc Testnet','Production preview','v1.0'].map((t, i) => (
-                <span key={t} className="flex items-center gap-3">
-                  {i > 0 && <span className="h-px w-10 bg-border" />}
-                  <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{t}</span>
+      <section className="relative min-h-[calc(100vh-4rem)] overflow-hidden border-b border-border/60">
+        <div className="absolute inset-0 grid-bg" />
+        <div className="absolute inset-0 bg-[linear-gradient(115deg,hsl(var(--background))_0%,hsl(var(--background)/0.92)_38%,hsl(191_100%_12%/0.42)_70%,hsl(151_70%_16%/0.28)_100%)]" />
+        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background to-transparent" />
+
+        <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-7xl flex-col justify-center px-5 py-20 sm:px-6 lg:py-24">
+          <div className="max-w-4xl">
+            <div className="mb-7 flex flex-wrap items-center gap-3">
+              {[
+                'Multi-chain ready',
+                'EVM testnets supported',
+                'Mainnet guarded',
+              ].map((text) => (
+                <span key={text} className="rounded-lg border border-border bg-card/70 px-3 py-1 text-xs uppercase tracking-[0.16em] text-muted-foreground backdrop-blur">
+                  {text}
                 </span>
               ))}
             </div>
-            <h1 className="font-display text-5xl md:text-7xl lg:text-[7rem] leading-[1.02] mb-6">
-              <span className="text-foreground">The payment hub</span>
+
+            <h1 className="font-display text-5xl leading-[1.02] text-foreground sm:text-6xl md:text-7xl lg:text-[6.8rem]">
+              Qevor
               <br />
-              <span className="italic text-muted-foreground">for the Arc economy.</span>
+              multi-chain payments
+              <br />
+              for teams and agents.
             </h1>
-            <p className="text-muted-foreground max-w-xl mb-10 leading-relaxed">
-              Send, request, and batch-pay USDC on the Arc Testnet. One app for wallets, payment links, and mass payouts — all on-chain.
+            <p className="mt-7 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+              Create payment links, send direct transfers, import CSV batch payouts, and keep receipts across networks. Qevor treats each chain as a rail, not the whole product, with testnets live now and mainnet held behind stronger safety checks.
             </p>
-            <div className="flex flex-wrap gap-3">
-              <Link to="/dashboard" className="flex items-center gap-2 rounded-full px-6 py-3 text-sm font-medium bg-primary text-primary-foreground shadow-elegant hover-scale">
-                Go to dashboard <ArrowRight className="h-4 w-4" />
+            <div className="mt-9 flex flex-wrap gap-3">
+              <Link to="/dashboard" className="flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-elegant hover-scale">
+                Open workspace <ArrowRight className="h-4 w-4" />
               </Link>
-              <a href="#try" className="flex items-center gap-2 rounded-full px-6 py-3 text-sm font-medium border border-border hover:border-primary/40 transition-colors">
-                Try it live
-              </a>
-              <a href="#how" className="flex items-center gap-2 rounded-full px-6 py-3 text-sm font-medium border border-border hover:border-primary/40 transition-colors">
-                See how it works
+              <a href="#try" className="flex items-center gap-2 rounded-lg border border-border bg-background/50 px-6 py-3 text-sm font-medium backdrop-blur transition-colors hover:border-primary/50">
+                Build a test link
               </a>
             </div>
           </div>
 
-          {/* visual card */}
-          <div className="rounded-3xl border border-border bg-card shadow-elegant overflow-hidden relative">
-            <div className="w-full h-[420px] relative" style={{background:'radial-gradient(ellipse at 30% 30%, hsl(191 100% 30% / 0.7), transparent 50%), radial-gradient(ellipse at 70% 60%, hsl(191 100% 20% / 0.6), transparent 50%), radial-gradient(ellipse at 50% 80%, hsl(191 100% 15% / 0.5), transparent 40%), hsl(223 84% 5%)'}}>
-              {/* Floating payment visualizations */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative w-full max-w-md">
-                  {/* Central hub */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full border-2 border-primary/40 bg-primary/10 flex items-center justify-center shadow-glow">
-                    <img src="/logo.png" alt="Q" className="w-10 h-10 object-contain" />
-                  </div>
-                  {/* Orbiting dots */}
-                  {[
-                    { top: '15%', left: '20%', delay: '0s', label: '@aria' },
-                    { top: '25%', right: '15%', delay: '0.3s', label: '250 USDC' },
-                    { top: '70%', left: '10%', delay: '0.6s', label: '@bola' },
-                    { top: '75%', right: '20%', delay: '0.9s', label: 'Batch #42' },
-                  ].map((dot, i) => (
-                    <div key={i} className="absolute" style={{ top: dot.top, left: dot.left, right: (dot as any).right }}>
-                      <div className="flex items-center gap-2 rounded-full border border-primary/20 bg-card/60 backdrop-blur-sm px-3 py-1.5 animate-pulse-dot" style={{ animationDelay: dot.delay }}>
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                        <span className="font-mono text-xs text-primary/80">{dot.label}</span>
-                      </div>
-                    </div>
-                  ))}
-                  {/* Connection lines (CSS) */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border border-dashed border-primary/10" />
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full border border-dashed border-primary/5" />
-                </div>
+          <div className="mt-14 grid max-w-5xl gap-3 sm:grid-cols-3">
+            {[
+              ['Network rails', '2 testnets', 'more EVM chains next'],
+              ['Batch mode', 'CSV import', '1 wallet signature'],
+              ['Copilot path', 'Duplicate checks', 'Risk prompts'],
+            ].map(([k, v, meta]) => (
+              <div key={k} className="rounded-lg border border-border bg-card/70 p-4 backdrop-blur">
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{k}</p>
+                <p className="mt-2 text-lg font-semibold text-foreground">{v}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{meta}</p>
               </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="pointer-events-none absolute right-[-8rem] top-24 hidden w-[44rem] max-w-[48vw] lg:block">
+          <div className="rounded-lg border border-border bg-card/70 p-4 shadow-elegant backdrop-blur">
+            <div className="mb-4 flex items-center justify-between border-b border-border pb-3">
+              <span className="text-sm font-semibold text-foreground">Multi-chain payout route</span>
+              <span className="rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">Selected network</span>
             </div>
-            <div className="absolute bottom-0 left-0 right-0 flex items-center gap-3 p-4 bg-card/80 backdrop-blur-md border-t border-border/60">
-              <span className="animate-pulse-dot h-2 w-2 rounded-full bg-primary flex-shrink-0" />
-              <span className="rounded-full border border-primary/40 px-2 py-0.5 text-xs font-mono text-primary">LIVE · ARC</span>
-              <code className="font-mono text-xs text-muted-foreground flex-1 truncate">$ pay @aria 250 USDC --memo "design sprint"</code>
-              <span className="text-xs font-mono text-muted-foreground whitespace-nowrap hidden sm:block">Block 1,204,331 · 240 ms</span>
+            <div className="space-y-3">
+              {[
+                ['Qevor wallet', '0x918C...BCA0', 'native balance'],
+                ['Safety scan', 'No duplicate address', 'passed'],
+                ['Batch payout', '10 recipients', 'tiny test amount'],
+                ['Receipt', 'Explorer ready', 'chain id stored'],
+              ].map(([label, value, detail], index) => (
+                <div key={label} className="flex items-center gap-3 rounded-lg border border-border/80 bg-background/70 p-3">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">{index + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground">{label}</p>
+                    <p className="truncate text-xs text-muted-foreground">{value}</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{detail}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── 3. MARQUEE ──────────────────────────── */}
-      <div className="border-y border-border/60 bg-card/40 py-4 overflow-hidden">
+      <div className="overflow-hidden border-y border-border/60 bg-card/40 py-4">
         <div className="marquee-track">
           {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((item, i) => (
-            <span key={i} className="flex items-center gap-4 px-4 text-sm text-muted-foreground whitespace-nowrap">
-              <span className="text-primary">◆</span>
+            <span key={i} className="flex items-center gap-4 whitespace-nowrap px-4 text-sm text-muted-foreground">
+              <span className="text-primary">+</span>
               {item}
             </span>
           ))}
         </div>
       </div>
 
-      {/* ── 4. PRODUCT ──────────────────────────── */}
-      <section id="product" className="py-28 mx-auto max-w-7xl px-6 w-full">
+      <section id="product" className="mx-auto w-full max-w-7xl px-5 py-24 sm:px-6">
         <SectionLabel n="01" label="The product" />
-        <h2 className="font-display text-4xl md:text-6xl mb-16">
-          <span className="text-foreground">A dashboard, a checkout,</span>
-          <br />
-          <span className="italic text-muted-foreground">and a treasury — in one app.</span>
-        </h2>
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="mb-12 grid gap-6 md:grid-cols-[1.1fr_0.9fr] md:items-end">
+          <h2 className="font-display text-4xl text-foreground md:text-6xl">
+            One payment layer for links, payouts, and agent wallets.
+          </h2>
+          <p className="text-muted-foreground">
+            The UI now treats networks as a first-class choice. Every send, payment link, batch, and receipt carries chain metadata instead of assuming one chain forever.
+          </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
           {[
             {
-            num: '01', tag: 'QEVOR ID', title: 'Username System',
-            body: 'Claim a unique @handle tied to your wallet. Share it instead of a 42-character address — safer, faster, human-readable.',
-            icon: <Users className="h-4 w-4" />,
-            visual: <div className="w-full h-full flex items-center justify-center" style={{background:'radial-gradient(ellipse at 30% 50%, hsl(191 100% 20% / 0.6), transparent 70%), radial-gradient(ellipse at 70% 20%, hsl(191 100% 15% / 0.5), transparent 60%), hsl(222 47% 11%)'}}>
-              <div className="text-center space-y-2">
-                <div className="w-16 h-16 rounded-full border-2 border-primary/60 flex items-center justify-center mx-auto bg-primary/10 shadow-glow">
-                  <span className="font-mono text-xl text-primary font-bold">@</span>
-                </div>
-                <div className="font-mono text-xs text-primary/80 bg-card/60 rounded-full px-3 py-1 border border-primary/20">aria.qevor</div>
-              </div>
-            </div>
-          },
-          {
-            num: '02', tag: 'PAYMENT LINKS', title: 'Signed URLs',
-            body: 'Generate shareable payment links that specify amount and receiver. Anyone can pay you in seconds from any wallet.',
-            icon: <Link2 className="h-4 w-4" />,
-            visual: <div className="w-full h-full flex items-center justify-center" style={{background:'radial-gradient(ellipse at 60% 40%, hsl(191 100% 25% / 0.6), transparent 70%), radial-gradient(ellipse at 20% 70%, hsl(191 100% 15% / 0.5), transparent 60%), hsl(222 47% 11%)'}}>
-              <div className="space-y-2 w-full px-6">
-                <div className="rounded-xl border border-primary/30 bg-card/60 px-3 py-2 font-mono text-xs text-primary/80 truncate">
-                  qevor.vercel.app/pay?to=@aria&amount=250
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <div className="rounded-full bg-primary/20 border border-primary/30 px-3 py-1 text-xs text-primary font-mono">Copy ↗</div>
-                </div>
-              </div>
-            </div>
-          },
-          {
-            num: '03', tag: 'BATCH PAYOUTS', title: 'CSV → 1 Transaction',
-            body: 'Paste a CSV of addresses and amounts. Qevor fans them into a single on-chain batch — gas-efficient mass distribution.',
-            icon: <Receipt className="h-4 w-4" />,
-            visual: <div className="w-full h-full flex items-center justify-center" style={{background:'radial-gradient(ellipse at 50% 30%, hsl(191 100% 20% / 0.6), transparent 70%), radial-gradient(ellipse at 80% 70%, hsl(191 100% 15% / 0.5), transparent 60%), hsl(222 47% 11%)'}}>
-              <div className="space-y-1.5 px-6 w-full">
-                {['@aria · 250','@bola · 180','@dao · 5,000','@satoshi · 1,000'].map((r,i) => (
-                  <div key={i} className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/50 px-3 py-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse-dot" style={{animationDelay:`${i*0.2}s`}} />
-                    <span className="font-mono text-xs text-muted-foreground">{r} USDC</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          },
-          ].map(({ num, tag, title, body, icon, visual }) => (
-            <div key={num} className="group rounded-3xl border border-border bg-card overflow-hidden hover:border-primary/40 transition-colors duration-300">
-              <div className="aspect-[4/3] overflow-hidden">
-                {visual}
-              </div>
-              <div className="p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="font-mono text-xs text-muted-foreground">{num}</span>
-                  <span className="rounded-full border border-border px-2 py-0.5 text-xs font-mono text-primary flex items-center gap-1">
-                    {icon}{tag}
-                  </span>
-                </div>
-                <h3 className="font-display text-xl mb-2">{title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
-              </div>
-            </div>
+              tag: 'PAYMENT LINKS',
+              title: 'Chain-aware checkout',
+              body: 'Create shareable links for any enabled Qevor network. The payer sees the requested chain and token before confirming.',
+              icon: <Link2 className="h-4 w-4" />,
+            },
+            {
+              tag: 'BATCH PAYOUTS',
+              title: 'CSV to one transaction',
+              body: 'Import recipients, preview totals, and distribute native assets in one wallet signature on the selected network.',
+              icon: <UploadCloud className="h-4 w-4" />,
+            },
+            {
+              tag: 'AGENTIC WALLETS',
+              title: 'Policies before autonomy',
+              body: 'Qevor is positioned for agent wallets with limits, allowlists, duplicate detection, and audit-friendly receipts.',
+              icon: <Bot className="h-4 w-4" />,
+            },
+          ].map(({ tag, title, body, icon }) => (
+            <article key={tag} className="rounded-lg border border-border bg-card p-6">
+              <span className="mb-5 inline-flex items-center gap-2 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-primary">
+                {icon}
+                {tag}
+              </span>
+              <h3 className="mb-2 text-xl font-semibold text-foreground">{title}</h3>
+              <p className="text-sm leading-relaxed text-muted-foreground">{body}</p>
+            </article>
           ))}
         </div>
       </section>
 
-      {/* ── 5. TRY IT LIVE ──────────────────────── */}
-      <section id="try" ref={tryRef} className="border-t border-border bg-card/30 py-28">
-        <div className="mx-auto max-w-7xl px-6">
-          <SectionLabel n="02" label="Interactive" />
-          <div className="grid md:grid-cols-2 gap-8 mb-12 items-end">
-            <h2 className="font-display text-4xl md:text-6xl">
-              <span className="text-foreground">Generate a link.</span>
-              <br />
-              <span className="italic text-muted-foreground">Resolve a handle.</span>
-            </h2>
-            <p className="text-muted-foreground leading-relaxed">
-              Try the core Qevor interactions right here — no wallet needed. Build a payment URL or look up any registered @handle.
-            </p>
-          </div>
-
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* Payment link generator */}
-            <div className="rounded-3xl border border-border bg-card p-6 space-y-4">
-              <h3 className="font-display text-lg">Payment link generator</h3>
-              <div className="flex rounded-xl border border-border overflow-hidden focus-within:border-primary/40 transition-colors">
-                <span className="px-3 flex items-center text-muted-foreground bg-secondary/50 text-sm font-mono border-r border-border">@</span>
-                <input
-                  value={handle}
-                  onChange={e => setHandle(e.target.value)}
-                  placeholder="yourhandle"
-                  className="flex-1 bg-transparent px-3 py-2 text-sm outline-none font-mono"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex rounded-xl border border-border overflow-hidden focus-within:border-primary/40 transition-colors">
-                  <input
-                    value={amount}
-                    onChange={e => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-                    placeholder="Amount"
-                    className="flex-1 bg-transparent px-3 py-2 text-sm outline-none"
-                  />
-                  <span className="px-3 flex items-center text-xs text-muted-foreground bg-secondary/50 border-l border-border font-mono">USDC</span>
-                </div>
-                <input
-                  value={memo}
-                  onChange={e => setMemo(e.target.value)}
-                  placeholder="Memo (optional)"
-                  className="rounded-xl border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-primary/40 transition-colors"
-                />
-              </div>
-              <div className="rounded-xl border border-dashed border-border p-3 bg-background min-h-[60px]">
-                {payLink
-                  ? <code className="text-xs text-primary break-all font-mono">{payLink}</code>
-                  : <span className="text-xs text-muted-foreground">Your link will appear here…</span>
-                }
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={copyLink}
-                  disabled={!payLink}
-                  className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium bg-primary text-primary-foreground shadow-glow hover-scale disabled:opacity-40"
-                >
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {copied ? 'Copied!' : 'Copy link'}
-                </button>
-                {payLink && (
-                  <a href={payLink} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm border border-border hover:border-primary/40 transition-colors">
-                    Open <ArrowRight className="h-4 w-4" />
-                  </a>
-                )}
-              </div>
+      <section id="safety" className="border-y border-border bg-card/25 py-24">
+        <div className="mx-auto max-w-7xl px-5 sm:px-6">
+          <SectionLabel n="02" label="Fund safety" />
+          <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+            <div>
+              <h2 className="font-display text-4xl text-foreground md:text-6xl">Built for grants, demos, and real users later.</h2>
+              <p className="mt-5 text-muted-foreground">
+                Testnet can move quickly. Mainnet needs stronger gates. The product language now makes that distinction visible instead of hiding risk behind one generic send button.
+              </p>
             </div>
-
-            {/* Username resolver */}
-            <div className="rounded-3xl border border-border bg-card p-6 space-y-4">
-              <h3 className="font-display text-lg">Username → wallet lookup</h3>
-              <form onSubmit={doResolve} className="flex gap-3">
-                <div className="flex rounded-xl border border-border overflow-hidden focus-within:border-primary/40 transition-colors flex-1">
-                  <span className="px-3 flex items-center text-muted-foreground bg-secondary/50 text-sm font-mono border-r border-border">@</span>
-                  <input
-                    value={resolveHandle}
-                    onChange={e => setResolveHandle(e.target.value)}
-                    placeholder="aria, bola, satoshi…"
-                    className="flex-1 bg-transparent px-3 py-2 text-sm outline-none font-mono"
-                  />
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                [<ShieldCheck className="h-5 w-5" />, 'Self-custodial', 'Qevor never holds user funds. Wallet approval is required for every transfer.'],
+                [<Layers className="h-5 w-5" />, 'Chain confirmation', 'The app switches and submits on the selected network, reducing wrong-chain sends.'],
+                [<AlertTriangle className="h-5 w-5" />, 'Mainnet guardrails', 'Mainnet remains a planned mode with explicit confirmations and stricter limits.'],
+                [<Receipt className="h-5 w-5" />, 'Receipts by network', 'Receipts and batch records store chain id and token symbol for traceability.'],
+              ].map(([icon, title, body]) => (
+                <div key={title as string} className="rounded-lg border border-border bg-background/70 p-5">
+                  <span className="mb-4 block text-primary">{icon as React.ReactNode}</span>
+                  <h3 className="font-semibold text-foreground">{title as string}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{body as string}</p>
                 </div>
-                <button type="submit" className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium bg-foreground text-background hover-scale">
-                  <Search className="h-4 w-4" />Resolve
-                </button>
-              </form>
-              {resolveError && <p className="text-sm text-destructive">{resolveError}</p>}
-              {resolved && (
-                <div className="rounded-xl border border-border bg-background p-4 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm">@{resolved.handle}</span>
-                    <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs text-primary">Verified</span>
-                  </div>
-                  <div className="rounded-lg bg-secondary/50 border border-border px-3 py-2">
-                    <code className="font-mono text-xs text-muted-foreground break-all">{resolved.address}</code>
-                  </div>
-                  <button
-                    onClick={useInLink}
-                    className="text-xs text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
-                  >
-                    Use in payment link →
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── 6. HOW IT WORKS ─────────────────────── */}
-      <section id="how" className="py-28 mx-auto max-w-7xl px-6 w-full">
-        <div className="grid md:grid-cols-2 gap-8 mb-16 items-end">
-          <h2 className="font-display text-4xl md:text-6xl">
-            <span className="text-foreground">Wallet in.</span>
-            <br />
-            <span className="italic text-muted-foreground">Receipt out.</span>
-          </h2>
-          <p className="text-muted-foreground leading-relaxed">Five steps from cold start to confirmed on-chain payment — no bridges, no wrapping, no waiting.</p>
-        </div>
-        <ol className="divide-y border-y border-border">
-          {[
-            ['01','Connect wallet','Link any EVM wallet via Dynamic Labs in one click. No seed phrase entry.'],
-            ['02','Claim @handle','Register a unique username so anyone can send you funds by name.'],
-            ['03','Send, request, or batch','Create a payment link, send directly, or upload a CSV for mass payout.'],
-            ['04','Confirm on-chain','Review the transaction and approve in your wallet. One signature.'],
-            ['05','Track everything','Every receipt is sealed immutably in Supabase and visible in your dashboard.'],
-          ].map(([n, title, desc]) => (
-            <li key={n} className="grid grid-cols-12 gap-4 py-6 items-start">
-              <span className="col-span-1 font-mono text-xs text-muted-foreground pt-1">{n}</span>
-              <h3 className="col-span-3 font-display text-lg text-foreground">{title}</h3>
-              <p className="col-span-8 text-sm text-muted-foreground leading-relaxed">{desc}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      {/* ── 7. NETWORK ──────────────────────────── */}
-      <section id="network" className="border-t border-border py-28 bg-card/20">
-        <div className="mx-auto max-w-7xl px-6">
-          <SectionLabel n="03" label="Powered by" />
-          {/* partner grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border rounded-3xl overflow-hidden mb-10">
-            {[
-              ['Arc Network','Settlement layer'],
-              ['Native USDC','18-decimal stable coin'],
-              ['Dynamic Labs','Web3 authentication'],
-              ['Supabase','Receipts & profiles'],
-            ].map(([name, role]) => (
-              <div key={name} className="bg-card p-8">
-                <p className="font-display text-lg mb-1">{name}</p>
-                <p className="text-xs text-muted-foreground">{role}</p>
-              </div>
-            ))}
-          </div>
-          {/* trust cards */}
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              [<ShieldCheck className="h-5 w-5" />,'Self-custodial','Your keys, your funds. Qevor never holds your assets.'],
-              [<Wallet className="h-5 w-5" />,'Native USDC','Stable value payments, no volatile gas tokens.'],
-              [<Receipt className="h-5 w-5" />,'Immutable receipts','Every transaction recorded and sealed on-chain.'],
-            ].map(([icon, title, body], i) => (
-              <div key={i} className="rounded-3xl border border-border bg-card p-6 flex gap-4">
-                <span className="text-primary mt-1 flex-shrink-0">{icon as React.ReactNode}</span>
-                <div>
-                  <h3 className="font-display text-base mb-1">{title as string}</h3>
-                  <p className="text-sm text-muted-foreground">{body as string}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── 8. QUOTE ────────────────────────────── */}
-      <section className="border-y border-border bg-card/30 py-24 text-center">
-        <div className="mx-auto max-w-3xl px-6">
-          <Sparkles className="h-6 w-6 text-primary mx-auto mb-6" />
-          <blockquote className="font-display italic text-3xl md:text-5xl text-foreground leading-tight mb-6">
-            "Crypto payments should feel like sending a message — instant, certain, and human."
-          </blockquote>
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">— The Qevor Team</p>
-        </div>
-      </section>
-
-      {/* ── 9. GET STARTED ──────────────────────── */}
-      <section id="start" className="py-28 mx-auto max-w-7xl px-6 w-full">
-        <h2 className="font-display text-4xl md:text-6xl mb-12">
-          <span className="text-foreground">One minute.</span>
-          <br />
-          <span className="italic text-muted-foreground">Two steps.</span>
-        </h2>
-        <div className="grid md:grid-cols-2 gap-6 mb-10">
-          {/* Quick start */}
-          <div className="rounded-3xl border border-border bg-card p-6 space-y-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Quick start</p>
-            <pre className="rounded-xl border border-border bg-background p-4 font-mono text-xs text-primary overflow-x-auto">
-{`npm i -g @qevor/cli
-qevor connect --network arc-testnet`}
-            </pre>
-          </div>
-          {/* .env */}
-          <div className="rounded-3xl border border-border bg-card p-6 space-y-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">.env example</p>
-            <pre className="rounded-xl border border-border bg-background p-4 font-mono text-xs text-muted-foreground overflow-x-auto">
-{`ARC_RPC_URL=https://rpc.testnet.arc.network
-QEVOR_USERNAME=yourhandle
-USDC_TOKEN=0xNative`}
-            </pre>
-            <div className="flex gap-2 flex-wrap">
-              {['⚡ Native USDC','🔐 Self-custodial','🟢 Public RPC'].map(b => (
-                <span key={b} className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">{b}</span>
               ))}
             </div>
           </div>
         </div>
+      </section>
 
-        {/* CTA blocks */}
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="rounded-3xl border border-border bg-gradient-to-br from-card to-background p-8 flex flex-col gap-4">
-            <p className="font-display text-2xl">Ready to pay on Arc?</p>
-            <p className="text-sm text-muted-foreground">Open the app and connect your wallet in seconds.</p>
-            <Link to="/dashboard" className="self-start rounded-full px-6 py-2.5 text-sm font-medium bg-foreground text-background hover-scale">
-              Open Qevor
-            </Link>
-          </div>
-          <div className="rounded-3xl p-8 flex flex-col gap-4" style={{ background: 'var(--gradient-brand)' }}>
-            <p className="font-display text-2xl text-primary-foreground">Building on Arc?</p>
-            <p className="text-sm text-primary-foreground/80">Qevor is open-source. Fork it, extend it, or contribute.</p>
-            <div className="flex gap-4">
-              <a href="https://github.com/Qevor/Qevor" target="_blank" rel="noreferrer" className="self-start flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-medium bg-primary-foreground text-background hover-scale">
-                <Github className="h-4 w-4" />View on GitHub
-              </a>
-              <a href="https://x.com/Qevorpay" target="_blank" rel="noreferrer" className="self-start flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-medium border border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10 hover-scale transition-colors">
-                <Twitter className="h-4 w-4" />Follow updates
-              </a>
+      <section id="try" ref={tryRef} className="mx-auto w-full max-w-7xl px-5 py-24 sm:px-6">
+        <SectionLabel n="03" label="Interactive" />
+        <div className="mb-10 grid gap-6 md:grid-cols-2 md:items-end">
+          <h2 className="font-display text-4xl text-foreground md:text-6xl">
+            Build a multi-chain payment request.
+          </h2>
+          <p className="text-muted-foreground">
+            Try the core Qevor flow without a wallet. Pick a network, create a URL, or resolve a demo handle.
+          </p>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="space-y-4 rounded-lg border border-border bg-card p-5">
+            <h3 className="text-lg font-semibold text-foreground">Payment link generator</h3>
+            <div className="grid gap-3 sm:grid-cols-[1fr_0.72fr]">
+              <label className="flex rounded-lg border border-border bg-background focus-within:border-primary/50">
+                <span className="flex items-center border-r border-border px-3 font-mono text-sm text-muted-foreground">@</span>
+                <input
+                  value={handle}
+                  onChange={(e) => setHandle(e.target.value)}
+                  placeholder="yourhandle"
+                  className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none"
+                />
+              </label>
+              <select
+                value={chainKey}
+                onChange={(e) => setChainKey(e.target.value as QevorChainKey)}
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50"
+              >
+                {qevorChains.map((network) => (
+                  <option key={network.key} value={network.key}>
+                    {network.label} ({network.paymentAsset})
+                  </option>
+                ))}
+              </select>
             </div>
+            <div className="grid gap-3 sm:grid-cols-[0.8fr_1fr]">
+              <label className="flex rounded-lg border border-border bg-background focus-within:border-primary/50">
+                <input
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+                  placeholder="Amount"
+                  className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none"
+                />
+                <span className="flex items-center border-l border-border px-3 text-xs font-medium text-muted-foreground">
+                  {selectedNetwork.paymentAsset}
+                </span>
+              </label>
+              <input
+                value={memo}
+                onChange={(e) => setMemo(e.target.value)}
+                placeholder="Memo optional"
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50"
+              />
+            </div>
+            <div className="min-h-[72px] rounded-lg border border-dashed border-border bg-background p-3">
+              {payLink ? (
+                <code className="break-all font-mono text-xs text-primary">{payLink}</code>
+              ) : (
+                <span className="text-xs text-muted-foreground">Your chain-aware link will appear here.</span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={copyLink}
+                disabled={!payLink}
+                className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-40"
+              >
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copied ? 'Copied' : 'Copy link'}
+              </button>
+              {payLink && (
+                <a href={payLink} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm transition-colors hover:border-primary/50">
+                  Open <ArrowRight className="h-4 w-4" />
+                </a>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-4 rounded-lg border border-border bg-card p-5">
+            <h3 className="text-lg font-semibold text-foreground">Username to wallet lookup</h3>
+            <form onSubmit={doResolve} className="flex gap-3">
+              <label className="flex min-w-0 flex-1 rounded-lg border border-border bg-background focus-within:border-primary/50">
+                <span className="flex items-center border-r border-border px-3 font-mono text-sm text-muted-foreground">@</span>
+                <input
+                  value={resolveHandle}
+                  onChange={(e) => setResolveHandle(e.target.value)}
+                  placeholder="aria, bola, satoshi"
+                  className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none"
+                />
+              </label>
+              <button type="submit" className="flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background">
+                <Search className="h-4 w-4" />
+                Resolve
+              </button>
+            </form>
+            {resolveError && <p className="text-sm text-destructive">{resolveError}</p>}
+            {resolved && (
+              <div className="rounded-lg border border-border bg-background p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="font-mono text-sm">@{resolved.handle}</span>
+                  <span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs text-primary">Verified</span>
+                </div>
+                <code className="block break-all rounded-md border border-border bg-secondary/50 px-3 py-2 font-mono text-xs text-muted-foreground">
+                  {resolved.address}
+                </code>
+                <button onClick={useInLink} className="mt-3 text-xs text-primary underline underline-offset-4">
+                  Use in payment link
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </section>
 
-      {/* ── 10. FOOTER ──────────────────────────── */}
-      <footer className="border-t border-border/60 py-8">
-        <div className="mx-auto max-w-7xl px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Qevor" className="w-6 h-6 rounded object-cover" />
-            <span className="font-display text-sm">Qevor</span>
-            <span className="text-muted-foreground text-xs">· Payment hub for Arc</span>
-          </div>
-          <nav className="flex gap-6 text-sm text-muted-foreground items-center">
-            {[['#product','Product'],['#how','How it works'],['#network','Network'],['https://qevor.vercel.app/dashboard','App']].map(([h,l])=>(
-              <a key={h} href={h} className="hover:text-foreground transition-colors">{l}</a>
+      <section id="networks" className="border-y border-border bg-card/25 py-24">
+        <div className="mx-auto max-w-7xl px-5 sm:px-6">
+          <SectionLabel n="04" label="Networks" />
+          <h2 className="mb-10 max-w-3xl font-display text-4xl text-foreground md:text-6xl">
+            Qevor is a payment workspace across settlement layers.
+          </h2>
+          <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3">
+            {[
+              ['Testnet rails', 'Live now', 'Arc and Mantle are enabled for safe demos, grant proof, and hackathon testing.'],
+              ['Network registry', 'Expandable', 'Every payment stores chain id, token symbol, RPC, and explorer metadata.'],
+              ['Mainnet rails', 'Planned', 'Locked until safety confirmations, limits, and stronger previews are complete.'],
+            ].map(([name, status, body]) => (
+              <div key={name} className="bg-card p-6">
+                <p className="text-xl font-semibold text-foreground">{name}</p>
+                <p className="mt-2 text-sm font-medium text-primary">{status}</p>
+                <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{body}</p>
+              </div>
             ))}
-            <a href="https://x.com/Qevorpay" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors ml-4 border-l border-border/60 pl-6 flex items-center gap-2">
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-border bg-background py-20 text-center">
+        <div className="mx-auto max-w-3xl px-5 sm:px-6">
+          <Sparkles className="mx-auto mb-6 h-6 w-6 text-primary" />
+          <blockquote className="font-display text-3xl italic leading-tight text-foreground md:text-5xl">
+            "Payments should be fast enough for consumers and careful enough for teams."
+          </blockquote>
+        </div>
+      </section>
+
+      <section id="start" className="mx-auto w-full max-w-7xl px-5 py-24 sm:px-6">
+        <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <div>
+            <SectionLabel n="05" label="Start" />
+            <h2 className="font-display text-4xl text-foreground md:text-6xl">Open Qevor and choose your network.</h2>
+            <p className="mt-5 text-muted-foreground">
+              Choose a test network for the next flow. Keep amounts tiny while your partner applies the Supabase migration.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Link to="/dashboard" className="rounded-lg border border-border bg-card p-6 transition-colors hover:border-primary/50">
+              <Wallet className="mb-5 h-5 w-5 text-primary" />
+              <p className="text-xl font-semibold text-foreground">Open dashboard</p>
+              <p className="mt-2 text-sm text-muted-foreground">Send, receive, batch-pay, and review receipts.</p>
+            </Link>
+            <a href="https://github.com/Qevor/Qevor" target="_blank" rel="noreferrer" className="rounded-lg border border-border bg-card p-6 transition-colors hover:border-primary/50">
+              <Github className="mb-5 h-5 w-5 text-primary" />
+              <p className="text-xl font-semibold text-foreground">Build with Qevor</p>
+              <p className="mt-2 text-sm text-muted-foreground">Open-source payment rails for hackathons and grants.</p>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-t border-border/60 py-8">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-5 sm:px-6 md:flex-row">
+          <div className="flex items-center gap-2">
+            <img src="/logo.png" alt="Qevor" className="h-6 w-6 rounded object-cover" />
+            <span className="text-sm font-semibold">Qevor</span>
+            <span className="text-xs text-muted-foreground">Multi-chain payment workspace</span>
+          </div>
+          <nav className="flex flex-wrap items-center justify-center gap-5 text-sm text-muted-foreground">
+            {[
+              ['#product', 'Product'],
+              ['#safety', 'Safety'],
+              ['#networks', 'Networks'],
+              ['/dashboard', 'App'],
+            ].map(([href, label]) => (
+              <a key={href} href={href} className="transition-colors hover:text-foreground">
+                {label}
+              </a>
+            ))}
+            <a href="https://x.com/Qevorpay" target="_blank" rel="noreferrer" className="flex items-center gap-2 transition-colors hover:text-foreground">
               <Twitter className="h-4 w-4" /> X
             </a>
           </nav>
           <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Qevor Labs</p>
         </div>
       </footer>
-
     </div>
   );
 }

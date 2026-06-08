@@ -24,7 +24,7 @@ const STEPS = [
   },
   {
     title: 'List your agent wallets',
-    description: 'Find your wallet address on Arc Testnet.',
+    description: 'Find your wallet address on the test network you want Qevor to manage.',
     command: 'circle wallet list --chain ARC-TESTNET --type agent --output json',
   },
   {

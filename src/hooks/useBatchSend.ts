@@ -1,9 +1,7 @@
-import { useWriteContract, usePublicClient } from 'wagmi';
-import { parseUnits, parseGwei } from 'viem';
-import { arcTestnet, MULTICALL3_ADDRESS } from '@/lib/arcChain';
+import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from 'wagmi';
+import { parseUnits } from 'viem';
+import { DEFAULT_QEVOR_CHAIN_KEY, getQevorChainByKey, MULTICALL3_ADDRESS, type QevorChainKey } from '@/lib/chains';
 
-// Multicall3 ABI — only the payable aggregate3Value function needed for batch sends.
-// aggregate3Value forwards msg.value across calls, so N recipients = 1 transaction.
 const multicall3Abi = [
     {
         inputs: [
@@ -36,7 +34,7 @@ const multicall3Abi = [
 
 export interface BatchSendRecipient {
     wallet: `0x${string}`;
-    amount: number; // human-readable USDC, e.g. 0.5
+    amount: number;
 }
 
 export interface BatchSendResult {
@@ -46,40 +44,43 @@ export interface BatchSendResult {
 
 export function useBatchSend() {
     const { writeContractAsync, isPending } = useWriteContract();
-    const publicClient = usePublicClient({ chainId: arcTestnet.id });
+    const { chainId } = useAccount();
+    const { switchChainAsync } = useSwitchChain();
+    const arcClient = usePublicClient({ chainId: getQevorChainByKey(DEFAULT_QEVOR_CHAIN_KEY).chain.id });
+    const mantleClient = usePublicClient({ chainId: getQevorChainByKey('mantle-sepolia').chain.id });
 
-    /**
-     * Sends USDC to multiple recipients in a single on-chain transaction.
-     * One wallet confirmation. One gas fee.
-     *
-     * Arc Testnet uses USDC as its native gas token (18 decimals), so each
-     * recipient transfer is a plain value-bearing call with empty callData.
-     * Multicall3's aggregate3Value batches all of these into one tx.
-     */
-    const sendBatch = async (recipients: BatchSendRecipient[]): Promise<BatchSendResult> => {
+    const sendBatch = async (
+        recipients: BatchSendRecipient[],
+        chainKey: QevorChainKey = DEFAULT_QEVOR_CHAIN_KEY,
+    ): Promise<BatchSendResult> => {
         if (recipients.length === 0) throw new Error('No recipients');
+
+        const network = getQevorChainByKey(chainKey);
+        const publicClient = network.key === 'mantle-sepolia' ? mantleClient : arcClient;
+        const decimals = network.chain.nativeCurrency.decimals;
+        if (chainId !== network.chain.id) {
+            await switchChainAsync({ chainId: network.chain.id });
+        }
 
         const calls = recipients.map(r => ({
             target:       r.wallet,
             allowFailure: false,
-            value:        parseUnits(r.amount.toString(), 18), // native USDC = 18 decimals
+            value:        parseUnits(r.amount.toString(), decimals),
             callData:     '0x' as `0x${string}`,
         }));
 
         const totalValue = calls.reduce((sum, c) => sum + c.value, 0n);
 
         const txHash = await writeContractAsync({
-            address:              MULTICALL3_ADDRESS,
-            abi:                  multicall3Abi,
-            functionName:         'aggregate3Value',
-            args:                 [calls],
-            value:                totalValue,
-            chain:                arcTestnet,
-            maxFeePerGas:         parseGwei('160'),
-            maxPriorityFeePerGas: parseGwei('160'),
+            address:      MULTICALL3_ADDRESS,
+            abi:          multicall3Abi,
+            functionName: 'aggregate3Value',
+            args:         [calls],
+            value:        totalValue,
+            chain:        network.chain,
+            chainId:      network.chain.id,
         });
 
-        // Wait for on-chain confirmation before returning
         await publicClient!.waitForTransactionReceipt({ hash: txHash, confirmations: 1 });
 
         return {

@@ -74,7 +74,7 @@ export function SplitInput({ onSplitChange }: SplitInputProps) {
             {isSplitMode && (
                 <div className="space-y-2 pt-2 border-t border-border animate-in fade-in slide-in-from-top-2">
                     <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                        AMOUNTS IN USDC (COMMA-SEPARATED)
+                        AMOUNTS (COMMA-SEPARATED)
                     </Label>
                     <div className="relative">
                         <Input
