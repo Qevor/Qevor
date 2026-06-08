@@ -100,11 +100,16 @@ export default function DashboardPage() {
     const fetchLinks = async () => {
         if (!address) return;
         setLoadingLinks(true);
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from('payment_links')
             .select('*')
-            .ilike('receiver_wallet', address)   // case-insensitive match for EIP-55 addresses
+            .or(`creator_wallet.ilike.${address},receiver_wallet.ilike.${address}`)
             .order('created_at', { ascending: false });
+        if (error) {
+            toast.error('Could not load payment links. Run the latest Supabase migration.');
+            setLoadingLinks(false);
+            return;
+        }
         setLinks(data || []);
         setLoadingLinks(false);
     };
@@ -167,6 +172,7 @@ export default function DashboardPage() {
         }
 
         const linksPayload = amountsToCreate.map(amt => ({
+            creator_wallet: address,
             receiver_wallet: finalWallet,
             amount: amt,
             chain_id: selectedLinkNetwork.chain.id,

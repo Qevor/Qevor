@@ -4,6 +4,7 @@ import { getQevorChainById } from '@/lib/chains';
 
 export interface PaymentLinkData {
     id?: string;
+    creator_wallet?: string | null;
     receiver_wallet: string;
     amount: number;
     chain_id?: number;

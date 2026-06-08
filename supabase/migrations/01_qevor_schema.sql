@@ -1,6 +1,7 @@
 -- Payment links table
 create table if not exists payment_links (
   id uuid primary key default gen_random_uuid(),
+  creator_wallet text,
   receiver_wallet text not null,
   amount numeric not null,
   expires_at timestamptz,

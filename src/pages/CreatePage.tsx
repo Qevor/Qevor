@@ -100,6 +100,7 @@ const CreatePage = () => {
         }
 
         const linkObject = {
+          creator_wallet: connectedWallet ?? finalAddress,
           receiver_wallet: finalAddress,
           amount: amt,
           chain_id: selectedNetwork.chain.id,
@@ -151,6 +152,7 @@ const CreatePage = () => {
     } else {
       try {
         const data = await createLinks([{
+          creator_wallet: connectedWallet ?? finalAddress,
           receiver_wallet: finalAddress,
           amount: parseFloat(amount),
           chain_id: selectedNetwork.chain.id,
