@@ -47,10 +47,9 @@ export default function NavBar() {
                 </Link>
                 <div className="flex items-center gap-4">
                     <div className="hidden md:flex items-center gap-6 text-sm font-medium">
-                        <Link to="/create" className="text-muted-foreground hover:text-primary transition-colors">Create</Link>
-                        <Link to="/send" className="text-muted-foreground hover:text-primary transition-colors">Send</Link>
-                        <Link to="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">Dashboard</Link>
-                        <Link to="/agents" className="text-muted-foreground hover:text-primary transition-colors">Agents</Link>
+                        <Link to="/dashboard?tab=agent" className="text-primary hover:text-primary/80 transition-colors">Agent Workspace</Link>
+                        <Link to="/agents" className="text-muted-foreground hover:text-primary transition-colors">Agent Operations</Link>
+                        <Link to="/dashboard?tab=wallet" className="text-muted-foreground hover:text-primary transition-colors">Payment Rails</Link>
                     </div>
                     <ThemeToggle />
                     {isConnected && address ? (
@@ -63,16 +62,16 @@ export default function NavBar() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-52">
                                     <DropdownMenuItem asChild className="md:hidden">
-                                        <Link to="/create">Create</Link>
+                                        <Link to="/dashboard?tab=agent">Agent Workspace</Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem asChild className="md:hidden">
-                                        <Link to="/send">Send</Link>
+                                        <Link to="/agents">Agent Operations</Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem asChild className="md:hidden">
-                                        <Link to="/dashboard">Dashboard</Link>
+                                        <Link to="/dashboard?tab=wallet">Payment Rails</Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem asChild className="md:hidden">
-                                        <Link to="/agents">Agents</Link>
+                                        <Link to="/send">Direct Send</Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator className="md:hidden" />
                                     <DropdownMenuItem

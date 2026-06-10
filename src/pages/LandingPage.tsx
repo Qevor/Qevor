@@ -8,7 +8,6 @@ import {
   Copy,
   Github,
   Layers,
-  LayoutDashboard,
   Link2,
   Receipt,
   Search,
@@ -17,7 +16,6 @@ import {
   Twitter,
   UploadCloud,
   Users,
-  Wallet,
 } from 'lucide-react';
 import { getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -114,11 +112,11 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <Link
-              to="/dashboard"
+              to="/dashboard?tab=agent"
               className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-elegant hover-scale"
             >
-              <LayoutDashboard className="h-4 w-4" />
-              Dashboard
+              <Bot className="h-4 w-4" />
+              Agent Workspace
             </Link>
           </div>
         </div>
@@ -133,9 +131,9 @@ export default function LandingPage() {
           <div className="max-w-4xl">
             <div className="mb-7 flex flex-wrap items-center gap-3">
               {[
-                'Multi-chain ready',
-                'EVM testnets supported',
-                'Mainnet guarded',
+                'Agent-first operations',
+                'Policy-gated execution',
+                'Multi-chain rails',
               ].map((text) => (
                 <span key={text} className="rounded-lg border border-border bg-card/70 px-3 py-1 text-xs uppercase tracking-[0.16em] text-muted-foreground backdrop-blur">
                   {text}
@@ -146,16 +144,16 @@ export default function LandingPage() {
             <h1 className="font-display text-5xl leading-[1.02] text-foreground sm:text-6xl md:text-7xl lg:text-[6.8rem]">
               Qevor
               <br />
-              multi-chain payments
+              agent-first payments
               <br />
-              for teams and agents.
+              with human control.
             </h1>
             <p className="mt-7 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Create payment links, send direct transfers, import CSV batch payouts, and keep receipts across networks. Qevor treats each chain as a rail, not the whole product, with testnets live now and mainnet held behind stronger safety checks.
+              Give Qevor an outcome. Its agent prepares the payment operation, selects the right chain rail, checks policy and risk, then waits for the required approval before funds move.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
-              <Link to="/dashboard" className="flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-elegant hover-scale">
-                Open workspace <ArrowRight className="h-4 w-4" />
+              <Link to="/dashboard?tab=agent" className="flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-elegant hover-scale">
+                Command Qevor <ArrowRight className="h-4 w-4" />
               </Link>
               <a href="#try" className="flex items-center gap-2 rounded-lg border border-border bg-background/50 px-6 py-3 text-sm font-medium backdrop-blur transition-colors hover:border-primary/50">
                 Build a test link
@@ -165,9 +163,9 @@ export default function LandingPage() {
 
           <div className="mt-14 grid max-w-5xl gap-3 sm:grid-cols-3">
             {[
-              ['Network rails', '2 testnets', 'more EVM chains next'],
-              ['Batch mode', 'CSV import', '1 wallet signature'],
-              ['Copilot path', 'Duplicate checks', 'Risk prompts'],
+              ['Agent planner', 'Intent to operation', 'reviewable before execution'],
+              ['Policy engine', 'Hard safety gates', 'approval required by default'],
+              ['Network rails', 'Arc + Mantle', 'more EVM chains next'],
             ].map(([k, v, meta]) => (
               <div key={k} className="rounded-lg border border-border bg-card/70 p-4 backdrop-blur">
                 <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{k}</p>
@@ -220,10 +218,10 @@ export default function LandingPage() {
         <SectionLabel n="01" label="The product" />
         <div className="mb-12 grid gap-6 md:grid-cols-[1.1fr_0.9fr] md:items-end">
           <h2 className="font-display text-4xl text-foreground md:text-6xl">
-            One payment layer for links, payouts, and agent wallets.
+            One agent layer over every Qevor payment rail.
           </h2>
           <p className="text-muted-foreground">
-            The UI now treats networks as a first-class choice. Every send, payment link, batch, and receipt carries chain metadata instead of assuming one chain forever.
+            Users state the outcome first. Qevor plans the operation, applies policy, and routes execution through direct sends, payment links, batches, or agent wallets.
           </p>
         </div>
 
@@ -244,7 +242,7 @@ export default function LandingPage() {
             {
               tag: 'AGENTIC WALLETS',
               title: 'Policies before autonomy',
-              body: 'Qevor is positioned for agent wallets with limits, allowlists, duplicate detection, and audit-friendly receipts.',
+              body: 'Agent wallets operate behind limits, allowlists, duplicate detection, human approvals, and audit-friendly receipts.',
               icon: <Bot className="h-4 w-4" />,
             },
           ].map(({ tag, title, body, icon }) => (
@@ -272,7 +270,7 @@ export default function LandingPage() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {[
-                [<ShieldCheck className="h-5 w-5" />, 'Self-custodial', 'Qevor never holds user funds. Wallet approval is required for every transfer.'],
+                [<ShieldCheck className="h-5 w-5" />, 'Policy-controlled', 'Qevor never bypasses spending policy. Human approval remains required unless explicitly delegated within strict limits.'],
                 [<Layers className="h-5 w-5" />, 'Chain confirmation', 'The app switches and submits on the selected network, reducing wrong-chain sends.'],
                 [<AlertTriangle className="h-5 w-5" />, 'Mainnet guardrails', 'Mainnet remains a planned mode with explicit confirmations and stricter limits.'],
                 [<Receipt className="h-5 w-5" />, 'Receipts by network', 'Receipts and batch records store chain id and token symbol for traceability.'],
@@ -438,16 +436,16 @@ export default function LandingPage() {
         <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
           <div>
             <SectionLabel n="05" label="Start" />
-            <h2 className="font-display text-4xl text-foreground md:text-6xl">Open Qevor and choose your network.</h2>
+            <h2 className="font-display text-4xl text-foreground md:text-6xl">Give Qevor a payment objective.</h2>
             <p className="mt-5 text-muted-foreground">
-              Choose a test network for the next flow. Keep amounts tiny while your partner applies the Supabase migration.
+              The agent plans the operation and recommends a payment rail. Review policy, approval requirements, and recipients before execution.
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Link to="/dashboard" className="rounded-lg border border-border bg-card p-6 transition-colors hover:border-primary/50">
-              <Wallet className="mb-5 h-5 w-5 text-primary" />
-              <p className="text-xl font-semibold text-foreground">Open dashboard</p>
-              <p className="mt-2 text-sm text-muted-foreground">Send, receive, batch-pay, and review receipts.</p>
+            <Link to="/dashboard?tab=agent" className="rounded-lg border border-border bg-card p-6 transition-colors hover:border-primary/50">
+              <Bot className="mb-5 h-5 w-5 text-primary" />
+              <p className="text-xl font-semibold text-foreground">Command Qevor</p>
+              <p className="mt-2 text-sm text-muted-foreground">Describe an outcome and review the agent's operation plan.</p>
             </Link>
             <a href="https://github.com/Qevor/Qevor" target="_blank" rel="noreferrer" className="rounded-lg border border-border bg-card p-6 transition-colors hover:border-primary/50">
               <Github className="mb-5 h-5 w-5 text-primary" />
@@ -463,14 +461,14 @@ export default function LandingPage() {
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="Qevor" className="h-6 w-6 rounded object-cover" />
             <span className="text-sm font-semibold">Qevor</span>
-            <span className="text-xs text-muted-foreground">Multi-chain payment workspace</span>
+            <span className="text-xs text-muted-foreground">Agent-first payment infrastructure</span>
           </div>
           <nav className="flex flex-wrap items-center justify-center gap-5 text-sm text-muted-foreground">
             {[
               ['#product', 'Product'],
               ['#safety', 'Safety'],
               ['#networks', 'Networks'],
-              ['/dashboard', 'App'],
+              ['/dashboard?tab=agent', 'Agent Workspace'],
             ].map(([href, label]) => (
               <a key={href} href={href} className="transition-colors hover:text-foreground">
                 {label}

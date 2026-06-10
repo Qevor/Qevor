@@ -18,6 +18,7 @@ import { fetchAgentWallets } from '@/lib/agents/queries';
 import type { AgentWallet } from '@/lib/agents/types';
 import { reviewPaymentDraft } from '@/lib/agents/safety-review';
 import { planPaymentIntent, type PaymentIntentPlan } from '@/lib/agents/intent-planner';
+import { AgentWorkspace } from '@/components/agents/AgentWorkspace';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getAppUrl } from '@/lib/appUrl';
@@ -28,7 +29,7 @@ export default function DashboardPage() {
     const { setShowAuthFlow } = useDynamicContext();
     const [searchParams, setSearchParams] = useSearchParams();
 
-    const defaultTab = searchParams.get('tab') || 'wallet';
+    const defaultTab = searchParams.get('tab') || 'agent';
 
     const [links, setLinks] = useState<any[]>([]);
     const [receipts, setReceipts] = useState<any[]>([]);
@@ -321,6 +322,12 @@ export default function DashboardPage() {
         toast.success('Copilot plan applied. Review the safety result before sending.');
     };
 
+    const openCopilotPlanInBatch = () => {
+        applyCopilotPlan();
+        setSearchParams({ tab: 'batch' });
+        setIsCreateOpen(true);
+    };
+
     const handleSendBatch = async () => {
         if (!address) return;
         if (copilotPolicyExceeded) {
@@ -431,16 +438,16 @@ export default function DashboardPage() {
                     <div className="bg-primary/20 p-4 rounded-full w-20 h-20 mx-auto flex items-center justify-center">
                         <LogIn className="w-10 h-10 text-primary" />
                     </div>
-                    <h2 className="text-3xl font-bold">Login to view balances</h2>
+                    <h2 className="text-3xl font-bold">Connect to command Qevor</h2>
                     <p className="text-muted-foreground">
-                        Please log in to view your Dashboard, manage links, and track payment requests.
+                        Connect your wallet to plan agent operations, enforce payment policy, and approve execution.
                     </p>
                     <Button
                         size="lg"
                         onClick={() => setShowAuthFlow(true)}
                         className="w-full gradient-primary shadow-glow hover:shadow-glow-lg h-12"
                     >
-                        Login to view balances
+                        Connect wallet
                     </Button>
                 </div>
             </div>
@@ -449,15 +456,28 @@ export default function DashboardPage() {
 
     return (
         <div className="container mx-auto px-4 py-8">
-            <h1 className="text-3xl font-bold gradient-text mb-8">Dashboard</h1>
-
             <Tabs value={defaultTab} onValueChange={(v) => setSearchParams({ tab: v })}>
                 <TabsList className="bg-secondary/50 border border-border p-1 mb-8 w-full justify-start overflow-x-auto flex-nowrap">
+                    <TabsTrigger value="agent" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">
+                        <Bot className="mr-2 h-4 w-4" /> Agent Workspace
+                    </TabsTrigger>
                     <TabsTrigger value="wallet" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">Wallet</TabsTrigger>
                     <TabsTrigger value="links" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">My Links</TabsTrigger>
                     <TabsTrigger value="batch" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">Batch Payments</TabsTrigger>
                     <TabsTrigger value="receipts" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">Receipts</TabsTrigger>
                 </TabsList>
+
+                <TabsContent value="agent" className="animate-in fade-in-50">
+                    <AgentWorkspace
+                        intent={copilotIntent}
+                        plan={copilotPlan}
+                        planning={copilotPlanning}
+                        agentWalletCount={agentWallets.length}
+                        onIntentChange={setCopilotIntent}
+                        onPlan={handlePlanPaymentIntent}
+                        onOpenPlan={openCopilotPlanInBatch}
+                    />
+                </TabsContent>
 
                 {/* WALLET TAB */}
                 <TabsContent value="wallet" className="animate-in fade-in-50 zoom-in-95">
