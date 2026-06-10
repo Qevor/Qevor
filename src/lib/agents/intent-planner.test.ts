@@ -13,6 +13,18 @@ describe('planPaymentIntentLocally', () => {
     expect(plan.warnings.some((warning) => warning.includes('unverified'))).toBe(true);
   });
 
+  it('extracts a recipient when the amount appears before the wallet', () => {
+    const wallet = '0x1111111111111111111111111111111111111111';
+    const plan = planPaymentIntentLocally(
+      `Prepare a payment of 0.01 MNT to ${wallet} on Mantle Sepolia. Require my approval before execution.`,
+      { currentChainKey: 'arc-testnet' },
+    );
+
+    expect(plan.chainKey).toBe('mantle-sepolia');
+    expect(plan.recipients).toEqual([{ wallet, amount: 0.01, label: '' }]);
+    expect(plan.warnings).not.toContain('No recipients were found. Add recipients manually or import a CSV before applying the plan.');
+  });
+
   it('preserves imported recipients when the intent refers to the existing draft', () => {
     const plan = planPaymentIntentLocally('Pay these 10 contributors on Mantle and block duplicates', {
       currentChainKey: 'arc-testnet',

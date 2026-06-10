@@ -27,7 +27,12 @@ export interface PaymentIntentContext {
   currentRecipients?: CopilotRecipient[];
 }
 
-const recipientPattern = /(@[a-zA-Z0-9_][a-zA-Z0-9_.-]{1,38}|0x[a-fA-F0-9]{40})\s+(?:for\s+)?(\d+(?:\.\d+)?)/g;
+const walletPattern = '@[a-zA-Z0-9_][a-zA-Z0-9_.-]{1,38}|0x[a-fA-F0-9]{40}';
+const walletThenAmountPattern = new RegExp(`(${walletPattern})\\s+(?:for\\s+)?(\\d+(?:\\.\\d+)?)`, 'g');
+const amountThenWalletPattern = new RegExp(
+  `(\\d+(?:\\.\\d+)?)\\s*(?:MNT|USDC|USDT|ETH)?\\s+(?:to|for)\\s+(${walletPattern})`,
+  'gi',
+);
 
 export function planPaymentIntentLocally(intent: string, context: PaymentIntentContext): PaymentIntentPlan {
   const normalized = intent.trim();
@@ -103,8 +108,20 @@ export async function planPaymentIntent(
 
 function parseRecipients(intent: string): CopilotRecipient[] {
   const recipients: CopilotRecipient[] = [];
-  for (const match of intent.matchAll(recipientPattern)) {
-    recipients.push({ wallet: match[1], amount: Number(match[2]), label: '' });
+  const seen = new Set<string>();
+
+  const addRecipient = (wallet: string, amount: string) => {
+    const key = `${wallet.toLowerCase()}:${amount}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    recipients.push({ wallet, amount: Number(amount), label: '' });
+  };
+
+  for (const match of intent.matchAll(walletThenAmountPattern)) {
+    addRecipient(match[1], match[2]);
+  }
+  for (const match of intent.matchAll(amountThenWalletPattern)) {
+    addRecipient(match[2], match[1]);
   }
   return recipients;
 }
