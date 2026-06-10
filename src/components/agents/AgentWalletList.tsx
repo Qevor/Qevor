@@ -71,7 +71,7 @@ export function AgentWalletList({ wallets, onEditPolicy, onEnableExecutor }: Pro
               <span className="text-muted-foreground">Chain: {w.chain}</span>
             </div>
 
-            <AgentWalletBalance address={w.wallet_address} />
+            <AgentWalletBalance address={w.wallet_address} chain={w.chain} />
 
             {w.escrow_address && (
               <div className="flex items-center gap-2 text-sm">

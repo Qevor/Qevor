@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAccount } from 'wagmi';
 import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2, LogIn, ExternalLink, Receipt as ReceiptIcon, Copy, Check, Link2, ArrowDownLeft, ArrowUpRight, Users, CheckCircle2, XCircle, Upload } from 'lucide-react';
+import { Plus, Loader2, LogIn, ExternalLink, Receipt as ReceiptIcon, Copy, Check, Link2, ArrowDownLeft, ArrowUpRight, Users, CheckCircle2, XCircle, Upload, Bot, ShieldCheck, AlertTriangle, UserRound, Sparkles } from 'lucide-react';
 import { PaymentLinkCard } from '@/components/PaymentLinkCard';
 import { BatchPaymentCard } from '@/components/BatchPaymentCard';
 import { SplitInput } from '@/components/SplitInput';
@@ -16,6 +16,8 @@ import { WalletTab } from '@/components/WalletTab';
 import { useBatchSend } from '@/hooks/useBatchSend';
 import { fetchAgentWallets } from '@/lib/agents/queries';
 import type { AgentWallet } from '@/lib/agents/types';
+import { reviewPaymentDraft } from '@/lib/agents/safety-review';
+import { planPaymentIntent, type PaymentIntentPlan } from '@/lib/agents/intent-planner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getAppUrl } from '@/lib/appUrl';
@@ -43,6 +45,9 @@ export default function DashboardPage() {
     const [batchDesc, setBatchDesc] = useState('');
     const [batchRecipients, setBatchRecipients] = useState<BatchRecipient[]>([{ wallet: '', amount: 0, label: '' }]);
     const [batchChainKey, setBatchChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY);
+    const [copilotIntent, setCopilotIntent] = useState('');
+    const [copilotPlan, setCopilotPlan] = useState<PaymentIntentPlan | null>(null);
+    const [copilotPlanning, setCopilotPlanning] = useState(false);
     const selectedBatchNetwork = getQevorChainByKey(batchChainKey);
 
     type SendStep = 'form' | 'sending' | 'done' | 'queued';
@@ -54,6 +59,16 @@ export default function DashboardPage() {
     // and which one (if any) the user picked for this batch. null = manual (wagmi sign).
     const [agentWallets, setAgentWallets] = useState<AgentWallet[]>([]);
     const [executorAgentId, setExecutorAgentId] = useState<string | null>(null);
+    const availableAgentWallets = agentWallets.filter((w) => w.chain === selectedBatchNetwork.agentChainCode);
+    const batchSafetyReview = useMemo(() => reviewPaymentDraft(
+        batchRecipients
+            .filter((recipient) => recipient.wallet || recipient.amount > 0)
+            .map((recipient) => `${recipient.wallet},${recipient.amount},${recipient.label || ''}`)
+            .join('\n')
+    ), [batchRecipients]);
+    const copilotPolicyExceeded = !!copilotPlan?.constraints.maxAmount
+        && batchSafetyReview.total > copilotPlan.constraints.maxAmount;
+    const batchPaymentReady = batchSafetyReview.allowed && !copilotPolicyExceeded;
 
     const { resolveUsernameToWallet } = useProfiles();
     const { createLinks, loading: linkCreating } = usePaymentLinks();
@@ -96,6 +111,14 @@ export default function DashboardPage() {
               .catch(() => setAgentWallets([]));
         }
     }, [address]);
+
+    useEffect(() => {
+        if (!executorAgentId) return;
+        const selectedAgent = agentWallets.find((w) => w.id === executorAgentId);
+        if (selectedAgent && selectedAgent.chain !== selectedBatchNetwork.agentChainCode) {
+            setExecutorAgentId(null);
+        }
+    }, [executorAgentId, agentWallets, selectedBatchNetwork.agentChainCode]);
 
     const fetchLinks = async () => {
         if (!address) return;
@@ -219,6 +242,9 @@ export default function DashboardPage() {
         setBatchSendStep('form');
         setBatchSendResults([]);
         setExecutorAgentId(null);
+        setCopilotIntent('');
+        setCopilotPlan(null);
+        setCopilotPlanning(false);
     };
 
     // Called by a card's Send button — pre-fills the dialog with only the unsent recipients
@@ -266,8 +292,45 @@ export default function DashboardPage() {
         e.target.value = '';
     };
 
+    const handlePlanPaymentIntent = async () => {
+        if (copilotIntent.trim().length < 3) {
+            toast.error('Describe the payment you want Qevor to prepare.');
+            return;
+        }
+        setCopilotPlanning(true);
+        const plan = await planPaymentIntent(copilotIntent, {
+            currentChainKey: batchChainKey,
+            currentRecipients: batchRecipients,
+        });
+        setCopilotPlan(plan);
+        setCopilotPlanning(false);
+    };
+
+    const applyCopilotPlan = () => {
+        if (!copilotPlan) return;
+        setBatchTitle(copilotPlan.title);
+        setBatchDesc(copilotPlan.description);
+        setBatchChainKey(copilotPlan.chainKey);
+        if (copilotPlan.recipients.length > 0) {
+            setBatchRecipients(copilotPlan.recipients);
+        }
+
+        const targetAgentChain = getQevorChainByKey(copilotPlan.chainKey).agentChainCode;
+        const eligibleAgent = agentWallets.find((wallet) => wallet.chain === targetAgentChain);
+        setExecutorAgentId(copilotPlan.executionMode === 'agent' && eligibleAgent ? eligibleAgent.id : null);
+        toast.success('Copilot plan applied. Review the safety result before sending.');
+    };
+
     const handleSendBatch = async () => {
         if (!address) return;
+        if (copilotPolicyExceeded) {
+            toast.error(`The copilot policy blocks totals above ${copilotPlan?.constraints.maxAmount}.`);
+            return;
+        }
+        if (!batchSafetyReview.allowed) {
+            toast.error('The safety copilot blocked this batch. Fix the payment issues first.');
+            return;
+        }
 
         // Validate & resolve usernames to wallet addresses
         const resolvedRecipients: BatchRecipient[] = [];
@@ -655,6 +718,60 @@ export default function DashboardPage() {
                                 {batchSendStep === 'form' && (
                                     <>
                                         <div className="space-y-4 py-4">
+                                            <div className="rounded-lg border border-primary/25 bg-primary/5 p-4 space-y-3">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <div className="flex items-center gap-2 text-sm font-semibold">
+                                                            <Sparkles className="h-4 w-4 text-primary" />
+                                                            Qevor Copilot
+                                                        </div>
+                                                        <p className="mt-1 text-xs text-muted-foreground">Describe a payout. Copilot prepares a draft; it cannot move funds or bypass safety policy.</p>
+                                                    </div>
+                                                    <span className="rounded-md border border-border bg-background px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">Human approval</span>
+                                                </div>
+                                                <textarea
+                                                    value={copilotIntent}
+                                                    onChange={(event) => setCopilotIntent(event.target.value)}
+                                                    rows={3}
+                                                    className="w-full resize-none rounded-lg border border-border bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+                                                    placeholder="Pay 5 MNT to the recipient address on Mantle and require my approval."
+                                                />
+                                                <div className="flex justify-end">
+                                                    <Button type="button" size="sm" className="gap-2" onClick={handlePlanPaymentIntent} disabled={copilotPlanning}>
+                                                        {copilotPlanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                                        Build payment plan
+                                                    </Button>
+                                                </div>
+
+                                                {copilotPlan && (
+                                                    <div className="rounded-lg border border-border bg-background p-3 space-y-3">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <span className="text-sm font-semibold">{copilotPlan.title}</span>
+                                                            <span className="rounded-md bg-secondary px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">
+                                                                {copilotPlan.source === 'openai' ? 'AI plan' : 'Local plan'}
+                                                            </span>
+                                                            <span className="rounded-md bg-secondary px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">
+                                                                {getQevorChainByKey(copilotPlan.chainKey).label}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-xs text-muted-foreground">{copilotPlan.explanation}</p>
+                                                        <div className="grid grid-cols-3 gap-2 text-xs">
+                                                            <div><span className="block text-muted-foreground">Recipients</span><strong>{copilotPlan.recipients.length}</strong></div>
+                                                            <div><span className="block text-muted-foreground">Execution</span><strong>{copilotPlan.executionMode === 'agent' ? 'Agent requested' : 'Human'}</strong></div>
+                                                            <div><span className="block text-muted-foreground">Approval</span><strong>Required</strong></div>
+                                                        </div>
+                                                        {copilotPlan.warnings.map((warning, index) => (
+                                                            <p key={index} className="flex items-start gap-2 text-xs text-amber-500">
+                                                                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {warning}
+                                                            </p>
+                                                        ))}
+                                                        <Button type="button" variant="outline" size="sm" className="w-full gap-2" onClick={applyCopilotPlan}>
+                                                            <Check className="h-4 w-4" /> Apply plan to payment form
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
+
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>
                                                     <label className="text-sm font-medium mb-1 block">Title (optional)</label>
@@ -691,7 +808,46 @@ export default function DashboardPage() {
                                                 </select>
                                             </div>
 
-                                            {agentWallets.length > 0 && (
+                                            <div className="space-y-3 pt-3 border-t border-border">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div>
+                                                        <label className="text-sm font-medium block">Execution</label>
+                                                        <p className="text-xs text-muted-foreground mt-1">The safety copilot reviews both modes before funds move.</p>
+                                                    </div>
+                                                    <ShieldCheck className="h-5 w-5 text-primary" />
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2 rounded-lg bg-secondary p-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setExecutorAgentId(null)}
+                                                        className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${!executorAgentId ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                                                    >
+                                                        <UserRound className="h-4 w-4" />
+                                                        Human approval
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        disabled={availableAgentWallets.length === 0}
+                                                        onClick={() => setExecutorAgentId(availableAgentWallets[0]?.id ?? null)}
+                                                        className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${executorAgentId ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                                                    >
+                                                        <Bot className="h-4 w-4" />
+                                                        Agent execution
+                                                    </button>
+                                                </div>
+                                                {availableAgentWallets.length === 0 ? (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Agent execution is not configured for {selectedBatchNetwork.label}.{' '}
+                                                        <Link to="/agents" className="font-medium text-primary hover:underline">Set up an agent wallet</Link>
+                                                    </p>
+                                                ) : executorAgentId ? (
+                                                    <p className="text-xs text-muted-foreground">The agent applies its policy and submits approved transfers automatically. You will not sign this batch.</p>
+                                                ) : (
+                                                    <p className="text-xs text-muted-foreground">You review the copilot result, then sign the batch in your connected wallet.</p>
+                                                )}
+                                            </div>
+
+                                            {availableAgentWallets.length > 0 && executorAgentId && (
                                                 <div className="space-y-2 pt-2 border-t border-border">
                                                     <label className="text-sm font-medium block">Execute with</label>
                                                     <select
@@ -700,7 +856,7 @@ export default function DashboardPage() {
                                                         className="w-full bg-secondary border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
                                                     >
                                                         <option value="">Send manually (I sign in my wallet)</option>
-                                                        {agentWallets.map((w) => (
+                                                        {availableAgentWallets.map((w) => (
                                                             <option key={w.id} value={w.id}>
                                                                 Agent: {w.label || `${w.wallet_address.slice(0, 6)}…${w.wallet_address.slice(-4)}`}
                                                             </option>
@@ -807,6 +963,33 @@ export default function DashboardPage() {
                                                 );
                                             })()}
 
+                                            {batchRecipients.some(r => r.wallet || r.amount > 0) && (
+                                                <div className={`rounded-lg border px-4 py-3 ${batchPaymentReady ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-destructive/30 bg-destructive/5'}`}>
+                                                    <div className="flex items-center gap-2 text-sm font-medium">
+                                                        {batchPaymentReady ? (
+                                                            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                                                        ) : (
+                                                            <AlertTriangle className="h-4 w-4 text-destructive" />
+                                                        )}
+                                                        Safety copilot: {batchPaymentReady ? 'Ready to proceed' : 'Action required'}
+                                                    </div>
+                                                    {batchSafetyReview.issues.length > 0 && (
+                                                        <div className="mt-2 space-y-1">
+                                                            {batchSafetyReview.issues.slice(0, 4).map((issue, index) => (
+                                                                <p key={`${issue.line}-${index}`} className={`text-xs ${issue.severity === 'block' ? 'text-destructive' : 'text-amber-500'}`}>
+                                                                    Row {issue.line}: {issue.message}
+                                                                </p>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    {copilotPolicyExceeded && (
+                                                        <p className="mt-2 text-xs text-destructive">
+                                                            Copilot policy blocked this batch: total exceeds the {copilotPlan?.constraints.maxAmount} {selectedBatchNetwork.paymentAsset} limit.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+
                                             <p className="text-xs text-muted-foreground text-center">
                                                 CSV format: <code className="bg-secondary px-1 rounded">address,amount,label</code> (label optional)
                                             </p>
@@ -818,7 +1001,7 @@ export default function DashboardPage() {
                                             </Button>
                                             <Button
                                                 onClick={handleSendBatch}
-                                                disabled={isSendingBatch || batchLoading || !batchRecipients.some(r => r.wallet && r.amount > 0)}
+                                                disabled={isSendingBatch || batchLoading || !batchPaymentReady}
                                                 className="gap-2"
                                             >
                                                 {isSendingBatch || batchLoading
@@ -925,7 +1108,7 @@ export default function DashboardPage() {
                                             <p className="font-semibold text-foreground">Queued for the agent executor</p>
                                             <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
                                                 The executor polls every 15 seconds. It will evaluate this batch against the policy on
-                                                {' '}<span className="font-mono">{agentWallets.find(w => w.id === executorAgentId)?.label || 'your agent wallet'}</span>{' '}
+                                                {' '}<span className="font-mono">{availableAgentWallets.find(w => w.id === executorAgentId)?.label || 'your agent wallet'}</span>{' '}
                                                 and submit transfers when approved. Watch the Receipts tab or the agent's audit log to see results.
                                             </p>
                                         </div>

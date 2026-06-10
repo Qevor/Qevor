@@ -60,6 +60,7 @@ export interface QevorChainConfig {
   chain: Chain
   label: string
   paymentAsset: string
+  agentChainCode: 'ARC-TESTNET' | 'MANTLE-SEPOLIA'
   explorerUrl: string
   rpcUrls: readonly string[]
 }
@@ -70,6 +71,7 @@ export const qevorChains = [
     chain: arcTestnet,
     label: 'Arc Testnet',
     paymentAsset: 'USDC',
+    agentChainCode: 'ARC-TESTNET',
     explorerUrl: 'https://testnet.arcscan.app',
     rpcUrls: arcTestnet.rpcUrls.default.http,
   },
@@ -78,6 +80,7 @@ export const qevorChains = [
     chain: mantleSepolia,
     label: 'Mantle Sepolia',
     paymentAsset: 'MNT',
+    agentChainCode: 'MANTLE-SEPOLIA',
     explorerUrl: 'https://explorer.sepolia.mantle.xyz',
     rpcUrls: mantleSepolia.rpcUrls.default.http,
   },
@@ -92,6 +95,10 @@ export function getQevorChainByKey(key?: string | null) {
 
 export function getQevorChainById(chainId?: number | null) {
   return qevorChains.find(c => c.chain.id === chainId) ?? qevorChains[0]
+}
+
+export function getQevorChainByAgentChain(agentChain?: string | null) {
+  return qevorChains.find(c => c.agentChainCode === agentChain) ?? qevorChains[0]
 }
 
 export function getExplorerTxUrl(chainId: number | null | undefined, txHash: string) {

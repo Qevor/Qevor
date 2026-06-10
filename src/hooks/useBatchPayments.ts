@@ -60,6 +60,21 @@ export function useBatchPayments() {
             if (sbError) throw sbError;
             const batch = result as Batch;
             const network = getQevorChainById(batch.chain_id);
+            if (data.executor_agent_wallet_id) {
+                const payments = data.recipients.map((recipient) => ({
+                    batch_request_id: batch.id,
+                    payer_wallet: data.creator_wallet,
+                    recipient_wallet: recipient.wallet,
+                    amount: recipient.amount,
+                    tx_hash: '',
+                    chain_id: batch.chain_id ?? network.chain.id,
+                    token_symbol: batch.token_symbol ?? network.paymentAsset,
+                    status: 'pending',
+                }));
+
+                const { error: paymentError } = await supabase.from('batch_payments').insert(payments);
+                if (paymentError) throw paymentError;
+            }
             return {
                 ...batch,
                 chain_id: batch.chain_id ?? network.chain.id,

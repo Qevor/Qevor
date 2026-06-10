@@ -8,9 +8,10 @@ import { useProfiles } from '@/hooks/useProfiles';
 import { fetchAgentWallets, registerAgentWallet } from '@/lib/agents/queries';
 import type { AgentWallet } from '@/lib/agents/types';
 import { AgentWalletOnboarding } from '@/components/agents/AgentWalletOnboarding';
-import { AgentWalletList } from '@/components/agents/AgentWalletList';
 import { PolicyBuilder } from '@/components/agents/PolicyBuilder';
 import { CosignQueue } from '@/components/agents/CosignQueue';
+import { AgentControlCenter } from '@/components/agents/AgentControlCenter';
+import { AgentEmptyControlCenter } from '@/components/agents/AgentEmptyControlCenter';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function AgentsPage() {
@@ -47,14 +48,14 @@ export default function AgentsPage() {
     }
   }, [isConnected, address, loadWallets]);
 
-  const handleRegister = async (walletAddress: string, label: string) => {
+  const handleRegister = async (walletAddress: string, label: string, chain: string) => {
     if (!profileWallet) {
       toast.error('Please create a username first on the Dashboard.');
       return;
     }
     setRegistering(true);
     try {
-      await registerAgentWallet(profileWallet, walletAddress, 'ARC-TESTNET', label || undefined);
+      await registerAgentWallet(profileWallet, walletAddress, chain, label || undefined);
       toast.success('Agent wallet registered!');
       setShowOnboarding(false);
       await loadWallets();
@@ -96,36 +97,22 @@ export default function AgentsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Agent Wallets</h1>
-        {wallets.length > 0 && (
-          <Button variant="outline" size="sm" onClick={() => setShowOnboarding(true)}>
-            <Plus className="mr-1 h-4 w-4" /> Add Wallet
-          </Button>
-        )}
-      </div>
+    <div className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6">
 
       {loading ? (
         <p className="text-muted-foreground">Loading...</p>
-      ) : wallets.length === 0 && !showOnboarding ? (
-        <div className="space-y-4">
-          <p className="text-muted-foreground">
-            No agent wallets registered yet. Add one to get started with the AI Treasurer.
-          </p>
-          <Button onClick={() => setShowOnboarding(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Add an Agent Wallet
-          </Button>
-        </div>
+      ) : wallets.length === 0 ? (
+        <AgentEmptyControlCenter onAddWallet={() => setShowOnboarding(true)} />
       ) : null}
 
-      {(showOnboarding || wallets.length === 0) && !loading && (
+      {showOnboarding && !loading && (
         <AgentWalletOnboarding onRegister={handleRegister} registering={registering} />
       )}
 
       {wallets.length > 0 && (
-        <AgentWalletList
+        <AgentControlCenter
           wallets={wallets}
+          onAddWallet={() => setShowOnboarding(true)}
           onEditPolicy={handleEditPolicy}
           onEnableExecutor={handleEnableExecutor}
         />

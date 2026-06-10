@@ -1,16 +1,18 @@
 import { useBalance } from 'wagmi';
-import { arcTestnet } from '@/lib/arcChain';
+import { getQevorChainByAgentChain } from '@/lib/chains';
 import { Loader2 } from 'lucide-react';
 import { formatUnits } from 'viem';
 
 interface Props {
   address: string;
+  chain: string;
 }
 
-export function AgentWalletBalance({ address }: Props) {
+export function AgentWalletBalance({ address, chain }: Props) {
+  const network = getQevorChainByAgentChain(chain);
   const { data, isLoading } = useBalance({
     address: address as `0x${string}`,
-    chainId: arcTestnet.id,
+    chainId: network.chain.id,
   });
 
   if (isLoading) {
@@ -26,7 +28,7 @@ export function AgentWalletBalance({ address }: Props) {
   return (
     <div className="text-sm">
       <span className="text-muted-foreground">Balance: </span>
-      <span className="font-medium">{formatted} USDC</span>
+      <span className="font-medium">{formatted} {network.paymentAsset}</span>
     </div>
   );
 }

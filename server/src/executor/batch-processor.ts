@@ -1,19 +1,24 @@
 import { supabase } from '../lib/supabase.js';
-import type { CircleCliRunner } from './circle-cli.js';
+import type { RailRunner } from './rail-runner.js';
 import type { Logger } from 'pino';
 import { evaluate, type PolicyFields, type EvaluationContext } from './policy-engine-import.js';
+import { MANTLE_SEPOLIA_CHAIN_ID, isMantleAgentChain, normalizeAgentChain } from './chain-support.js';
 
 interface BatchPaymentRow {
   id: string;
   recipient_wallet: string;
   amount: number;
   status: string;
+  chain_id?: number | null;
+  token_symbol?: string | null;
 }
 
 interface BatchRequestRow {
   id: string;
   executor_agent_wallet_id: string;
   executor_state: string;
+  chain_id?: number | null;
+  token_symbol?: string | null;
   recipients: Array<{ wallet: string; amount: number; label?: string }>;
 }
 
@@ -21,7 +26,7 @@ interface BatchRequestRow {
  * Process all batch_requests with executor_state = 'pending_evaluation'.
  */
 export async function processPendingBatches(
-  cli: CircleCliRunner,
+  getRunnerForChain: (chain: string) => RailRunner | null,
   log: Logger,
 ): Promise<void> {
   const { data: batches, error } = await supabase
@@ -38,13 +43,13 @@ export async function processPendingBatches(
   if (!batches || batches.length === 0) return;
 
   for (const batch of batches as BatchRequestRow[]) {
-    await processBatch(batch, cli, log);
+    await processBatch(batch, getRunnerForChain, log);
   }
 }
 
 async function processBatch(
   batch: BatchRequestRow,
-  cli: CircleCliRunner,
+  getRunnerForChain: (chain: string) => RailRunner | null,
   log: Logger,
 ): Promise<void> {
   const batchLog = log.child({ batch_id: batch.id });
@@ -71,6 +76,55 @@ async function processBatch(
       .eq('id', batch.id);
     return;
   }
+
+  const chain = normalizeAgentChain(wallet.chain);
+  const expectedChainId = isMantleAgentChain(chain) ? MANTLE_SEPOLIA_CHAIN_ID : 5042002;
+  if (batch.chain_id != null && batch.chain_id !== expectedChainId) {
+    batchLog.error({ batch_chain_id: batch.chain_id, wallet_chain: chain }, 'Batch chain does not match agent wallet chain');
+    await supabase
+      .from('batch_requests')
+      .update({ executor_state: 'failed' })
+      .eq('id', batch.id);
+    return;
+  }
+
+  const runner = getRunnerForChain(chain);
+  if (!runner) {
+    batchLog.error({ chain }, 'No executor rail available for agent wallet chain');
+    await supabase
+      .from('batch_requests')
+      .update({ executor_state: 'failed' })
+      .eq('id', batch.id);
+    return;
+  }
+
+  const recordRailDecision = async (
+    payment: BatchPaymentRow,
+    outcome: 'blocked' | 'cosign_required' | 'failed',
+    reason: string,
+  ): Promise<Record<string, unknown>> => {
+    if (!runner.recordDecision) return {};
+
+    try {
+      const result = await runner.recordDecision({
+        decisionId: `${batch.id}:${payment.id}:${outcome}`,
+        paymentId: payment.id,
+        recipientAddress: payment.recipient_wallet,
+        amount: payment.amount.toString(),
+        outcome,
+        reason,
+        chain,
+      });
+      return {
+        decision_tx_hash: result.txHash,
+        ...(result.metadata ?? {}),
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      batchLog.error({ payment_id: payment.id, outcome, err: message }, 'Failed to record agent decision on rail');
+      return { decision_record_error: message };
+    }
+  };
 
   // 3. Load policy
   const { data: policyRow } = await supabase
@@ -135,6 +189,12 @@ async function processBatch(
     return;
   }
 
+  const recipientCounts = new Map<string, number>();
+  for (const payment of payments as BatchPaymentRow[]) {
+    const key = payment.recipient_wallet.toLowerCase();
+    recipientCounts.set(key, (recipientCounts.get(key) ?? 0) + 1);
+  }
+
   // 6. Process each payment
   for (const payment of payments as BatchPaymentRow[]) {
     // Skip already processed (idempotency)
@@ -147,6 +207,30 @@ async function processBatch(
 
     if (existing && existing.length > 0) {
       batchLog.debug({ payment_id: payment.id, outcome: existing[0].outcome }, 'Already processed, skipping');
+      continue;
+    }
+
+    if ((recipientCounts.get(payment.recipient_wallet.toLowerCase()) ?? 0) > 1) {
+      const reason = 'duplicate_recipient_in_batch';
+      const decisionMetadata = await recordRailDecision(payment, 'blocked', reason);
+      await supabase.from('agent_audit_log').insert({
+        agent_wallet_id: wallet.id,
+        policy_id: policyRow?.id ?? null,
+        batch_request_id: batch.id,
+        batch_payment_id: payment.id,
+        action: 'batch_execute',
+        recipient_address: payment.recipient_wallet,
+        amount_usdc: payment.amount,
+        outcome: 'blocked',
+        reason,
+        metadata: decisionMetadata,
+      });
+
+      await supabase
+        .from('batch_payments')
+        .update({ status: 'blocked' })
+        .eq('id', payment.id);
+
       continue;
     }
 
@@ -182,11 +266,12 @@ async function processBatch(
 
     if (decision.outcome === 'execute') {
       try {
-        const result = await cli.walletTransfer({
+        const result = await runner.walletTransfer({
           toAddress: payment.recipient_wallet,
           amount: payment.amount.toString(),
           fromAddress: wallet.escrow_address,
-          chain: wallet.chain,
+          chain,
+          metadata: { batchId: batch.id, paymentId: payment.id },
         });
 
         // Write audit log
@@ -201,7 +286,8 @@ async function processBatch(
           amount_usdc: payment.amount,
           outcome: 'executed',
           tx_hash: result.txHash,
-          circle_tx_id: result.circleTxId,
+          circle_tx_id: result.circleTxId ?? null,
+          metadata: result.metadata ?? {},
         });
 
         // Write receipt
@@ -212,6 +298,8 @@ async function processBatch(
           tx_hash: result.txHash,
           status: 'paid',
           initiator_type: 'agent',
+          chain_id: payment.chain_id ?? batch.chain_id ?? expectedChainId,
+          token_symbol: payment.token_symbol ?? batch.token_symbol ?? (isMantleAgentChain(chain) ? 'MNT' : 'USDC'),
         });
 
         // Mark payment completed
@@ -228,6 +316,7 @@ async function processBatch(
       } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : String(err);
         batchLog.error({ payment_id: payment.id, err: errMsg }, 'Transfer failed');
+        const decisionMetadata = await recordRailDecision(payment, 'failed', errMsg);
 
         await supabase.from('agent_audit_log').insert({
           agent_wallet_id: wallet.id,
@@ -239,6 +328,7 @@ async function processBatch(
           amount_usdc: payment.amount,
           outcome: 'failed',
           reason: errMsg,
+          metadata: decisionMetadata,
         });
 
         await supabase
@@ -248,6 +338,7 @@ async function processBatch(
       }
 
     } else if (decision.outcome === 'cosign_required') {
+      const decisionMetadata = await recordRailDecision(payment, 'cosign_required', decision.reason);
       await supabase.from('agent_cosign_queue').insert({
         agent_wallet_id: wallet.id,
         batch_payment_id: payment.id,
@@ -268,6 +359,7 @@ async function processBatch(
         amount_usdc: payment.amount,
         outcome: 'cosign_required',
         reason: decision.reason,
+        metadata: decisionMetadata,
       });
 
       await supabase
@@ -277,6 +369,7 @@ async function processBatch(
 
     } else {
       // blocked
+      const decisionMetadata = await recordRailDecision(payment, 'blocked', decision.reason);
       await supabase.from('agent_audit_log').insert({
         agent_wallet_id: wallet.id,
         policy_id: policyRow?.id ?? null,
@@ -288,6 +381,7 @@ async function processBatch(
         amount_usdc: payment.amount,
         outcome: 'blocked',
         reason: decision.reason,
+        metadata: decisionMetadata,
       });
 
       await supabase

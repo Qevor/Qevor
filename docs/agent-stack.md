@@ -2,10 +2,28 @@
 
 ## Overview
 
-The Agent Stack adds two capabilities to Qevor:
+The Agent Stack turns Qevor into policy-gated payment infrastructure that can be used by people and autonomous agents.
 
-1. **AI Treasurer** — Circle Agent Wallets with policy-based spending controls
-2. **Autonomous Batch Execution** — policy-gated payroll engine with human escalation
+It now supports two execution rails:
+
+1. **Arc Testnet via Circle CLI** - agent wallets, Circle session auth, and USDC transfers.
+2. **Mantle Sepolia via contract escrow** - MNT transfers are executed through `QevorAgentEscrow` when `MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS` is configured, with optional Byreal CLI preflight before signing.
+
+Circle CLI does not currently expose Mantle as a wallet-transfer chain, so Mantle execution is handled by Qevor's native `viem` runner. Byreal is integrated as a configurable preflight hook instead of a hardcoded command.
+
+The Mantle contract address requirement is satisfied by deploying `contracts/QevorAgentEscrow.sol` on Mantle Sepolia or Mantle mainnet. The executor calls `executePayment(...)` on that contract, so the contract underpins the agentic payment logic instead of only existing for show.
+
+Qevor does not deploy a substitute ERC-8004 registry. After registering the Qevor agent in the official ERC-8004 Identity Registry, the escrow owner calls `setAgentIdentity(identityRegistry, agentId)`. Every `DecisionRecorded` event then includes the ERC-8004 agent ID, linking identity to economic activity.
+
+## Agent Skill API
+
+Byreal, RealClaw, or another autonomous agent can use Qevor through the protected Agent Skill API:
+
+- `GET /.well-known/qevor-agent-skills.json` discovers available skills.
+- `POST /api/skills/payment-safety-review` checks invalid and duplicate recipients before execution.
+- `POST /api/skills/batch-payment` creates an idempotent policy-gated agent batch.
+
+Action requests require the `x-qevor-agent-key` header. The API key is stored only on the server as `QEVOR_AGENT_API_KEY`.
 
 ## Batch Executor Flow
 
@@ -15,95 +33,138 @@ sequenceDiagram
     participant SPA
     participant Supabase
     participant Executor
-    participant CircleCLI
+    participant Rail
+    participant Byreal
 
     User->>SPA: Create batch with "Execute via agent"
-    SPA->>Supabase: INSERT batch_request (executor_state='pending_evaluation')
+    SPA->>Supabase: Insert batch_request and batch_payments
     loop Every 15s
-        Executor->>Supabase: Poll for pending batches
+        Executor->>Supabase: Poll pending batches
     end
-    Executor->>Supabase: Load policy for agent wallet
-    Executor->>Supabase: Compute spend windows from audit log
+    Executor->>Supabase: Load agent wallet and policy
+    Executor->>Executor: Verify batch chain matches agent chain
+    Executor->>Executor: Block duplicate recipient addresses
     loop For each batch_payment
-        Executor->>Executor: evaluate(policy, payment, ctx)
-        alt execute
-            Executor->>CircleCLI: circle wallet transfer
-            CircleCLI-->>Executor: tx_hash
-            Executor->>Supabase: Write audit_log (executed), receipt, mark paid
+        Executor->>Executor: Evaluate policy
+        alt execute on Arc
+            Executor->>Rail: Circle CLI wallet transfer
+            Rail-->>Executor: tx_hash
+        else execute on Mantle
+            Executor->>Byreal: Optional preflight JSON
+            Byreal-->>Executor: allowed / blocked
+            Executor->>Rail: Call QevorAgentEscrow.executePayment
+            Rail-->>Executor: tx_hash
         else cosign_required
-            Executor->>Supabase: Insert cosign_queue entry
-            Executor->>Supabase: Write audit_log (cosign_required)
+            Executor->>Supabase: Insert cosign queue entry
         else blocked
-            Executor->>Supabase: Write audit_log (blocked)
+            Executor->>Supabase: Write blocked audit log
         end
+        Executor->>Supabase: Write audit log, receipt, and payment status
     end
-    Executor->>Supabase: Set executor_state='completed'
+    Executor->>Supabase: Mark batch completed
 ```
 
 ## Policy Evaluation Order
 
 ```mermaid
 flowchart TD
-    A[Start] --> B{Address blocklisted?}
+    A[Start] --> B{Duplicate recipient in batch?}
     B -->|Yes| BLOCK[Blocked]
-    B -->|No| C{Username blocklisted?}
+    B -->|No| C{Address blocklisted?}
     C -->|Yes| BLOCK
-    C -->|No| D{Outside allowed hours?}
+    C -->|No| D{Username blocklisted?}
     D -->|Yes| BLOCK
-    D -->|No| E{Address not in allowlist?}
+    D -->|No| E{Outside allowed hours?}
     E -->|Yes| BLOCK
-    E -->|No| F{Username not in allowlist?}
+    E -->|No| F{Address not in allowlist?}
     F -->|Yes| BLOCK
-    F -->|No| G{Per-tx cap exceeded?}
+    F -->|No| G{Username not in allowlist?}
     G -->|Yes| BLOCK
-    G -->|No| H{Daily/weekly/monthly cap exceeded?}
+    G -->|No| H{Per-tx cap exceeded?}
     H -->|Yes| BLOCK
-    H -->|No| I{Above cosign threshold?}
-    I -->|Yes| COSIGN[Cosign Required]
-    I -->|No| EXEC[Execute]
+    H -->|No| I{Daily/weekly/monthly cap exceeded?}
+    I -->|Yes| BLOCK
+    I -->|No| J{Above cosign threshold?}
+    J -->|Yes| COSIGN[Cosign Required]
+    J -->|No| EXEC[Execute]
 ```
 
-## Cosign Approval Flow
+## Production Environment
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant SPA
-    participant Supabase
-    participant Executor
-    participant CircleCLI
+`qevor-executor` has no public port. It polls Supabase and executes approved work.
 
-    User->>SPA: View cosign queue
-    SPA->>Supabase: Fetch pending entries
-    User->>SPA: Click Approve
-    SPA->>Supabase: Update status='approved'
-    loop Every 15s
-        Executor->>Supabase: Poll approved cosign entries
-    end
-    Executor->>CircleCLI: circle wallet transfer
-    CircleCLI-->>Executor: tx_hash
-    Executor->>Supabase: Write audit_log (executed, cosigned_by)
-    Executor->>Supabase: Write receipt
+Required common settings:
+
+```env
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+NODE_ENV=production
+POLL_INTERVAL_MS=15000
+HEARTBEAT_INTERVAL_MS=30000
 ```
 
-## VPS Topology
+Arc rail:
 
+```env
+HOME=/var/lib/qevor-executor
+CIRCLE_ACCEPT_TERMS=1
 ```
-Internet -> Nginx (TLS :443) -> /        -> Static SPA (dist/)
-                              -> /api/*   -> qevor-api (Express, :3000)
 
-qevor-executor (systemd, no public port)
-  -> polls Supabase
-  -> shells out to `circle wallet transfer`
-  -> Circle CLI session in /var/lib/qevor-executor/.circle
+Mantle rail:
+
+```env
+MANTLE_SEPOLIA_RPC_URL=https://rpc.sepolia.mantle.xyz
+MANTLE_AGENT_PRIVATE_KEY=
+MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS=
 ```
+
+Compile the escrow:
+
+```bash
+forge build
+```
+
+Deploy on Mantle Sepolia:
+
+```bash
+forge create contracts/QevorAgentEscrow.sol:QevorAgentEscrow \
+  --rpc-url "$MANTLE_SEPOLIA_RPC_URL" \
+  --private-key "$MANTLE_AGENT_PRIVATE_KEY" \
+  --constructor-args "$MANTLE_ESCROW_EXECUTOR_ADDRESS" "$MANTLE_ESCROW_MAX_PAYMENT_WEI" "$MANTLE_ESCROW_DAILY_LIMIT_WEI"
+```
+
+After deployment:
+
+1. Fund the contract with test MNT.
+2. Register the Qevor agent using `docs/erc8004-agent-registration.example.json`.
+3. Call `setAgentIdentity(identityRegistry, agentId)` on the escrow.
+4. Set `MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS` on the executor VPS.
+5. Register the contract address as the Mantle agent wallet in Qevor.
+6. Restart only the `qevor-executor` service.
+
+Optional Byreal preflight:
+
+```env
+BYREAL_CLI_BIN=/path/to/byreal
+BYREAL_PREFLIGHT_ARGS=...
+```
+
+The preflight command receives transfer context as JSON on stdin and should return JSON on stdout:
+
+```json
+{ "allowed": true, "reason": "ok" }
+```
+
+Returning `{ "allowed": false, "reason": "..." }` blocks the transfer before signing.
 
 ## Key Tables
 
 | Table | Purpose |
 |-------|---------|
-| `agent_wallets` | User's registered agent wallets |
+| `agent_wallets` | Registered agent wallets and chain assignment |
 | `agent_policies` | Spending policies per wallet |
-| `agent_audit_log` | Immutable log of every executor decision |
+| `batch_requests` | Human-created or agent-created batch intents |
+| `batch_payments` | Concrete payment rows for executor processing |
+| `agent_audit_log` | Audit trail for every executor decision |
 | `agent_cosign_queue` | Human approval queue for escalated transfers |
-| `executor_health` | Executor heartbeat and session state |
+| `executor_health` | Executor heartbeat and rail status |

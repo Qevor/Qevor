@@ -1,14 +1,15 @@
 import { supabase } from '../lib/supabase.js';
-import type { CircleCliRunner } from './circle-cli.js';
+import type { RailRunner } from './rail-runner.js';
 import type { Logger } from 'pino';
 import { randomUUID } from 'node:crypto';
+import { isMantleAgentChain, normalizeAgentChain } from './chain-support.js';
 
 /**
  * Checks for agent_wallets with executor_mode='escrow' but no escrow_address.
- * Creates an escrow wallet via the Circle CLI and updates the row.
+ * Creates an escrow wallet via the rail runner and updates the row.
  */
 export async function provisionPendingEscrows(
-  cli: CircleCliRunner,
+  getRunnerForChain: (chain: string) => RailRunner | null,
   log: Logger,
 ): Promise<void> {
   const { data: pending, error } = await supabase
@@ -27,14 +28,26 @@ export async function provisionPendingEscrows(
   for (const wallet of pending) {
     log.info({ wallet_id: wallet.id }, 'Provisioning escrow wallet');
     try {
-      const isTestnet = wallet.chain === 'ARC-TESTNET' ||
-        wallet.chain.includes('SEPOLIA') ||
-        wallet.chain.includes('TESTNET');
+      const chain = normalizeAgentChain(wallet.chain);
+      const runner = getRunnerForChain(chain);
+      if (!runner) {
+        log.error({ wallet_id: wallet.id, chain }, 'No executor rail for wallet chain');
+        continue;
+      }
 
-      const { address } = await cli.walletCreate({
-        testnet: isTestnet,
+      const { address } = await runner.walletCreate({
+        testnet: chain.includes('SEPOLIA') || chain.includes('TESTNET'),
         idempotencyKey: randomUUID(),
+        chain,
       });
+
+      if (isMantleAgentChain(chain) && wallet.wallet_address.toLowerCase() !== address.toLowerCase()) {
+        log.error(
+          { wallet_id: wallet.id, registered: wallet.wallet_address, executor: address },
+          'Mantle executor key must match registered wallet before escrow can be enabled',
+        );
+        continue;
+      }
 
       const { error: updateErr } = await supabase
         .from('agent_wallets')

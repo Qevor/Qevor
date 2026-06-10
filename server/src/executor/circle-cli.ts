@@ -1,17 +1,19 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Logger } from 'pino';
+import type { RailRunner } from './rail-runner.js';
 
 const execFileAsync = promisify(execFile);
 
-export interface CircleCliRunner {
-  status(): Promise<{ authenticated: boolean; expiresAt?: Date }>;
+export interface CircleCliRunner extends RailRunner {
+  status(): Promise<{ authenticated: boolean; expiresAt?: Date; reason?: string }>;
   walletTransfer(args: {
     toAddress: string;
     amount: string;
     fromAddress: string;
     chain: string;
     idempotencyKey?: string;
+    metadata?: Record<string, unknown>;
   }): Promise<{ txHash: string; circleTxId: string }>;
   walletBalance(args: {
     address: string;
@@ -20,6 +22,7 @@ export interface CircleCliRunner {
   walletCreate(args: {
     testnet: boolean;
     idempotencyKey: string;
+    chain?: string;
   }): Promise<{ address: string }>;
 }
 
@@ -44,7 +47,7 @@ export class RealCircleCliRunner implements CircleCliRunner {
     }
   }
 
-  async status(): Promise<{ authenticated: boolean; expiresAt?: Date }> {
+  async status(): Promise<{ authenticated: boolean; expiresAt?: Date; reason?: string }> {
     try {
       const raw = await this.exec(['wallet', 'status', '--type', 'agent', '--output', 'json']);
       const parsed = JSON.parse(raw);

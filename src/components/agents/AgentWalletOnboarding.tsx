@@ -5,31 +5,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Copy, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { isAddress } from 'viem';
+import { qevorChains } from '@/lib/chains';
 
 interface Props {
-  onRegister: (address: string, label: string) => Promise<void>;
+  onRegister: (address: string, label: string, chain: string) => Promise<void>;
   registering: boolean;
 }
 
 const STEPS = [
   {
-    title: 'Install Circle CLI',
-    description: 'Requires Node 20.18.2 or later.',
+    title: 'Install the agent tool',
+    description: 'Use Circle CLI for Arc, or the Mantle executor key with optional Byreal CLI preflight.',
     command: 'npm install -g @circle-fin/cli',
   },
   {
-    title: 'Log in to Circle',
-    description: 'You will receive an email OTP to verify your identity.',
+    title: 'Authenticate the rail',
+    description: 'Arc uses Circle OTP. Mantle Sepolia uses the configured executor wallet key.',
     command: 'circle wallet login you@example.com --testnet',
   },
   {
-    title: 'List your agent wallets',
-    description: 'Find your wallet address on the test network you want Qevor to manage.',
+    title: 'List or copy your agent wallet',
+    description: 'For Mantle, paste the deployed QevorAgentEscrow contract address after it is funded.',
     command: 'circle wallet list --chain ARC-TESTNET --type agent --output json',
   },
   {
     title: 'Register your wallet',
-    description: 'Paste the 0x… address below to connect it to your Qevor account.',
+    description: 'Paste the public 0x address below to connect it to your Qevor account.',
     command: null,
   },
 ];
@@ -37,6 +38,7 @@ const STEPS = [
 export function AgentWalletOnboarding({ onRegister, registering }: Props) {
   const [address, setAddress] = useState('');
   const [label, setLabel] = useState('');
+  const [chain, setChain] = useState(qevorChains[0].agentChainCode);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
   const copyCommand = (cmd: string, idx: number) => {
@@ -52,7 +54,7 @@ export function AgentWalletOnboarding({ onRegister, registering }: Props) {
       toast.error('Invalid Ethereum address');
       return;
     }
-    await onRegister(trimmed, label.trim());
+    await onRegister(trimmed, label.trim(), chain);
   };
 
   return (
@@ -60,14 +62,13 @@ export function AgentWalletOnboarding({ onRegister, registering }: Props) {
       <CardHeader>
         <CardTitle>Add an Agent Wallet</CardTitle>
         <CardDescription>
-          Follow the Circle CLI quickstart to create and register your agent wallet.
+          Register an agent wallet for Arc or Mantle Sepolia execution.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4 text-sm text-muted-foreground">
-          Qevor never sees your Circle CLI session or your wallet's authentication.
-          Your agent wallet is controlled entirely by you via the Circle CLI.
-          Qevor stores only your wallet's public address and your spending policies.
+          Qevor stores only the public wallet address and policy settings. Mantle execution stays disabled until the VPS has a matching testnet agent key and, when available, a Byreal preflight command.
+          For contract-backed Mantle agents, register the deployed escrow contract address.
         </div>
 
         {STEPS.map((step, i) => (
@@ -96,13 +97,24 @@ export function AgentWalletOnboarding({ onRegister, registering }: Props) {
         ))}
 
         <div className="ml-8 space-y-3">
+          <select
+            value={chain}
+            onChange={(e) => setChain(e.target.value)}
+            className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+          >
+            {qevorChains.map((network) => (
+              <option key={network.agentChainCode} value={network.agentChainCode}>
+                {network.label} ({network.paymentAsset})
+              </option>
+            ))}
+          </select>
           <Input
-            placeholder="0x… wallet address"
+            placeholder="0x... wallet address"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
           />
           <Input
-            placeholder="Label (optional, e.g. 'Payroll Wallet')"
+            placeholder="Label (optional, e.g. Payroll Wallet)"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
           />

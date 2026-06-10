@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase.js';
 import type { Logger } from 'pino';
+import type { RailRunner } from './rail-runner.js';
+import { MANTLE_SEPOLIA_CHAIN_ID, isMantleAgentChain, normalizeAgentChain } from './chain-support.js';
 
 /**
  * Sweep expired cosign queue entries and mark them as 'expired'.
@@ -49,7 +51,7 @@ export async function sweepExpiredCosigns(log: Logger): Promise<void> {
  * Process approved cosign entries — execute the transfer.
  */
 export async function processApprovedCosigns(
-  cli: import('./circle-cli.js').CircleCliRunner,
+  getRunnerForChain: (chain: string) => RailRunner | null,
   log: Logger,
 ): Promise<void> {
   const { data: approved, error } = await supabase
@@ -66,15 +68,21 @@ export async function processApprovedCosigns(
 
   for (const entry of approved as any[]) {
     const escrowAddress = entry.agent_wallets?.escrow_address;
-    const chain = entry.agent_wallets?.chain;
+    const chain = normalizeAgentChain(entry.agent_wallets?.chain);
 
     if (!escrowAddress || !chain) {
       log.error({ cosign_id: entry.id }, 'Missing escrow address for cosign entry');
       continue;
     }
 
+    const runner = getRunnerForChain(chain);
+    if (!runner) {
+      log.error({ cosign_id: entry.id, chain }, 'No executor rail available for cosign chain');
+      continue;
+    }
+
     try {
-      const result = await cli.walletTransfer({
+      const result = await runner.walletTransfer({
         toAddress: entry.recipient_address,
         amount: entry.amount_usdc.toString(),
         fromAddress: escrowAddress,
@@ -95,8 +103,8 @@ export async function processApprovedCosigns(
         amount_usdc: entry.amount_usdc,
         outcome: 'executed',
         tx_hash: result.txHash,
-        circle_tx_id: result.circleTxId,
-        metadata: { cosigned_by: entry.approved_by },
+        circle_tx_id: result.circleTxId ?? null,
+        metadata: { cosigned_by: entry.approved_by, ...(result.metadata ?? {}) },
       });
 
       await supabase.from('receipts').insert({
@@ -106,6 +114,8 @@ export async function processApprovedCosigns(
         tx_hash: result.txHash,
         status: 'paid',
         initiator_type: 'agent',
+        chain_id: isMantleAgentChain(chain) ? MANTLE_SEPOLIA_CHAIN_ID : 5042002,
+        token_symbol: isMantleAgentChain(chain) ? 'MNT' : 'USDC',
       });
 
       await supabase

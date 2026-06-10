@@ -151,7 +151,7 @@ export function PolicyBuilder({ agentWalletId, chain, onSaved }: Props) {
     mirrored_to_circle_at: null, created_at: '', updated_at: '',
   } as AgentPolicy);
 
-  const isTestnet = chain === 'ARC-TESTNET';
+  const isTestnet = chain === 'ARC-TESTNET' || chain === 'MANTLE-SEPOLIA';
 
   if (loading) return <p className="text-muted-foreground">Loading policy...</p>;
 
