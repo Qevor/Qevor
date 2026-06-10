@@ -286,6 +286,7 @@ export default function DashboardPage() {
                 return;
             }
             setBatchRecipients(parsed);
+            setCopilotPlan(null);
             toast.success(`Imported ${parsed.length} recipient${parsed.length !== 1 ? 's' : ''}`);
         };
         reader.readAsText(file);
@@ -473,7 +474,9 @@ export default function DashboardPage() {
                         plan={copilotPlan}
                         planning={copilotPlanning}
                         agentWalletCount={agentWallets.length}
+                        importedRecipientCount={batchRecipients.filter((recipient) => recipient.wallet && recipient.amount > 0).length}
                         onIntentChange={setCopilotIntent}
+                        onCsvImport={handleCsvImport}
                         onPlan={handlePlanPaymentIntent}
                         onOpenPlan={openCopilotPlanInBatch}
                     />

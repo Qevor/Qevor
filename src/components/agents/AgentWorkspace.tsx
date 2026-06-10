@@ -1,3 +1,4 @@
+import type { ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
@@ -11,6 +12,7 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
+  Upload,
   WalletCards,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,7 +24,9 @@ interface Props {
   plan: PaymentIntentPlan | null;
   planning: boolean;
   agentWalletCount: number;
+  importedRecipientCount: number;
   onIntentChange: (intent: string) => void;
+  onCsvImport: (event: ChangeEvent<HTMLInputElement>) => void;
   onPlan: () => void;
   onOpenPlan: () => void;
 }
@@ -38,7 +42,9 @@ export function AgentWorkspace({
   plan,
   planning,
   agentWalletCount,
+  importedRecipientCount,
   onIntentChange,
+  onCsvImport,
   onPlan,
   onOpenPlan,
 }: Props) {
@@ -93,10 +99,27 @@ export function AgentWorkspace({
                 </button>
               ))}
             </div>
-            <Button className="w-full sm:w-auto" onClick={onPlan} disabled={planning || intent.trim().length < 3}>
-              {planning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              Build operation plan
-            </Button>
+            <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center">
+              <label className="flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-primary/50 bg-primary/5 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10">
+                <Upload className="h-4 w-4" />
+                {importedRecipientCount > 0
+                  ? `${importedRecipientCount} CSV recipient${importedRecipientCount === 1 ? '' : 's'} imported`
+                  : 'Import recipient CSV'}
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={onCsvImport}
+                />
+              </label>
+              <Button className="w-full sm:w-auto" onClick={onPlan} disabled={planning || intent.trim().length < 3}>
+                {planning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                Build operation plan
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Format: address, amount, label
+              </span>
+            </div>
           </div>
         </div>
 
