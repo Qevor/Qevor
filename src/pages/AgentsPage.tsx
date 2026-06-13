@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAccount } from 'wagmi';
-import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
-import { Button } from '@/components/ui/button';
+import { DynamicConnectButton } from '@dynamic-labs/sdk-react-core';
 import { LogIn, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useProfiles } from '@/hooks/useProfiles';
@@ -16,7 +15,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 
 export default function AgentsPage() {
   const { address, isConnected } = useAccount();
-  const { setShowAuthFlow } = useDynamicContext();
   const { getProfileByWallet } = useProfiles();
 
   const [wallets, setWallets] = useState<AgentWallet[]>([]);
@@ -25,14 +23,6 @@ export default function AgentsPage() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [profileWallet, setProfileWallet] = useState<string | null>(null);
   const [editingWallet, setEditingWallet] = useState<AgentWallet | null>(null);
-
-  const openAuthFlow = () => {
-    if (!setShowAuthFlow) {
-      toast.error('Wallet login is still loading. Refresh and try again.');
-      return;
-    }
-    setShowAuthFlow(true);
-  };
 
   const loadWallets = useCallback(async () => {
     if (!address) return;
@@ -97,9 +87,11 @@ export default function AgentsPage() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
         <p className="text-muted-foreground">Connect your wallet to manage agent wallets.</p>
-        <Button onClick={openAuthFlow}>
+        <DynamicConnectButton
+          buttonClassName="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
           <LogIn className="mr-2 h-4 w-4" /> Connect Wallet
-        </Button>
+        </DynamicConnectButton>
       </div>
     );
   }

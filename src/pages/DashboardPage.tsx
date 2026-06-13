@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAccount } from 'wagmi';
-import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
+import { DynamicConnectButton } from '@dynamic-labs/sdk-react-core';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -26,15 +26,7 @@ import { DEFAULT_QEVOR_CHAIN_KEY, getExplorerTxUrl, getQevorChainById, getQevorC
 
 export default function DashboardPage() {
     const { address, isConnected } = useAccount();
-    const { setShowAuthFlow } = useDynamicContext();
     const [searchParams, setSearchParams] = useSearchParams();
-    const openAuthFlow = () => {
-        if (!setShowAuthFlow) {
-            toast.error('Wallet login is still loading. Refresh and try again.');
-            return;
-        }
-        setShowAuthFlow(true);
-    };
 
     const defaultTab = searchParams.get('tab') || 'agent';
 
@@ -450,13 +442,12 @@ export default function DashboardPage() {
                     <p className="text-muted-foreground">
                         Connect your wallet to plan agent operations, enforce payment policy, and approve execution.
                     </p>
-                    <Button
-                        size="lg"
-                        onClick={openAuthFlow}
-                        className="w-full gradient-primary shadow-glow hover:shadow-glow-lg h-12"
+                    <DynamicConnectButton
+                        buttonContainerClassName="w-full"
+                        buttonClassName="w-full gradient-primary shadow-glow hover:shadow-glow-lg h-12 inline-flex items-center justify-center rounded-md px-8 text-sm font-medium text-primary-foreground"
                     >
                         Connect wallet
-                    </Button>
+                    </DynamicConnectButton>
                 </div>
             </div>
         );

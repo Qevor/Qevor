@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAccount } from 'wagmi';
-import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
+import { DynamicConnectButton, useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 
 export default function NavBar() {
     const { address, isConnected } = useAccount();
-    const { setShowAuthFlow, handleLogOut, user } = useDynamicContext();
+    const { handleLogOut, user } = useDynamicContext();
     const { getProfileByWallet, registerUsername, loading: profileLoading } = useProfiles();
 
     const [profile, setProfile] = useState<Profile | null>(null);
@@ -20,14 +20,6 @@ export default function NavBar() {
     const [newUsername, setNewUsername] = useState('');
 
     const truncateAddr = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-
-    const openAuthFlow = () => {
-        if (!setShowAuthFlow) {
-            toast.error('Wallet login is still loading. Refresh and try again.');
-            return;
-        }
-        setShowAuthFlow(true);
-    };
 
     useEffect(() => {
         if (address) {
@@ -156,9 +148,12 @@ export default function NavBar() {
                             </Dialog>
                         </>
                     ) : (
-                        <Button onClick={openAuthFlow} className="gradient-primary shadow-glow hover:shadow-glow-lg transition-shadow">
+                        <DynamicConnectButton
+                            buttonContainerClassName="contents"
+                            buttonClassName="gradient-primary shadow-glow hover:shadow-glow-lg transition-shadow inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-primary-foreground"
+                        >
                             Login
-                        </Button>
+                        </DynamicConnectButton>
                     )}
                 </div>
             </div>
