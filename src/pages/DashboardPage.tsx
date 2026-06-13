@@ -34,7 +34,7 @@ export default function DashboardPage() {
             return;
         }
         if (!sdkHasLoaded) {
-            toast.error('Wallet login could not load. Check the Dynamic environment ID and allowed domains.');
+            toast.error('Wallet login is still loading. If this keeps happening, check the Dynamic environment ID and allowed domains.');
             return;
         }
         setShowAuthFlow(true);
