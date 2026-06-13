@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 
 export default function NavBar() {
     const { address, isConnected } = useAccount();
-    const { setShowAuthFlow, handleLogOut, user } = useDynamicContext();
+    const { setShowAuthFlow, handleLogOut, sdkHasLoaded, user } = useDynamicContext();
     const { getProfileByWallet, registerUsername, loading: profileLoading } = useProfiles();
 
     const [profile, setProfile] = useState<Profile | null>(null);
@@ -20,6 +20,18 @@ export default function NavBar() {
     const [newUsername, setNewUsername] = useState('');
 
     const truncateAddr = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+
+    const openAuthFlow = () => {
+        if (!setShowAuthFlow) {
+            toast.error('Wallet login is still loading. Refresh and try again.');
+            return;
+        }
+        if (!sdkHasLoaded) {
+            toast.error('Wallet login could not load. Check the Dynamic environment ID and allowed domains.');
+            return;
+        }
+        setShowAuthFlow(true);
+    };
 
     useEffect(() => {
         if (address) {
@@ -148,7 +160,7 @@ export default function NavBar() {
                             </Dialog>
                         </>
                     ) : (
-                        <Button onClick={() => setShowAuthFlow(true)} className="gradient-primary shadow-glow hover:shadow-glow-lg transition-shadow">
+                        <Button onClick={openAuthFlow} className="gradient-primary shadow-glow hover:shadow-glow-lg transition-shadow">
                             Login
                         </Button>
                     )}

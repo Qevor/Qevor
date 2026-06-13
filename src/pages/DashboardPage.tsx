@@ -26,8 +26,19 @@ import { DEFAULT_QEVOR_CHAIN_KEY, getExplorerTxUrl, getQevorChainById, getQevorC
 
 export default function DashboardPage() {
     const { address, isConnected } = useAccount();
-    const { setShowAuthFlow } = useDynamicContext();
+    const { setShowAuthFlow, sdkHasLoaded } = useDynamicContext();
     const [searchParams, setSearchParams] = useSearchParams();
+    const openAuthFlow = () => {
+        if (!setShowAuthFlow) {
+            toast.error('Wallet login is still loading. Refresh and try again.');
+            return;
+        }
+        if (!sdkHasLoaded) {
+            toast.error('Wallet login could not load. Check the Dynamic environment ID and allowed domains.');
+            return;
+        }
+        setShowAuthFlow(true);
+    };
 
     const defaultTab = searchParams.get('tab') || 'agent';
 
@@ -445,7 +456,7 @@ export default function DashboardPage() {
                     </p>
                     <Button
                         size="lg"
-                        onClick={() => setShowAuthFlow(true)}
+                        onClick={openAuthFlow}
                         className="w-full gradient-primary shadow-glow hover:shadow-glow-lg h-12"
                     >
                         Connect wallet

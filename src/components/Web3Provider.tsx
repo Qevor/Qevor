@@ -10,13 +10,17 @@ import { qevorChains } from '@/lib/chains';
 
 export function Web3Provider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient())
+  const dynamicEnvironmentId =
+    (import.meta.env.VITE_DYNAMIC_ENV_ID as string | undefined) ||
+    "eb7686e3-4076-472e-9112-a60b20502173";
+  const emailOnlyAuth = import.meta.env.VITE_DYNAMIC_EMAIL_ONLY === 'true';
 
   return (
     <DynamicContextProvider
       settings={{
-        environmentId: import.meta.env.VITE_DYNAMIC_ENV_ID as string || "eb7686e3-4076-472e-9112-a60b20502173",
+        environmentId: dynamicEnvironmentId,
         walletConnectors: [EthereumWalletConnectors],
-        walletsFilter: () => [], // Hides external wallets, forcing email-based embedded smart wallets
+        ...(emailOnlyAuth ? { walletsFilter: () => [] } : {}),
         overrides: {
           evmNetworks: qevorChains.map(network => ({
             blockExplorerUrls: [network.explorerUrl],

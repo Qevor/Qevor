@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 
 export default function AgentsPage() {
   const { address, isConnected } = useAccount();
-  const { setShowAuthFlow } = useDynamicContext();
+  const { setShowAuthFlow, sdkHasLoaded } = useDynamicContext();
   const { getProfileByWallet } = useProfiles();
 
   const [wallets, setWallets] = useState<AgentWallet[]>([]);
@@ -25,6 +25,18 @@ export default function AgentsPage() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [profileWallet, setProfileWallet] = useState<string | null>(null);
   const [editingWallet, setEditingWallet] = useState<AgentWallet | null>(null);
+
+  const openAuthFlow = () => {
+    if (!setShowAuthFlow) {
+      toast.error('Wallet login is still loading. Refresh and try again.');
+      return;
+    }
+    if (!sdkHasLoaded) {
+      toast.error('Wallet login could not load. Check the Dynamic environment ID and allowed domains.');
+      return;
+    }
+    setShowAuthFlow(true);
+  };
 
   const loadWallets = useCallback(async () => {
     if (!address) return;
@@ -89,7 +101,7 @@ export default function AgentsPage() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
         <p className="text-muted-foreground">Connect your wallet to manage agent wallets.</p>
-        <Button onClick={() => setShowAuthFlow(true)}>
+        <Button onClick={openAuthFlow}>
           <LogIn className="mr-2 h-4 w-4" /> Connect Wallet
         </Button>
       </div>
