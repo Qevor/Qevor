@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 
 export default function AgentsPage() {
   const { address, isConnected } = useAccount();
-  const { setShowAuthFlow, sdkHasLoaded } = useDynamicContext();
+  const { setShowAuthFlow } = useDynamicContext();
   const { getProfileByWallet } = useProfiles();
 
   const [wallets, setWallets] = useState<AgentWallet[]>([]);
@@ -29,10 +29,6 @@ export default function AgentsPage() {
   const openAuthFlow = () => {
     if (!setShowAuthFlow) {
       toast.error('Wallet login is still loading. Refresh and try again.');
-      return;
-    }
-    if (!sdkHasLoaded) {
-      toast.error('Wallet login is still loading. If this keeps happening, check the Dynamic environment ID and allowed domains.');
       return;
     }
     setShowAuthFlow(true);

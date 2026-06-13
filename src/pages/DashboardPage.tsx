@@ -26,15 +26,11 @@ import { DEFAULT_QEVOR_CHAIN_KEY, getExplorerTxUrl, getQevorChainById, getQevorC
 
 export default function DashboardPage() {
     const { address, isConnected } = useAccount();
-    const { setShowAuthFlow, sdkHasLoaded } = useDynamicContext();
+    const { setShowAuthFlow } = useDynamicContext();
     const [searchParams, setSearchParams] = useSearchParams();
     const openAuthFlow = () => {
         if (!setShowAuthFlow) {
             toast.error('Wallet login is still loading. Refresh and try again.');
-            return;
-        }
-        if (!sdkHasLoaded) {
-            toast.error('Wallet login is still loading. If this keeps happening, check the Dynamic environment ID and allowed domains.');
             return;
         }
         setShowAuthFlow(true);

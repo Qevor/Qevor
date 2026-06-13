@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 
 export default function NavBar() {
     const { address, isConnected } = useAccount();
-    const { setShowAuthFlow, handleLogOut, sdkHasLoaded, user } = useDynamicContext();
+    const { setShowAuthFlow, handleLogOut, user } = useDynamicContext();
     const { getProfileByWallet, registerUsername, loading: profileLoading } = useProfiles();
 
     const [profile, setProfile] = useState<Profile | null>(null);
@@ -24,10 +24,6 @@ export default function NavBar() {
     const openAuthFlow = () => {
         if (!setShowAuthFlow) {
             toast.error('Wallet login is still loading. Refresh and try again.');
-            return;
-        }
-        if (!sdkHasLoaded) {
-            toast.error('Wallet login is still loading. If this keeps happening, check the Dynamic environment ID and allowed domains.');
             return;
         }
         setShowAuthFlow(true);
