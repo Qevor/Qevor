@@ -31,6 +31,17 @@ Key docs:
 - [VPS deployment guide](deploy/README.md)
 - [Integration notes](INTEGRATION_NOTES.md)
 
+## Live Deployment
+
+- **App:** [https://qevor.xyz](https://qevor.xyz)
+- **API:** [https://api.qevor.xyz](https://api.qevor.xyz)
+- **Mantle Sepolia escrow:** [`0xb99bc321ab360abd0a87e0b2e1eb8df364851d60`](https://explorer.sepolia.mantle.xyz/address/0xb99bc321ab360abd0a87e0b2e1eb8df364851d60)
+- **Contract:** `contracts/QevorAgentEscrow.sol`
+- **Network:** Mantle Sepolia
+- **Mainnet:** not deployed yet; mainnet is intended to remain guarded behind stricter approval, policy, and treasury limits.
+
+The deployed escrow contract is the Mantle contract that underpins Qevor's agentic payment rail. It can execute approved payments, record blocked/cosign/failed decisions, enforce replay protection, enforce payment limits, and link decisions to an ERC-8004 agent identity after `setAgentIdentity(identityRegistry, agentId)` is configured.
+
 ## Tech Stack
 
 - **Frontend:** React, TypeScript, Vite
@@ -42,6 +53,34 @@ Key docs:
 - **Execution:** Mantle Sepolia RPC, viem, optional Byreal-compatible preflight adapter
 - **Contracts:** Solidity, Foundry
 - **Hosting:** VPS with Caddy or any static host plus API process manager
+
+## How Byreal Is Used
+
+Byreal is used as Qevor's agent execution preflight layer for Mantle operations.
+
+The official Byreal CLI is Solana-focused, so Qevor does not pretend that Byreal directly signs Mantle transfers. Instead, Qevor uses a Byreal-compatible Mantle adapter at `server/src/executor/qevor-byreal-preflight.ts`. This lets Qevor plug into the Byreal Skills / agent workflow pattern while keeping Mantle execution native and safe.
+
+Current production configuration:
+
+```env
+BYREAL_CLI_BIN=node
+BYREAL_PREFLIGHT_ARGS=/opt/qevor/server/dist/executor/qevor-byreal-preflight.js
+BYREAL_SOLANA_CLI_BIN=byreal-cli
+QEVOR_BYREAL_MAX_PREFLIGHT_MNT=100
+QEVOR_BYREAL_REQUIRE_CLI=0
+```
+
+The flow is:
+
+1. A user or agent asks Qevor to prepare a Mantle payment or batch.
+2. Claude turns the intent into a structured Qevor payment plan.
+3. Qevor policy checks run first: approval requirement, duplicate recipients, invalid addresses, amount limits, and chain checks.
+4. Qevor calls the Byreal-compatible preflight adapter with JSON containing the chain, sender, recipient, amount, payment id, and policy decision.
+5. The adapter returns structured JSON: `{ "allowed": true | false, "reason": "..." }`.
+6. If allowed, the user still approves the transaction or the executor continues only under policy.
+7. Before an agent execution signs or calls `QevorAgentEscrow`, the executor calls the same Byreal preflight again.
+
+Byreal therefore acts as a real execution-layer gate in Qevor: it can approve, warn, or block Mantle agent operations before funds move. It does not bypass Qevor policy, user approval, or contract limits.
 
 ## Local Setup
 
@@ -121,6 +160,18 @@ Core tables include:
 ## Mantle Agent Contract
 
 The Mantle agent rail is backed by `contracts/QevorAgentEscrow.sol`.
+
+Deployed Mantle Sepolia contract:
+
+```txt
+0xb99bc321ab360abd0a87e0b2e1eb8df364851d60
+```
+
+Explorer:
+
+```txt
+https://explorer.sepolia.mantle.xyz/address/0xb99bc321ab360abd0a87e0b2e1eb8df364851d60
+```
 
 Compile:
 
