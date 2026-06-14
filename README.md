@@ -1,76 +1,179 @@
 # Qevor
 
-A production-ready decentralized payment application for creating, sharing, and managing crypto payment links, batch requests, and seamless wallet-to-wallet transfers. Qevor is designed for the Arc Testnet.
+Qevor is an agent-first, multi-chain payment workspace for teams, communities, and autonomous agents. It lets users create payment links, send wallet transfers, import CSV batch payouts, review transaction history, and route payment operations through an AI safety copilot before funds move.
 
-## ✨ Features
+Qevor currently supports Mantle Sepolia and Arc Testnet, with mainnet deployment intended to sit behind stronger policy, approval, and treasury controls.
 
-- **Global Username System:** Maps unique usernames to wallet addresses for easier and safer payments.
-- **Payment Links:** Generates shareable payment links that specify amount and receiver or group criteria.
-- **Batch Requests:** Built-in dashboard for requesting and distributing batch payments to multiple recipients at once.
-- **Unified Dashboard:** Comprehensive dashboard for tracking payment history, managing usernames, and handling batch payments.
-- **Web3 Onboarding:** Seamless wallet integration leveraging Dynamic Labs and Web3 authentication.
-- **Supabase Backend:** Powerful backend for storing transaction receipts, payment links, profiles, and batch requests data.
+## Product Focus
 
-## 🛠 Tech Stack
+- **Agent-first payments:** users describe a payout goal and Qevor prepares a reviewable operation plan.
+- **Human approval by default:** the copilot can draft, validate, and route payments, but it cannot bypass approval gates.
+- **Mantle payment rail:** Mantle Sepolia MNT transfers, CSV batch payouts, receipts, and explorer links.
+- **Payment links:** shareable requests for exact amounts across supported rails.
+- **Wallet history:** recent direct sends, payment links, batch requests, receipts, and batch payouts are visible from the wallet dashboard.
+- **AI safety copilot:** scans payment drafts for duplicate recipients, invalid addresses, risky amounts, wrong-chain intent, and suspicious CSV rows.
+- **Agent operation history:** agent-assisted batches are recorded with status, recipients, amounts, and receipt access.
+- **Byreal-compatible execution preflight:** Qevor calls a Mantle adapter before agent execution so external agent tooling can approve or block risky operations.
+- **Escrow-backed agent execution:** `QevorAgentEscrow` provides the Mantle contract surface for policy-controlled agentic payment execution.
+- **ERC-8004 identity path:** agent activity can be linked to an ERC-8004 identity by registering the agent and setting the identity on the escrow contract.
+
+## Architecture
+
+Qevor is split into three main layers:
+
+1. **Frontend app:** React, TypeScript, Vite, Tailwind, Dynamic wallet auth, and the payment workspace UI.
+2. **Qevor API:** Express service for copilot planning, skill endpoints, Byreal preflight, and production server functions.
+3. **Executor service:** background worker that polls Supabase, checks policy, calls Byreal preflight, and executes approved agent batches.
+
+Key docs:
+
+- [Agent stack architecture](docs/agent-stack.md)
+- [VPS deployment guide](deploy/README.md)
+- [Integration notes](INTEGRATION_NOTES.md)
+
+## Tech Stack
 
 - **Frontend:** React, TypeScript, Vite
-- **Styling:** Tailwind CSS, shadcn/ui, Radix UI, Framer Motion (Implicit via animations)
-- **Web3:** wagmi, viem, Dynamic Labs SDK (@dynamic-labs/sdk-react-core), Circle Fin App Kit
-- **Backend/Database:** Supabase (@supabase/supabase-js)
-- **State Management:** React Query (@tanstack/react-query), valtio, React Hook Form + Zod
+- **UI:** Tailwind CSS, shadcn/ui, Radix UI, lucide-react
+- **Wallets:** Dynamic Labs, wagmi, viem
+- **Database:** Supabase
+- **Agent API:** Express, Zod
+- **AI copilot:** Anthropic Claude, with OpenAI fallback support
+- **Execution:** Mantle Sepolia RPC, viem, optional Byreal-compatible preflight adapter
+- **Contracts:** Solidity, Foundry
+- **Hosting:** VPS with Caddy or any static host plus API process manager
 
-## 🏗 Setup & Installation
+## Local Setup
 
-Clone the repository and install dependencies:
+Install dependencies:
 
 ```sh
 npm install
+cd server
+npm install
 ```
 
-Start the development server:
+Create a local frontend env file:
+
+```env
+VITE_SUPABASE_URL=
+VITE_SUPABASE_PUBLISHABLE_KEY=
+VITE_SUPABASE_PROJECT_ID=
+VITE_DYNAMIC_ENVIRONMENT_ID=
+VITE_QEVOR_API_URL=http://localhost:4000
+```
+
+Create a local API env file in `server/.env`:
+
+```env
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+ANTHROPIC_API_KEY=
+ANTHROPIC_COPILOT_MODEL=claude-sonnet-4-6
+OPENAI_API_KEY=
+OPENAI_COPILOT_MODEL=
+BYREAL_CLI_BIN=node
+BYREAL_PREFLIGHT_ARGS=dist/executor/qevor-byreal-preflight.js
+QEVOR_BYREAL_MAX_PREFLIGHT_MNT=100
+QEVOR_BYREAL_REQUIRE_CLI=0
+MANTLE_SEPOLIA_RPC_URL=https://rpc.sepolia.mantle.xyz
+MANTLE_AGENT_PRIVATE_KEY=
+MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS=
+```
+
+Run the frontend:
 
 ```sh
 npm run dev
 ```
 
-## 🔒 Environment Variables
+Run the API:
 
-Create a `.env` file in the root directory. You will need your Supabase credentials and any requisite Web3 API keys initialized in the application:
-
-```
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
-VITE_SUPABASE_PROJECT_ID=your_project_id
+```sh
+cd server
+npm run dev
 ```
 
-## 🗄️ Database Schema
-
-The Supabase database relies on the following core entities:
-- `profiles` – Global usernames tied to wallet addresses.
-- `payment_links` – Details for shareable URLs used for receiving funds.
-- `batch_requests` & `batch_payments` – For handling mass disbursements and splitting payments.
-- `receipts` – Immutable tracking for completed transactions.
-
-Ensure these have been migrated in your Supabase instance (`supabase/migrations/`).
-
-## 🚀 Deployment
-
-Build the project for production:
+Build:
 
 ```sh
 npm run build
+cd server
+npm run build
 ```
 
-Deploy the resulting `dist/` folder to Vercel, Netlify, or any compatible static hosting provider.
+## Supabase
 
-## Agent Wallets (AI Treasurer)
+Qevor stores product and audit data in Supabase. Run the migrations in `supabase/migrations/` before using payment links, receipts, batch payouts, agent wallets, and wallet history.
 
-Register Circle Agent Wallets as first-class Qevor primitives. Set spending policies (per-tx, daily, weekly, monthly caps, allowlists, blocklists, time-of-day, cosign thresholds) via a guided UI. Policies mirror Circle's native `wallet limit set` model on mainnet while Qevor enforces them on testnet. Every action is logged to an immutable audit trail. See [docs/agent-stack.md](docs/agent-stack.md) for architecture details.
+Core tables include:
 
-## Autonomous Batches
+- `profiles`
+- `payment_links`
+- `batch_requests`
+- `batch_payments`
+- `receipts`
+- `agent_wallets`
+- `agent_policies`
+- `agent_audit_log`
+- `agent_cosign_queue`
 
-Enable policy-gated autonomous batch execution via a dedicated executor service. The executor evaluates each batch line item against the wallet's policy: auto-executing approved lines, escalating cosign-threshold lines to a human approval queue, and blocking policy violations. All decisions are audit-logged with on-chain tx hashes. See [docs/agent-stack.md](docs/agent-stack.md) for the execution flow.
+## Mantle Agent Contract
 
-## Self-hosting on a VPS
+The Mantle agent rail is backed by `contracts/QevorAgentEscrow.sol`.
 
-Qevor can be self-hosted on a single Ubuntu VPS with a Namecheap domain. The `deploy/` directory contains everything needed: bootstrap script, systemd units, nginx config, env templates, and operational runbooks. See [deploy/README.md](deploy/README.md) for full instructions.
+Compile:
+
+```sh
+forge build
+```
+
+Deploy to Mantle Sepolia:
+
+```sh
+forge create contracts/QevorAgentEscrow.sol:QevorAgentEscrow \
+  --rpc-url "$MANTLE_SEPOLIA_RPC_URL" \
+  --private-key "$MANTLE_AGENT_PRIVATE_KEY" \
+  --constructor-args "$MANTLE_ESCROW_EXECUTOR_ADDRESS" "$MANTLE_ESCROW_MAX_PAYMENT_WEI" "$MANTLE_ESCROW_DAILY_LIMIT_WEI"
+```
+
+After deployment:
+
+1. Fund the escrow with test MNT.
+2. Configure `MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS`.
+3. Register the escrow address as the Mantle agent wallet in Qevor.
+4. Optionally connect the deployed agent to an ERC-8004 identity.
+5. Restart the API and executor.
+
+## Agent Skill API
+
+External agents can integrate with Qevor through the protected skill API:
+
+- `GET /.well-known/qevor-agent-skills.json`
+- `POST /api/skills/payment-safety-review`
+- `POST /api/skills/batch-payment`
+
+Skill requests require:
+
+```http
+x-qevor-agent-key: <server configured key>
+```
+
+## Deployment
+
+Qevor can run without Vercel. The current production path is:
+
+- `qevor.xyz` for the frontend
+- `api.qevor.xyz` for the API
+- Supabase for database persistence
+- PM2 for `qevor-api` and `qevor-executor`
+- Caddy or Nginx for HTTPS and reverse proxying
+
+See [deploy/README.md](deploy/README.md) for the VPS runbook.
+
+## Safety Notes
+
+- Never commit private keys, API keys, Supabase service role keys, or executor secrets.
+- Mainnet should remain guarded by stricter limits, allowlists, daily caps, and human approval.
+- Agent execution must always pass policy checks and Byreal-compatible preflight before signing.
+- The copilot prepares plans; it does not directly move funds.
