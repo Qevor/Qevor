@@ -160,6 +160,26 @@ export function AgentWorkspace({
                 </span>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">{plan.explanation}</p>
+              {plan.executionLayer && (
+                <div className={`mt-3 rounded-md border px-3 py-2 text-xs ${
+                  plan.executionLayer.configured && plan.executionLayer.allowed
+                    ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-500'
+                    : plan.executionLayer.configured
+                      ? 'border-destructive/30 bg-destructive/5 text-destructive'
+                      : 'border-amber-500/30 bg-amber-500/5 text-amber-500'
+                }`}>
+                  <div className="flex flex-wrap items-center gap-2 font-medium">
+                    <Bot className="h-3.5 w-3.5" />
+                    Byreal execution layer
+                    <span className="rounded bg-background/80 px-1.5 py-0.5 uppercase">
+                      {plan.executionLayer.configured
+                        ? plan.executionLayer.allowed ? 'preflight passed' : 'blocked'
+                        : 'not configured'}
+                    </span>
+                  </div>
+                  {plan.executionLayer.reason && <p className="mt-1 text-muted-foreground">{plan.executionLayer.reason}</p>}
+                </div>
+              )}
             </div>
             <Button onClick={onOpenPlan}>
               Review and approve

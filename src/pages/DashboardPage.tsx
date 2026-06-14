@@ -302,6 +302,7 @@ export default function DashboardPage() {
         const plan = await planPaymentIntent(copilotIntent, {
             currentChainKey: batchChainKey,
             currentRecipients: batchRecipients,
+            profileWallet: address,
         });
         setCopilotPlan(plan);
         setCopilotPlanning(false);
@@ -781,6 +782,28 @@ export default function DashboardPage() {
                                                             <div><span className="block text-muted-foreground">Execution</span><strong>{copilotPlan.executionMode === 'agent' ? 'Agent requested' : 'Human'}</strong></div>
                                                             <div><span className="block text-muted-foreground">Approval</span><strong>Required</strong></div>
                                                         </div>
+                                                        {copilotPlan.executionLayer && (
+                                                            <div className={`rounded-lg border px-3 py-2 text-xs ${
+                                                                copilotPlan.executionLayer.configured && copilotPlan.executionLayer.allowed
+                                                                    ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-500'
+                                                                    : copilotPlan.executionLayer.configured
+                                                                        ? 'border-destructive/30 bg-destructive/5 text-destructive'
+                                                                        : 'border-amber-500/30 bg-amber-500/5 text-amber-500'
+                                                            }`}>
+                                                                <div className="flex flex-wrap items-center gap-2 font-medium">
+                                                                    <Bot className="h-3.5 w-3.5" />
+                                                                    Byreal execution layer
+                                                                    <span className="rounded bg-background/80 px-1.5 py-0.5 uppercase">
+                                                                        {copilotPlan.executionLayer.configured
+                                                                            ? copilotPlan.executionLayer.allowed ? 'preflight passed' : 'blocked'
+                                                                            : 'not configured'}
+                                                                    </span>
+                                                                </div>
+                                                                {copilotPlan.executionLayer.reason && (
+                                                                    <p className="mt-1 text-muted-foreground">{copilotPlan.executionLayer.reason}</p>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                         {copilotPlan.warnings.map((warning, index) => (
                                                             <p key={index} className="flex items-start gap-2 text-xs text-amber-500">
                                                                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {warning}

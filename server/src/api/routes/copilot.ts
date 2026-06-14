@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { createLogger } from '../../lib/logger.js';
+import { ByrealCliRunner } from '../../executor/byreal-cli.js';
+import { MANTLE_SEPOLIA_AGENT_CHAIN } from '../../executor/chain-support.js';
 
 const router = Router();
+const byrealLog = createLogger('api').child({ route: 'copilot-byreal' });
+const byreal = new ByrealCliRunner(byrealLog);
 
 const recipientSchema = z.object({
   wallet: z.string().max(120),
@@ -13,6 +18,7 @@ const requestSchema = z.object({
   intent: z.string().trim().min(3).max(2000),
   current_chain: z.enum(['arc-testnet', 'mantle-sepolia']).default('arc-testnet'),
   current_recipients: z.array(recipientSchema).max(500).default([]),
+  profile_wallet: z.string().max(120).optional(),
 });
 
 const planSchema = z.object({
@@ -39,7 +45,16 @@ router.post('/plan-payment', async (req, res) => {
 
   const fallback = buildDeterministicPlan(parsed.data);
   const openAiPlan = await buildOpenAiPlan(parsed.data).catch(() => null);
-  res.json(openAiPlan ?? fallback);
+  const plan = openAiPlan ?? fallback;
+  const executionLayer = await buildByrealExecutionLayer(plan, parsed.data).catch((err) => ({
+    provider: 'byreal' as const,
+    checked: true,
+    allowed: false,
+    configured: true,
+    skipped: false,
+    reason: err instanceof Error ? err.message : String(err),
+  }));
+  res.json({ ...plan, executionLayer });
 });
 
 function buildDeterministicPlan(input: z.infer<typeof requestSchema>) {
@@ -53,7 +68,7 @@ function buildDeterministicPlan(input: z.infer<typeof requestSchema>) {
     : lower.includes('arc')
       ? 'arc-testnet'
       : input.current_chain;
-  const executionMode = /\b(agent|autonomous|automatically|autopilot)\b/.test(lower) ? 'agent' : 'human';
+  const executionMode: 'human' | 'agent' = /\b(agent|autonomous|automatically|autopilot)\b/.test(lower) ? 'agent' : 'human';
   const maxAmountMatch = lower.match(/(?:max(?:imum)?|limit(?:ed)? to)\s+(\d+(?:\.\d+)?)/);
   const warnings = recipients.length === 0 ? ['No recipients were found. Add recipients or import a CSV.'] : [];
   if (executionMode === 'agent') warnings.push('Human approval remains required until an eligible agent policy is selected.');
@@ -158,6 +173,81 @@ async function buildOpenAiPlan(input: z.infer<typeof requestSchema>) {
   if (!outputText) return null;
   const parsed = planSchema.safeParse(JSON.parse(outputText));
   return parsed.success ? { source: 'openai' as const, ...parsed.data } : null;
+}
+
+async function buildByrealExecutionLayer(
+  plan: z.infer<typeof planSchema> & { source: 'openai' | 'deterministic' },
+  input: z.infer<typeof requestSchema>,
+) {
+  if (plan.chainKey !== 'mantle-sepolia') {
+    return {
+      provider: 'byreal' as const,
+      checked: false,
+      allowed: true,
+      configured: false,
+      skipped: true,
+      reason: 'Byreal preflight is only required for Mantle agent operations.',
+    };
+  }
+
+  const status = await byreal.status();
+  if (!status.available) {
+    return {
+      provider: 'byreal' as const,
+      checked: true,
+      allowed: true,
+      configured: false,
+      skipped: true,
+      reason: status.reason ?? 'Byreal CLI is not configured.',
+    };
+  }
+
+  if (!process.env.BYREAL_PREFLIGHT_ARGS?.trim()) {
+    return {
+      provider: 'byreal' as const,
+      checked: true,
+      allowed: true,
+      configured: false,
+      skipped: true,
+      reason: 'BYREAL_PREFLIGHT_ARGS is not configured.',
+    };
+  }
+
+  const validRecipients = plan.recipients.filter((recipient) => /^0x[a-fA-F0-9]{40}$/.test(recipient.wallet));
+  const firstRecipient = validRecipients[0];
+  const fromAddress = input.profile_wallet && /^0x[a-fA-F0-9]{40}$/.test(input.profile_wallet)
+    ? input.profile_wallet
+    : firstRecipient?.wallet;
+
+  if (!fromAddress || !firstRecipient) {
+    return {
+      provider: 'byreal' as const,
+      checked: true,
+      allowed: true,
+      configured: true,
+      skipped: true,
+      reason: 'Byreal CLI is configured; add a valid Mantle recipient before transfer preflight.',
+    };
+  }
+
+  const totalAmount = plan.recipients.reduce((sum, recipient) => sum + recipient.amount, 0);
+  const result = await byreal.preflight({
+    chain: MANTLE_SEPOLIA_AGENT_CHAIN,
+    fromAddress,
+    toAddress: firstRecipient.wallet,
+    amount: String(totalAmount),
+    paymentId: `copilot:${Date.now()}`,
+    policyDecision: 'cosign_required',
+  });
+
+  return {
+    provider: 'byreal' as const,
+    checked: true,
+    allowed: result.allowed,
+    configured: true,
+    skipped: result.skipped === true,
+    reason: result.reason ?? (result.allowed ? 'Byreal preflight accepted the Mantle operation.' : 'Byreal preflight blocked the Mantle operation.'),
+  };
 }
 
 export default router;

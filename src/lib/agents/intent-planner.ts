@@ -20,11 +20,20 @@ export interface PaymentIntentPlan {
     maxAmount: number | null;
   };
   warnings: string[];
+  executionLayer?: {
+    provider: 'byreal';
+    checked: boolean;
+    allowed: boolean;
+    configured: boolean;
+    skipped: boolean;
+    reason: string | null;
+  };
 }
 
 export interface PaymentIntentContext {
   currentChainKey: QevorChainKey;
   currentRecipients?: CopilotRecipient[];
+  profileWallet?: string;
 }
 
 const walletPattern = '@[a-zA-Z0-9_][a-zA-Z0-9_.-]{1,38}|0x[a-fA-F0-9]{40}';
@@ -97,6 +106,7 @@ export async function planPaymentIntent(
         intent,
         current_chain: context.currentChainKey,
         current_recipients: context.currentRecipients ?? [],
+        profile_wallet: context.profileWallet,
       }),
     });
     if (!response.ok) return fallback;
