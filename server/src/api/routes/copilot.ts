@@ -44,8 +44,9 @@ router.post('/plan-payment', async (req, res) => {
   }
 
   const fallback = buildDeterministicPlan(parsed.data);
-  const openAiPlan = await buildOpenAiPlan(parsed.data).catch(() => null);
-  const plan = openAiPlan ?? fallback;
+  const anthropicPlan = await buildAnthropicPlan(parsed.data).catch(() => null);
+  const openAiPlan = anthropicPlan ? null : await buildOpenAiPlan(parsed.data).catch(() => null);
+  const plan = anthropicPlan ?? openAiPlan ?? fallback;
   const executionLayer = await buildByrealExecutionLayer(plan, parsed.data).catch((err) => ({
     provider: 'byreal' as const,
     checked: true,
@@ -175,8 +176,59 @@ async function buildOpenAiPlan(input: z.infer<typeof requestSchema>) {
   return parsed.success ? { source: 'openai' as const, ...parsed.data } : null;
 }
 
+async function buildAnthropicPlan(input: z.infer<typeof requestSchema>) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const model = process.env.ANTHROPIC_COPILOT_MODEL;
+  if (!apiKey || !model) return null;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 1200,
+      temperature: 0,
+      system: [
+        'Convert payment intent into a Qevor payment draft.',
+        'Never remove human approval, never execute funds, preserve supplied recipients when the instruction refers to them, and return only JSON.',
+        'The JSON must include explanation, title, description, chainKey, executionMode, recipients, constraints, and warnings.',
+        'chainKey must be arc-testnet or mantle-sepolia. executionMode must be human or agent.',
+        'constraints.requireHumanApproval and constraints.duplicateCheck must both be true.',
+      ].join(' '),
+      messages: [
+        {
+          role: 'user',
+          content: JSON.stringify(input),
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!response.ok) return null;
+
+  const payload = await response.json() as {
+    content?: Array<{ type?: string; text?: string }>;
+  };
+  const outputText = payload.content?.find((item) => item.type === 'text' && item.text)?.text;
+  if (!outputText) return null;
+
+  const jsonText = stripJsonFence(outputText);
+  const parsed = planSchema.safeParse(JSON.parse(jsonText));
+  return parsed.success ? { source: 'anthropic' as const, ...parsed.data } : null;
+}
+
+function stripJsonFence(text: string) {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return fenced?.[1]?.trim() ?? trimmed;
+}
+
 async function buildByrealExecutionLayer(
-  plan: z.infer<typeof planSchema> & { source: 'openai' | 'deterministic' },
+  plan: z.infer<typeof planSchema> & { source: 'anthropic' | 'openai' | 'deterministic' },
   input: z.infer<typeof requestSchema>,
 ) {
   if (plan.chainKey !== 'mantle-sepolia') {

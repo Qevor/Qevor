@@ -7,7 +7,7 @@ export interface CopilotRecipient {
 }
 
 export interface PaymentIntentPlan {
-  source: 'openai' | 'deterministic';
+  source: 'anthropic' | 'openai' | 'deterministic';
   explanation: string;
   title: string;
   description: string;

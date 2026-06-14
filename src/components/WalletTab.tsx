@@ -3,13 +3,14 @@ import { useAccount } from 'wagmi';
 import { createPublicClient, http, formatUnits } from 'viem';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Send, Download, Loader2, ArrowUpRight, ArrowDownLeft, Users, Link as LinkIcon } from 'lucide-react';
+import { Send, Download, Loader2, ArrowUpRight, ArrowDownLeft, Users, Link as LinkIcon, ReceiptText, RefreshCw, ExternalLink, CheckCircle2, Clock } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import { useProfiles } from '@/hooks/useProfiles';
 import { useArcSend } from '@/hooks/useArcSend';
 import { Link, useNavigate } from 'react-router-dom';
-import { DEFAULT_QEVOR_CHAIN_KEY, getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains';
+import { DEFAULT_QEVOR_CHAIN_KEY, getExplorerTxUrl, getQevorChainById, getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains';
 
 const USDC_ADDRESS = '0x3600000000000000000000000000000000000000' as const;
 
@@ -24,10 +25,48 @@ const erc20Abi = [
     },
 ] as const;
 
+type WalletActivityKind = 'direct' | 'batch-payment' | 'batch-request' | 'payment-link';
+type WalletActivityDirection = 'sent' | 'received' | 'created';
+
+interface WalletActivity {
+    id: string;
+    kind: WalletActivityKind;
+    direction: WalletActivityDirection;
+    title: string;
+    subtitle: string;
+    amount: number;
+    token: string;
+    chainId: number;
+    status: string;
+    createdAt: string;
+    txHash?: string | null;
+}
+
+const normalizeWallet = (wallet?: string | null) => wallet?.toLowerCase() ?? '';
+
+const formatShortAddress = (wallet?: string | null) => {
+    if (!wallet) return 'Unknown wallet';
+    if (wallet.length <= 14) return wallet;
+    return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
+};
+
+const formatActivityDate = (date: string) => {
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return 'Unknown date';
+    return parsed.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+};
+
 export function WalletTab() {
     const { address } = useAccount();
     const [displayBalance, setDisplayBalance] = useState('0.0000');
     const [chainKey, setChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY);
+    const [activities, setActivities] = useState<WalletActivity[]>([]);
+    const [activityLoading, setActivityLoading] = useState(false);
     const selectedNetwork = getQevorChainByKey(chainKey);
 
     const fetchBalance = useCallback(async () => {
@@ -58,16 +97,155 @@ export function WalletTab() {
         }
     }, [address, selectedNetwork]);
 
+    const fetchActivity = useCallback(async () => {
+        if (!address) {
+            setActivities([]);
+            return;
+        }
+
+        setActivityLoading(true);
+        try {
+            const wallet = normalizeWallet(address);
+            const walletFilter = `sender.ilike.${address},receiver.ilike.${address}`;
+            const batchPaymentFilter = `payer_wallet.ilike.${address},recipient_wallet.ilike.${address}`;
+            const linkFilter = `creator_wallet.ilike.${address},receiver_wallet.ilike.${address}`;
+
+            const [receiptResult, batchPaymentResult, batchRequestResult, linkResult] = await Promise.all([
+                supabase
+                    .from('receipts')
+                    .select('*')
+                    .or(walletFilter)
+                    .order('created_at', { ascending: false })
+                    .limit(25),
+                supabase
+                    .from('batch_payments')
+                    .select('*')
+                    .or(batchPaymentFilter)
+                    .order('created_at', { ascending: false })
+                    .limit(25),
+                supabase
+                    .from('batch_requests')
+                    .select('*')
+                    .ilike('creator_wallet', address)
+                    .order('created_at', { ascending: false })
+                    .limit(25),
+                supabase
+                    .from('payment_links')
+                    .select('*')
+                    .or(linkFilter)
+                    .order('created_at', { ascending: false })
+                    .limit(25),
+            ]);
+
+            const next: WalletActivity[] = [];
+
+            if (receiptResult.data) {
+                for (const receipt of receiptResult.data as any[]) {
+                    const chain = getQevorChainById(receipt.chain_id);
+                    const direction: WalletActivityDirection = normalizeWallet(receipt.sender) === wallet ? 'sent' : 'received';
+                    const otherWallet = direction === 'sent' ? receipt.receiver : receipt.sender;
+                    next.push({
+                        id: `receipt-${receipt.id}`,
+                        kind: 'direct',
+                        direction,
+                        title: direction === 'sent' ? 'Direct send' : 'Direct receive',
+                        subtitle: `${direction === 'sent' ? 'To' : 'From'} ${formatShortAddress(otherWallet)} on ${chain.label}`,
+                        amount: Number(receipt.amount ?? 0),
+                        token: receipt.token_symbol ?? chain.paymentAsset,
+                        chainId: receipt.chain_id ?? chain.chain.id,
+                        status: receipt.status ?? 'paid',
+                        createdAt: receipt.created_at,
+                        txHash: receipt.tx_hash,
+                    });
+                }
+            }
+
+            if (batchPaymentResult.data) {
+                for (const payment of batchPaymentResult.data as any[]) {
+                    const chain = getQevorChainById(payment.chain_id);
+                    const direction: WalletActivityDirection = normalizeWallet(payment.payer_wallet) === wallet ? 'sent' : 'received';
+                    const otherWallet = direction === 'sent' ? payment.recipient_wallet : payment.payer_wallet;
+                    next.push({
+                        id: `batch-payment-${payment.id}`,
+                        kind: 'batch-payment',
+                        direction,
+                        title: direction === 'sent' ? 'Batch payout' : 'Batch payment received',
+                        subtitle: `${direction === 'sent' ? 'To' : 'From'} ${formatShortAddress(otherWallet)} on ${chain.label}`,
+                        amount: Number(payment.amount ?? 0),
+                        token: payment.token_symbol ?? chain.paymentAsset,
+                        chainId: payment.chain_id ?? chain.chain.id,
+                        status: payment.status ?? 'paid',
+                        createdAt: payment.created_at,
+                        txHash: payment.tx_hash,
+                    });
+                }
+            }
+
+            if (batchRequestResult.data) {
+                for (const batch of batchRequestResult.data as any[]) {
+                    const chain = getQevorChainById(batch.chain_id);
+                    const recipients = Array.isArray(batch.recipients) ? batch.recipients.length : 0;
+                    next.push({
+                        id: `batch-request-${batch.id}`,
+                        kind: 'batch-request',
+                        direction: 'created',
+                        title: batch.title || 'Batch payment plan',
+                        subtitle: `${recipients} recipient${recipients === 1 ? '' : 's'} on ${chain.label}`,
+                        amount: Number(batch.total_amount ?? 0),
+                        token: batch.token_symbol ?? chain.paymentAsset,
+                        chainId: batch.chain_id ?? chain.chain.id,
+                        status: batch.status ?? 'pending',
+                        createdAt: batch.created_at,
+                    });
+                }
+            }
+
+            if (linkResult.data) {
+                for (const link of linkResult.data as any[]) {
+                    const chain = getQevorChainById(link.chain_id);
+                    const direction: WalletActivityDirection = normalizeWallet(link.creator_wallet) === wallet ? 'created' : 'received';
+                    next.push({
+                        id: `payment-link-${link.id}`,
+                        kind: 'payment-link',
+                        direction,
+                        title: direction === 'created' ? 'Payment link created' : 'Payment link assigned',
+                        subtitle: `${formatShortAddress(link.receiver_wallet)} on ${chain.label}`,
+                        amount: Number(link.amount ?? 0),
+                        token: link.token_symbol ?? chain.paymentAsset,
+                        chainId: link.chain_id ?? chain.chain.id,
+                        status: 'link',
+                        createdAt: link.created_at,
+                    });
+                }
+            }
+
+            setActivities(
+                next
+                    .filter((activity) => activity.createdAt)
+                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                    .slice(0, 12),
+            );
+        } catch (error) {
+            console.error('Error loading wallet activity:', error);
+            toast.error('Could not load wallet history');
+        } finally {
+            setActivityLoading(false);
+        }
+    }, [address]);
+
     useEffect(() => {
         fetchBalance();
+        fetchActivity();
         const id = setInterval(fetchBalance, 5000);
         return () => clearInterval(id);
-    }, [fetchBalance]);
+    }, [fetchActivity, fetchBalance]);
 
     const refetch = () => {
         setTimeout(fetchBalance, 1000);
         setTimeout(fetchBalance, 4000);
         setTimeout(fetchBalance, 10000);
+        setTimeout(fetchActivity, 1500);
+        setTimeout(fetchActivity, 6000);
     };
     const navigate = useNavigate();
 
@@ -79,6 +257,30 @@ export function WalletTab() {
     const { sendTransaction, isPending } = useArcSend();
 
     const { resolveUsernameToWallet } = useProfiles();
+
+    const recordDirectReceipt = async (receiver: string, sentAmount: string, txHash?: string) => {
+        if (!address || !txHash) return;
+
+        const receipt = {
+            sender: address,
+            receiver,
+            amount: Number(sentAmount),
+            tx_hash: txHash,
+            status: 'paid',
+            memo: `Direct ${selectedNetwork.paymentAsset} transfer`,
+            chain_id: selectedNetwork.chain.id,
+            token_symbol: selectedNetwork.paymentAsset,
+        };
+
+        const { error } = await supabase.from('receipts').insert([receipt]);
+        if (error) {
+            console.error('Error recording direct send receipt:', error);
+            toast.warning('Transaction sent, but Qevor could not save the receipt yet.');
+            return;
+        }
+
+        fetchActivity();
+    };
 
     const handleSend = async () => {
         let finalRecipient = recipient;
@@ -105,6 +307,7 @@ export function WalletTab() {
             chainKey,
             onSuccess(hash) {
                 toast.success('Transaction sent!', { description: hash ? `Hash: ${hash.slice(0, 10)}...` : '' });
+                void recordDirectReceipt(finalRecipient, amount, hash);
                 setSendOpen(false);
                 setRecipient('');
                 setAmount('');
@@ -114,6 +317,19 @@ export function WalletTab() {
                 toast.error('Transaction failed', { description: error.message });
             },
         });
+    };
+
+    const renderActivityIcon = (activity: WalletActivity) => {
+        if (activity.status === 'pending' || activity.status === 'queued') {
+            return <Clock className="w-5 h-5" />;
+        }
+        if (activity.kind === 'payment-link') {
+            return <LinkIcon className="w-5 h-5" />;
+        }
+        if (activity.kind === 'batch-payment' || activity.kind === 'batch-request') {
+            return <Users className="w-5 h-5" />;
+        }
+        return activity.direction === 'received' ? <ArrowDownLeft className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />;
     };
 
     return (
@@ -290,6 +506,100 @@ export function WalletTab() {
                     </div>
                 </Link>
             </div>
+
+            <section className="glass-card rounded-2xl overflow-hidden">
+                <div className="flex flex-col gap-4 border-b border-border p-6 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <div className="flex items-center gap-2 text-primary">
+                            <ReceiptText className="w-4 h-4" />
+                            <span className="text-xs font-semibold uppercase tracking-widest">Wallet history</span>
+                        </div>
+                        <h3 className="mt-2 text-xl font-semibold">Recent wallet activity</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Direct sends, batch payouts, payment links, and receipts tied to this wallet.
+                        </p>
+                    </div>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={fetchActivity}
+                        disabled={activityLoading}
+                        className="rounded-xl border-primary/30 text-primary hover:bg-primary/5"
+                    >
+                        {activityLoading ? <Loader2 className="mr-2 w-4 h-4 animate-spin" /> : <RefreshCw className="mr-2 w-4 h-4" />}
+                        Refresh
+                    </Button>
+                </div>
+
+                {activityLoading && activities.length === 0 ? (
+                    <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Loading wallet history...
+                    </div>
+                ) : activities.length === 0 ? (
+                    <div className="p-10 text-center">
+                        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                            <ReceiptText className="w-6 h-6" />
+                        </div>
+                        <h4 className="font-semibold">No wallet activity yet</h4>
+                        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+                            Your next direct transfer, batch payment, receipt, or payment link will appear here.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="divide-y divide-border">
+                        {activities.map((activity) => {
+                            const explorerUrl = activity.txHash ? getExplorerTxUrl(activity.chainId, activity.txHash) : null;
+                            const isReceived = activity.direction === 'received';
+                            const amountPrefix = isReceived ? '+' : activity.direction === 'sent' ? '-' : '';
+
+                            return (
+                                <div key={activity.id} className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="flex min-w-0 items-start gap-4">
+                                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                                            {renderActivityIcon(activity)}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <h4 className="font-semibold">{activity.title}</h4>
+                                                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary/70 px-2 py-0.5 text-[11px] font-semibold uppercase text-muted-foreground">
+                                                    <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                                                    {activity.status}
+                                                </span>
+                                            </div>
+                                            <p className="mt-1 text-sm text-muted-foreground">{activity.subtitle}</p>
+                                            <p className="mt-1 text-xs text-muted-foreground">{formatActivityDate(activity.createdAt)}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-4 sm:justify-end">
+                                        <div className="text-left sm:text-right">
+                                            <div className={`text-lg font-bold ${isReceived ? 'text-emerald-400' : 'text-foreground'}`}>
+                                                {amountPrefix}{activity.amount.toFixed(4)} {activity.token}
+                                            </div>
+                                            {activity.txHash && (
+                                                <div className="text-xs font-mono text-muted-foreground">
+                                                    {formatShortAddress(activity.txHash)}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {explorerUrl && (
+                                            <a
+                                                href={explorerUrl}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border text-primary transition-colors hover:border-primary/60 hover:bg-primary/5"
+                                                aria-label="Open transaction in explorer"
+                                            >
+                                                <ExternalLink className="w-4 h-4" />
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </section>
         </div>
     );
 }
