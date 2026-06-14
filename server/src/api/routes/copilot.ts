@@ -60,8 +60,11 @@ router.post('/plan-payment', async (req, res) => {
 
 function buildDeterministicPlan(input: z.infer<typeof requestSchema>) {
   const lower = input.intent.toLowerCase();
-  const matches = [...input.intent.matchAll(/(@[a-zA-Z0-9_][a-zA-Z0-9_.-]{1,38}|0x[a-fA-F0-9]{40})\s+(?:for\s+)?(\d+(?:\.\d+)?)/g)];
-  const extracted = matches.map((match) => ({ wallet: match[1], amount: Number(match[2]), label: '' }));
+  const addressThenAmount = [...input.intent.matchAll(/(@[a-zA-Z0-9_][a-zA-Z0-9_.-]{1,38}|0x[a-fA-F0-9]{40})\s+(?:for\s+)?(\d+(?:\.\d+)?)/g)]
+    .map((match) => ({ wallet: match[1], amount: Number(match[2]), label: '' }));
+  const amountThenAddress = [...input.intent.matchAll(/(\d+(?:\.\d+)?)\s*(?:MNT|USDC)?\s+(?:to|for)\s+(@[a-zA-Z0-9_][a-zA-Z0-9_.-]{1,38}|0x[a-fA-F0-9]{40})/gi)]
+    .map((match) => ({ wallet: match[2], amount: Number(match[1]), label: '' }));
+  const extracted = dedupeRecipients([...addressThenAmount, ...amountThenAddress]);
   const currentRecipients = input.current_recipients.filter((recipient) => recipient.wallet || recipient.amount > 0);
   const recipients = extracted.length > 0 ? extracted : currentRecipients;
   const chainKey = lower.includes('mantle')
@@ -91,6 +94,49 @@ function buildDeterministicPlan(input: z.infer<typeof requestSchema>) {
       maxAmount: maxAmountMatch ? Number(maxAmountMatch[1]) : null,
     },
     warnings,
+  };
+}
+
+function dedupeRecipients(recipients: Array<z.infer<typeof recipientSchema>>) {
+  const seen = new Set<string>();
+  return recipients.filter((recipient) => {
+    const key = `${recipient.wallet.toLowerCase()}:${recipient.amount}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizePlanCandidate(candidate: unknown, input: z.infer<typeof requestSchema>) {
+  const fallback = buildDeterministicPlan(input);
+  const value = typeof candidate === 'object' && candidate ? candidate as Record<string, unknown> : {};
+  const constraints = typeof value.constraints === 'object' && value.constraints
+    ? value.constraints as Record<string, unknown>
+    : {};
+  const rawRecipients = Array.isArray(value.recipients) ? value.recipients : [];
+  const recipients = dedupeRecipients(rawRecipients.map((recipient) => {
+    const row = typeof recipient === 'object' && recipient ? recipient as Record<string, unknown> : {};
+    return {
+      wallet: typeof row.wallet === 'string' ? row.wallet.trim() : '',
+      amount: typeof row.amount === 'number' ? row.amount : Number(row.amount),
+      label: typeof row.label === 'string' ? row.label.trim() : '',
+    };
+  }).filter((recipient) => recipient.wallet && Number.isFinite(recipient.amount) && recipient.amount >= 0));
+  const maxAmount = typeof constraints.maxAmount === 'number' ? constraints.maxAmount : Number(constraints.maxAmount);
+
+  return {
+    explanation: typeof value.explanation === 'string' && value.explanation.trim() ? value.explanation : fallback.explanation,
+    title: typeof value.title === 'string' && value.title.trim() ? value.title : fallback.title,
+    description: typeof value.description === 'string' && value.description.trim() ? value.description : fallback.description,
+    chainKey: value.chainKey === 'arc-testnet' || value.chainKey === 'mantle-sepolia' ? value.chainKey : fallback.chainKey,
+    executionMode: value.executionMode === 'agent' || value.executionMode === 'human' ? value.executionMode : fallback.executionMode,
+    recipients: recipients.length > 0 ? recipients : fallback.recipients,
+    constraints: {
+      requireHumanApproval: true as const,
+      duplicateCheck: true as const,
+      maxAmount: Number.isFinite(maxAmount) && maxAmount > 0 ? maxAmount : fallback.constraints.maxAmount,
+    },
+    warnings: Array.isArray(value.warnings) ? value.warnings.filter((warning): warning is string => typeof warning === 'string') : fallback.warnings,
   };
 }
 
@@ -198,6 +244,8 @@ async function buildAnthropicPlan(input: z.infer<typeof requestSchema>) {
         'The JSON must include explanation, title, description, chainKey, executionMode, recipients, constraints, and warnings.',
         'chainKey must be arc-testnet or mantle-sepolia. executionMode must be human or agent.',
         'constraints.requireHumanApproval and constraints.duplicateCheck must both be true.',
+        'Every recipient must include wallet, amount, and label. Use an empty string for label when unknown.',
+        'If the intent says "0.01 MNT to 0x..." then create one recipient with that address and amount 0.01.',
       ].join(' '),
       messages: [
         {
@@ -217,7 +265,13 @@ async function buildAnthropicPlan(input: z.infer<typeof requestSchema>) {
   if (!outputText) return null;
 
   const jsonText = stripJsonFence(outputText);
-  const parsed = planSchema.safeParse(JSON.parse(jsonText));
+  const parsed = planSchema.safeParse(normalizePlanCandidate(JSON.parse(jsonText), input));
+  if (!parsed.success) {
+    byrealLog.warn({
+      provider: 'anthropic',
+      issues: parsed.error.issues.map((issue) => issue.path.join('.')).filter(Boolean),
+    }, 'Claude copilot plan failed validation');
+  }
   return parsed.success ? { source: 'anthropic' as const, ...parsed.data } : null;
 }
 
