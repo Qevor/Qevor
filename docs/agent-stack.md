@@ -11,6 +11,8 @@ It now supports two execution rails:
 
 Circle CLI does not currently expose Mantle as a wallet-transfer chain, so Mantle execution is handled by Qevor's native `viem` runner. Byreal is integrated as a configurable execution-layer preflight hook instead of a hardcoded command.
 
+The official Byreal CLI is Solana-focused. Qevor installs it for Byreal skill compatibility, then uses `qevor-byreal-preflight.js` as the Mantle adapter. The wrapper receives Qevor payment JSON, performs Mantle-specific payment checks, reports whether `byreal-cli` is available, and returns structured `{ "allowed": true | false, "reason": "..." }` JSON to the Qevor API/executor.
+
 Qevor calls Byreal in two places:
 
 1. **Copilot planning preflight** - the API calls the Byreal adapter when a Mantle payment plan is created, then returns the execution-layer result to the UI.
@@ -113,8 +115,11 @@ HEARTBEAT_INTERVAL_MS=30000
 Copilot API optional agent execution-layer settings:
 
 ```env
-BYREAL_CLI_BIN=/path/to/byreal
-BYREAL_PREFLIGHT_ARGS=...
+BYREAL_CLI_BIN=node
+BYREAL_PREFLIGHT_ARGS=/opt/qevor/server/dist/executor/qevor-byreal-preflight.js
+BYREAL_SOLANA_CLI_BIN=byreal-cli
+QEVOR_BYREAL_MAX_PREFLIGHT_MNT=100
+QEVOR_BYREAL_REQUIRE_CLI=0
 OPENAI_API_KEY=
 OPENAI_COPILOT_MODEL=
 ```
@@ -161,8 +166,11 @@ After deployment:
 Optional Byreal preflight:
 
 ```env
-BYREAL_CLI_BIN=/path/to/byreal
-BYREAL_PREFLIGHT_ARGS=...
+BYREAL_CLI_BIN=node
+BYREAL_PREFLIGHT_ARGS=/opt/qevor/server/dist/executor/qevor-byreal-preflight.js
+BYREAL_SOLANA_CLI_BIN=byreal-cli
+QEVOR_BYREAL_MAX_PREFLIGHT_MNT=100
+QEVOR_BYREAL_REQUIRE_CLI=0
 ```
 
 The preflight command receives transfer context as JSON on stdin and should return JSON on stdout:
@@ -172,6 +180,13 @@ The preflight command receives transfer context as JSON on stdin and should retu
 ```
 
 Returning `{ "allowed": false, "reason": "..." }` blocks the transfer before signing.
+
+Install the official Byreal CLI on the VPS:
+
+```bash
+npm install -g @byreal-io/byreal-cli
+byreal-cli --version
+```
 
 ## Key Tables
 
