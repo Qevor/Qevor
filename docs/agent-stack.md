@@ -9,7 +9,14 @@ It now supports two execution rails:
 1. **Arc Testnet via Circle CLI** - agent wallets, Circle session auth, and USDC transfers.
 2. **Mantle Sepolia via contract escrow** - MNT transfers are executed through `QevorAgentEscrow` when `MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS` is configured, with optional Byreal CLI preflight before signing.
 
-Circle CLI does not currently expose Mantle as a wallet-transfer chain, so Mantle execution is handled by Qevor's native `viem` runner. Byreal is integrated as a configurable preflight hook instead of a hardcoded command.
+Circle CLI does not currently expose Mantle as a wallet-transfer chain, so Mantle execution is handled by Qevor's native `viem` runner. Byreal is integrated as a configurable execution-layer preflight hook instead of a hardcoded command.
+
+Qevor calls Byreal in two places:
+
+1. **Copilot planning preflight** - the API calls the Byreal adapter when a Mantle payment plan is created, then returns the execution-layer result to the UI.
+2. **Executor signing preflight** - the Mantle executor calls the same Byreal adapter again immediately before signing or calling the escrow contract.
+
+This makes Byreal visible in the product without letting it bypass Qevor policy or human approval.
 
 The Mantle contract address requirement is satisfied by deploying `contracts/QevorAgentEscrow.sol` on Mantle Sepolia or Mantle mainnet. The executor calls `executePayment(...)` on that contract, so the contract underpins the agentic payment logic instead of only existing for show.
 
@@ -101,6 +108,15 @@ SUPABASE_SERVICE_ROLE_KEY=
 NODE_ENV=production
 POLL_INTERVAL_MS=15000
 HEARTBEAT_INTERVAL_MS=30000
+```
+
+Copilot API optional agent execution-layer settings:
+
+```env
+BYREAL_CLI_BIN=/path/to/byreal
+BYREAL_PREFLIGHT_ARGS=...
+OPENAI_API_KEY=
+OPENAI_COPILOT_MODEL=
 ```
 
 Arc rail:
