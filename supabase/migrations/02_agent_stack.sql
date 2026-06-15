@@ -1,6 +1,14 @@
 -- Agent Stack: wallets, policies, audit log, cosign queue, executor health
 -- Migration is idempotent (create if not exists, add column if not exists)
 
+create table if not exists profiles (
+  id uuid primary key default gen_random_uuid(),
+  wallet text not null,
+  username text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- 0. Ensure profiles.wallet is unique so it can be referenced by FK.
 -- Safe to re-run: if a unique/PK constraint on wallet already exists,
 -- the duplicate-object exception is swallowed.

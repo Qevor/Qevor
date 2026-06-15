@@ -35,6 +35,17 @@ function getCopilotApprovalLabel(plan: PaymentIntentPlan | null, eligibleAgentCo
     return eligibleAgentCount > 0 ? 'Policy-gated' : 'Setup required';
 }
 
+function getSupabaseLoadErrorMessage(error: unknown) {
+    const message = String((error as any)?.message || error || '');
+    if (/failed to fetch|placeholder/i.test(message)) {
+        return 'Could not reach Qevor database. Check the live Supabase environment config.';
+    }
+    if (/schema cache|column|relation|does not exist|permission denied/i.test(message)) {
+        return 'Could not load saved data. Run the latest Supabase migration.';
+    }
+    return message ? `Could not load saved data: ${message}` : 'Could not load saved data.';
+}
+
 export default function DashboardPage() {
     const { address, isConnected } = useAccount();
     const [searchParams, setSearchParams] = useSearchParams();
@@ -144,7 +155,7 @@ export default function DashboardPage() {
             .or(`creator_wallet.ilike.${address},receiver_wallet.ilike.${address}`)
             .order('created_at', { ascending: false });
         if (error) {
-            toast.error('Could not load payment links. Run the latest Supabase migration.');
+            toast.error(getSupabaseLoadErrorMessage(error));
             setLoadingLinks(false);
             return;
         }
@@ -155,11 +166,16 @@ export default function DashboardPage() {
     const fetchReceipts = async () => {
         if (!address) return;
         setLoadingReceipts(true);
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from('receipts')
             .select('*')
             .or(`sender.eq.${address},receiver.eq.${address}`)
             .order('created_at', { ascending: false });
+        if (error) {
+            toast.error(getSupabaseLoadErrorMessage(error));
+            setLoadingReceipts(false);
+            return;
+        }
         setReceipts(data || []);
         setLoadingReceipts(false);
     };

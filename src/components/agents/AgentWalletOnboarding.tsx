@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,36 +19,43 @@ interface Props {
 
 const STEPS = [
   {
-    title: 'Install the agent tool',
-    description: 'Use Circle CLI for Arc, or the Mantle executor key with optional Byreal CLI preflight.',
-    command: 'npm install -g @circle-fin/cli',
+    title: 'Use the Qevor Mantle agent wallet',
+    description: 'For Mantle Sepolia, Qevor uses the deployed escrow below as the agent wallet that the executor can operate through.',
+    command: null,
   },
   {
-    title: 'Authenticate the rail',
-    description: 'Arc uses Circle OTP. Mantle Sepolia uses the configured executor wallet key.',
-    command: 'circle wallet login you@example.com --testnet',
+    title: 'Keep the agent inside policy',
+    description: 'The executor can only run batches that pass your saved limits, chain rules, and safety checks.',
+    command: null,
   },
   {
-    title: 'List or copy your agent wallet',
-    description: 'For Mantle, paste the deployed QevorAgentEscrow contract address after it is funded.',
-    command: 'circle wallet list --chain ARC-TESTNET --type agent --output json',
+    title: 'Register the escrow once',
+    description: 'Click Use this escrow, then Register Wallet. After that, set a policy and select agent execution in batch payments.',
+    command: null,
   },
   {
-    title: 'Register your wallet',
-    description: 'Paste the public 0x address below to connect it to your Qevor account.',
+    title: 'Human approval stays optional by policy',
+    description: 'If your policy allows it, the executor queues and sends from the agent wallet without asking for your wallet approval each time.',
     command: null,
   },
 ];
 
 export function AgentWalletOnboarding({ onRegister, registering }: Props) {
-  const [address, setAddress] = useState('');
-  const [label, setLabel] = useState('');
   const mantleNetwork = qevorChains.find((network) => network.agentChainCode === 'MANTLE-SEPOLIA');
+  const defaultEscrow = mantleNetwork?.agentEscrowAddress ?? '';
+  const [address, setAddress] = useState(defaultEscrow);
+  const [label, setLabel] = useState(defaultEscrow ? 'Qevor Mantle Agent Escrow' : '');
   const [chain, setChain] = useState(mantleNetwork?.agentChainCode ?? qevorChains[0].agentChainCode);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const selectedNetwork = qevorChains.find((network) => network.agentChainCode === chain) ?? qevorChains[0];
   const selectedEscrow = selectedNetwork.agentEscrowAddress;
   const isMantleEscrow = !!selectedEscrow && address.trim().toLowerCase() === selectedEscrow.toLowerCase();
+
+  useEffect(() => {
+    if (!selectedEscrow) return;
+    setAddress((current) => current || selectedEscrow);
+    setLabel((current) => current || 'Qevor Mantle Agent Escrow');
+  }, [selectedEscrow]);
 
   const copyCommand = (cmd: string, idx: number) => {
     navigator.clipboard.writeText(cmd);
@@ -88,8 +95,7 @@ export function AgentWalletOnboarding({ onRegister, registering }: Props) {
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4 text-sm text-muted-foreground">
-          Qevor stores only the public wallet address and policy settings. Mantle execution stays disabled until the VPS has a matching testnet agent key and, when available, a Byreal preflight command.
-          For contract-backed Mantle agents, register the deployed escrow contract address.
+          Qevor stores the public agent wallet and policy settings. For Mantle, use the deployed escrow below. The VPS executor and Byreal preflight can then run only the operations your policy allows.
         </div>
 
         {STEPS.map((step, i) => (
@@ -145,7 +151,7 @@ export function AgentWalletOnboarding({ onRegister, registering }: Props) {
               </div>
               {isMantleEscrow && (
                 <p className="mt-2 text-xs text-emerald-500">
-                  This will register the wallet as an enabled policy-gated agent executor.
+                  This will register Qevor's Mantle agent wallet for policy-gated autonomous execution.
                 </p>
               )}
             </div>
@@ -162,7 +168,7 @@ export function AgentWalletOnboarding({ onRegister, registering }: Props) {
           />
           <Button onClick={handleSubmit} disabled={registering || !address.trim()}>
             {registering && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Register Wallet
+            {isMantleEscrow ? 'Register Qevor Agent Wallet' : 'Register Wallet'}
           </Button>
         </div>
       </CardContent>

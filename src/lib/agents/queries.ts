@@ -5,7 +5,7 @@ export async function fetchAgentWallets(profileWallet: string): Promise<AgentWal
   const { data, error } = await supabase
     .from('agent_wallets')
     .select('*')
-    .ilike('profile_wallet', profileWallet)
+    .ilike('profile_wallet', profileWallet.trim().toLowerCase())
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -25,7 +25,7 @@ export async function registerAgentWallet(
   const { data, error } = await supabase
     .from('agent_wallets')
     .insert({
-      profile_wallet: profileWallet,
+      profile_wallet: profileWallet.trim().toLowerCase(),
       wallet_address: walletAddress,
       chain,
       label: label ?? null,

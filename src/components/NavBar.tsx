@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 export default function NavBar() {
     const { address, isConnected } = useAccount();
     const { handleLogOut, user } = useDynamicContext();
-    const { getProfileByWallet, registerUsername, loading: profileLoading } = useProfiles();
+    const { ensureProfile, registerUsername, loading: profileLoading } = useProfiles();
 
     const [profile, setProfile] = useState<Profile | null>(null);
     const [profileOpen, setProfileOpen] = useState(false);
@@ -23,11 +23,18 @@ export default function NavBar() {
 
     useEffect(() => {
         if (address) {
-            getProfileByWallet(address).then(p => setProfile(p));
+            ensureProfile(address).then(p => {
+                setProfile(p);
+                const promptKey = `qevor-username-prompted:${address.toLowerCase()}`;
+                if (p && !p.username && !sessionStorage.getItem(promptKey)) {
+                    setProfileOpen(true);
+                    sessionStorage.setItem(promptKey, '1');
+                }
+            });
         } else {
             setProfile(null);
         }
-    }, [address]);
+    }, [address, ensureProfile]);
 
     const handleClaimUsername = async () => {
         if (!newUsername || newUsername.includes(' ')) return toast.error('Invalid username');

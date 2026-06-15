@@ -83,7 +83,7 @@ export function planPaymentIntentLocally(intent: string, context: PaymentIntentC
     executionMode: requestsAgent ? 'agent' : 'human',
     recipients: plannedRecipients,
     constraints: {
-      requireHumanApproval: true,
+      requireHumanApproval: !requestsAgent,
       duplicateCheck: true,
       maxAmount: maxAmountMatch ? Number(maxAmountMatch[1]) : null,
     },

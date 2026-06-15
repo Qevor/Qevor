@@ -16,7 +16,7 @@ import { getQevorChainByAgentChain } from '@/lib/chains';
 
 export default function AgentsPage() {
   const { address, isConnected } = useAccount();
-  const { getProfileByWallet } = useProfiles();
+  const { ensureProfile } = useProfiles();
 
   const [wallets, setWallets] = useState<AgentWallet[]>([]);
   const [loading, setLoading] = useState(false);
@@ -29,7 +29,7 @@ export default function AgentsPage() {
     if (!address) return;
     setLoading(true);
     try {
-      const profile = await getProfileByWallet(address);
+      const profile = await ensureProfile(address);
       if (!profile) return;
       setProfileWallet(profile.wallet);
       const data = await fetchAgentWallets(profile.wallet);
@@ -39,7 +39,7 @@ export default function AgentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [address, getProfileByWallet]);
+  }, [address, ensureProfile]);
 
   useEffect(() => {
     if (isConnected && address) {
@@ -53,13 +53,14 @@ export default function AgentsPage() {
     chain: string,
     opts?: { executorMode?: 'escrow'; escrowAddress?: string | null },
   ) => {
-    if (!profileWallet) {
-      toast.error('Please create a username first on the Dashboard.');
+    const profile = profileWallet || (address ? (await ensureProfile(address))?.wallet : null);
+    if (!profile) {
+      toast.error('Connect your wallet first, then register the agent wallet.');
       return;
     }
     setRegistering(true);
     try {
-      await registerAgentWallet(profileWallet, walletAddress, chain, label || undefined, {
+      await registerAgentWallet(profile, walletAddress, chain, label || undefined, {
         executorMode: opts?.executorMode ?? null,
         escrowAddress: opts?.escrowAddress ?? null,
       });
