@@ -42,6 +42,7 @@ const amountThenWalletPattern = new RegExp(
   `(\\d+(?:\\.\\d+)?)\\s*(?:MNT|USDC|USDT|ETH)?\\s+(?:to|for)\\s+(${walletPattern})`,
   'gi',
 );
+const agentExecutionPattern = /\b(agent|autonomous|automatically|autopilot)\b|\b(no approval|without approval|no human approval)\b|do(?:es)?\s+not\s+require\s+(?:my\s+)?approval|don'?t\s+require\s+(?:my\s+)?approval/;
 
 export function planPaymentIntentLocally(intent: string, context: PaymentIntentContext): PaymentIntentPlan {
   const normalized = intent.trim();
@@ -54,7 +55,7 @@ export function planPaymentIntentLocally(intent: string, context: PaymentIntentC
     : lower.includes('arc')
       ? 'arc-testnet'
       : context.currentChainKey;
-  const requestsAgent = /\b(agent|autonomous|automatically|autopilot)\b/.test(lower);
+  const requestsAgent = agentExecutionPattern.test(lower);
   const maxAmountMatch = lower.match(/(?:max(?:imum)?|limit(?:ed)? to)\s+(\d+(?:\.\d+)?)/);
   const warnings: string[] = [];
   const plannedRecipients = useContextRecipients ? contextRecipients : recipients;
@@ -63,7 +64,7 @@ export function planPaymentIntentLocally(intent: string, context: PaymentIntentC
     warnings.push('No recipients were found. Add recipients manually or import a CSV before applying the plan.');
   }
   if (requestsAgent) {
-    warnings.push('Agent execution was requested, but human approval remains required until an eligible agent policy is selected.');
+    warnings.push('Agent execution was requested. Qevor can queue it without a wallet signature only when an eligible agent wallet and policy are selected.');
   }
   if (plannedRecipients.some((recipient) => recipient.wallet.startsWith('@'))) {
     warnings.push('Qevor usernames are unverified in this draft and must resolve to a wallet before payment.');

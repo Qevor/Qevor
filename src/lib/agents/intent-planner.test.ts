@@ -43,6 +43,17 @@ describe('planPaymentIntentLocally', () => {
 
     expect(plan.executionMode).toBe('agent');
     expect(plan.constraints.requireHumanApproval).toBe(true);
-    expect(plan.warnings[0]).toContain('human approval');
+    expect(plan.warnings[0]).toContain('eligible agent wallet');
+  });
+
+  it('treats no-approval language as a policy-gated agent request', () => {
+    const wallet = '0x1111111111111111111111111111111111111111';
+    const plan = planPaymentIntentLocally(`Pay 0.01 MNT to ${wallet} without approval on Mantle`, {
+      currentChainKey: 'arc-testnet',
+    });
+
+    expect(plan.executionMode).toBe('agent');
+    expect(plan.constraints.requireHumanApproval).toBe(true);
+    expect(plan.warnings[0]).toContain('without a wallet signature');
   });
 });

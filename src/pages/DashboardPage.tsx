@@ -24,6 +24,17 @@ import { toast } from 'sonner';
 import { getAppUrl } from '@/lib/appUrl';
 import { DEFAULT_QEVOR_CHAIN_KEY, getExplorerTxUrl, getQevorChainById, getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains';
 
+function getCopilotSourceLabel(source: PaymentIntentPlan['source']) {
+    if (source === 'anthropic') return 'Claude plan';
+    if (source === 'openai') return 'AI plan';
+    return 'Local plan';
+}
+
+function getCopilotApprovalLabel(plan: PaymentIntentPlan | null, eligibleAgentCount: number) {
+    if (!plan || plan.executionMode === 'human') return 'Required';
+    return eligibleAgentCount > 0 ? 'Policy-gated' : 'Setup required';
+}
+
 export default function DashboardPage() {
     const { address, isConnected } = useAccount();
     const [searchParams, setSearchParams] = useSearchParams();
@@ -60,6 +71,10 @@ export default function DashboardPage() {
     const [agentWallets, setAgentWallets] = useState<AgentWallet[]>([]);
     const [executorAgentId, setExecutorAgentId] = useState<string | null>(null);
     const availableAgentWallets = agentWallets.filter((w) => w.chain === selectedBatchNetwork.agentChainCode);
+    const copilotEligibleAgentWallets = copilotPlan
+        ? agentWallets.filter((wallet) => wallet.chain === getQevorChainByKey(copilotPlan.chainKey).agentChainCode)
+        : agentWallets;
+    const copilotApprovalLabel = getCopilotApprovalLabel(copilotPlan, copilotEligibleAgentWallets.length);
     const batchSafetyReview = useMemo(() => reviewPaymentDraft(
         batchRecipients
             .filter((recipient) => recipient.wallet || recipient.amount > 0)
@@ -472,7 +487,7 @@ export default function DashboardPage() {
                         intent={copilotIntent}
                         plan={copilotPlan}
                         planning={copilotPlanning}
-                        agentWalletCount={agentWallets.length}
+                        agentWalletCount={copilotEligibleAgentWallets.length}
                         importedRecipientCount={batchRecipients.filter((recipient) => recipient.wallet && recipient.amount > 0).length}
                         onIntentChange={setCopilotIntent}
                         onCsvImport={handleCsvImport}
@@ -749,7 +764,9 @@ export default function DashboardPage() {
                                                         </div>
                                                         <p className="mt-1 text-xs text-muted-foreground">Describe a payout. Copilot prepares a draft; it cannot move funds or bypass safety policy.</p>
                                                     </div>
-                                                    <span className="rounded-md border border-border bg-background px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">Human approval</span>
+                                                    <span className="rounded-md border border-border bg-background px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">
+                                                        {copilotPlan ? copilotApprovalLabel : 'Human approval'}
+                                                    </span>
                                                 </div>
                                                 <textarea
                                                     value={copilotIntent}
@@ -770,7 +787,7 @@ export default function DashboardPage() {
                                                         <div className="flex flex-wrap items-center gap-2">
                                                             <span className="text-sm font-semibold">{copilotPlan.title}</span>
                                                             <span className="rounded-md bg-secondary px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">
-                                                                {copilotPlan.source === 'openai' ? 'AI plan' : 'Local plan'}
+                                                                {getCopilotSourceLabel(copilotPlan.source)}
                                                             </span>
                                                             <span className="rounded-md bg-secondary px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">
                                                                 {getQevorChainByKey(copilotPlan.chainKey).label}
@@ -780,7 +797,7 @@ export default function DashboardPage() {
                                                         <div className="grid grid-cols-3 gap-2 text-xs">
                                                             <div><span className="block text-muted-foreground">Recipients</span><strong>{copilotPlan.recipients.length}</strong></div>
                                                             <div><span className="block text-muted-foreground">Execution</span><strong>{copilotPlan.executionMode === 'agent' ? 'Agent requested' : 'Human'}</strong></div>
-                                                            <div><span className="block text-muted-foreground">Approval</span><strong>Required</strong></div>
+                                                            <div><span className="block text-muted-foreground">Approval</span><strong>{copilotApprovalLabel}</strong></div>
                                                         </div>
                                                         {copilotPlan.executionLayer && (
                                                             <div className={`rounded-lg border px-3 py-2 text-xs ${

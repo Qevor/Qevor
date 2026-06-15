@@ -7,6 +7,7 @@ import { MANTLE_SEPOLIA_AGENT_CHAIN } from '../../executor/chain-support.js';
 const router = Router();
 const byrealLog = createLogger('api').child({ route: 'copilot-byreal' });
 const byreal = new ByrealCliRunner(byrealLog);
+const agentExecutionPattern = /\b(agent|autonomous|automatically|autopilot)\b|\b(no approval|without approval|no human approval)\b|do(?:es)?\s+not\s+require\s+(?:my\s+)?approval|don'?t\s+require\s+(?:my\s+)?approval/;
 
 const recipientSchema = z.object({
   wallet: z.string().max(120),
@@ -72,10 +73,10 @@ function buildDeterministicPlan(input: z.infer<typeof requestSchema>) {
     : lower.includes('arc')
       ? 'arc-testnet'
       : input.current_chain;
-  const executionMode: 'human' | 'agent' = /\b(agent|autonomous|automatically|autopilot)\b/.test(lower) ? 'agent' : 'human';
+  const executionMode: 'human' | 'agent' = agentExecutionPattern.test(lower) ? 'agent' : 'human';
   const maxAmountMatch = lower.match(/(?:max(?:imum)?|limit(?:ed)? to)\s+(\d+(?:\.\d+)?)/);
   const warnings = recipients.length === 0 ? ['No recipients were found. Add recipients or import a CSV.'] : [];
-  if (executionMode === 'agent') warnings.push('Human approval remains required until an eligible agent policy is selected.');
+  if (executionMode === 'agent') warnings.push('Agent execution was requested. Qevor can queue it without a wallet signature only when an eligible agent wallet and policy are selected.');
   if (recipients.some((recipient) => recipient.wallet.startsWith('@'))) {
     warnings.push('Qevor usernames are unverified in this draft and must resolve to a wallet before payment.');
   }
@@ -156,7 +157,7 @@ async function buildOpenAiPlan(input: z.infer<typeof requestSchema>) {
       input: [
         {
           role: 'system',
-          content: 'Convert payment intent into a Qevor draft. Never remove human approval, never execute funds, and preserve supplied recipients when the instruction refers to them.',
+          content: 'Convert payment intent into a Qevor draft. Human approval is the default. If the user asks for autonomous/no-approval execution, set executionMode to agent, but keep constraints.requireHumanApproval true until policy gates approve it. Never execute funds, and preserve supplied recipients when the instruction refers to them.',
         },
         {
           role: 'user',
@@ -240,7 +241,8 @@ async function buildAnthropicPlan(input: z.infer<typeof requestSchema>) {
       temperature: 0,
       system: [
         'Convert payment intent into a Qevor payment draft.',
-        'Never remove human approval, never execute funds, preserve supplied recipients when the instruction refers to them, and return only JSON.',
+        'Human approval is the default. If the user asks for autonomous/no-approval execution, set executionMode to agent, but keep constraints.requireHumanApproval true until policy gates approve it.',
+        'Never execute funds, preserve supplied recipients when the instruction refers to them, and return only JSON.',
         'The JSON must include explanation, title, description, chainKey, executionMode, recipients, constraints, and warnings.',
         'chainKey must be arc-testnet or mantle-sepolia. executionMode must be human or agent.',
         'constraints.requireHumanApproval and constraints.duplicateCheck must both be true.',

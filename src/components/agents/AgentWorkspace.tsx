@@ -32,10 +32,16 @@ interface Props {
 }
 
 const suggestions = [
-  'Pay these CSV recipients on Mantle, block duplicates, and require my approval.',
-  'Prepare a contributor payout with a maximum total of 20 MNT.',
-  'Create a payment plan and recommend whether an agent should execute it.',
+  'Pay these CSV recipients on Mantle. Let the agent execute only if policy, duplicates, and Byreal checks pass.',
+  'Prepare a contributor payout with a maximum total of 20 MNT and require approval above the policy limit.',
+  'Create a payment plan and recommend whether an agent should execute it without my manual approval.',
 ];
+
+function getPlanSourceLabel(source: PaymentIntentPlan['source']) {
+  if (source === 'anthropic') return 'Claude planned';
+  if (source === 'openai') return 'AI planned';
+  return 'Locally planned';
+}
 
 export function AgentWorkspace({
   intent,
@@ -48,6 +54,13 @@ export function AgentWorkspace({
   onPlan,
   onOpenPlan,
 }: Props) {
+  const wantsAgentExecution = plan?.executionMode === 'agent';
+  const hasEligibleAgentWallet = agentWalletCount > 0;
+  const agentCanAutonomouslyQueue = wantsAgentExecution && hasEligibleAgentWallet;
+  const approvalLabel = wantsAgentExecution
+    ? hasEligibleAgentWallet ? 'Policy-gated' : 'Setup required'
+    : 'Required';
+
   return (
     <div className="space-y-6">
       <section className="border-b border-border pb-6">
@@ -59,7 +72,7 @@ export function AgentWorkspace({
             </div>
             <h1 className="text-3xl font-semibold sm:text-4xl">What should Qevor accomplish?</h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Give Qevor an outcome. The agent prepares the payment operation, selects a rail, applies policy, and waits for the required approval.
+              Give Qevor an outcome. The agent prepares the payment operation, selects a rail, applies policy, and only queues autonomous execution when an eligible policy allows it.
             </p>
           </div>
           <Button variant="outline" asChild>
@@ -132,7 +145,7 @@ export function AgentWorkspace({
             {[
               [Sparkles, 'Intent planner', 'Ready'],
               [ShieldCheck, 'Safety and policy', 'Always enforced'],
-              [KeyRound, 'Human approval', 'Required by default'],
+              [KeyRound, 'Human approval', 'Required unless delegated'],
               [WalletCards, 'Autonomous wallets', agentWalletCount > 0 ? `${agentWalletCount} configured` : 'Setup required'],
             ].map(([Icon, label, value]) => {
               const StatusIcon = Icon as typeof Bot;
@@ -156,7 +169,7 @@ export function AgentWorkspace({
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="font-semibold">{plan.title}</h2>
                 <span className="rounded-md border border-primary/30 bg-background px-2 py-1 text-[10px] font-semibold uppercase text-primary">
-                  {plan.source === 'openai' ? 'AI planned' : 'Locally planned'}
+                  {getPlanSourceLabel(plan.source)}
                 </span>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">{plan.explanation}</p>
@@ -182,7 +195,7 @@ export function AgentWorkspace({
               )}
             </div>
             <Button onClick={onOpenPlan}>
-              Review and approve
+              {agentCanAutonomouslyQueue ? 'Review or queue agent' : 'Review and approve'}
               <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
@@ -191,7 +204,7 @@ export function AgentWorkspace({
               ['Rail', getQevorChainByKey(plan.chainKey).label],
               ['Recipients', String(plan.recipients.length)],
               ['Execution', plan.executionMode === 'agent' ? 'Agent requested' : 'Human wallet'],
-              ['Approval', 'Required'],
+              ['Approval', approvalLabel],
             ].map(([label, value]) => (
               <div key={label} className="bg-card p-4">
                 <p className="text-xs text-muted-foreground">{label}</p>
@@ -235,7 +248,9 @@ export function AgentWorkspace({
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-        Agent plans remain drafts until policy checks and the required approval succeed.
+        {agentCanAutonomouslyQueue
+          ? 'Agent plans can queue without a wallet signature only inside the selected policy limits.'
+          : 'Agent plans remain drafts until policy checks and the required approval succeed.'}
       </div>
     </div>
   );
