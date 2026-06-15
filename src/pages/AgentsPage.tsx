@@ -12,6 +12,7 @@ import { CosignQueue } from '@/components/agents/CosignQueue';
 import { AgentControlCenter } from '@/components/agents/AgentControlCenter';
 import { AgentEmptyControlCenter } from '@/components/agents/AgentEmptyControlCenter';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { getQevorChainByAgentChain } from '@/lib/chains';
 
 export default function AgentsPage() {
   const { address, isConnected } = useAccount();
@@ -46,15 +47,23 @@ export default function AgentsPage() {
     }
   }, [isConnected, address, loadWallets]);
 
-  const handleRegister = async (walletAddress: string, label: string, chain: string) => {
+  const handleRegister = async (
+    walletAddress: string,
+    label: string,
+    chain: string,
+    opts?: { executorMode?: 'escrow'; escrowAddress?: string | null },
+  ) => {
     if (!profileWallet) {
       toast.error('Please create a username first on the Dashboard.');
       return;
     }
     setRegistering(true);
     try {
-      await registerAgentWallet(profileWallet, walletAddress, chain, label || undefined);
-      toast.success('Agent wallet registered!');
+      await registerAgentWallet(profileWallet, walletAddress, chain, label || undefined, {
+        executorMode: opts?.executorMode ?? null,
+        escrowAddress: opts?.escrowAddress ?? null,
+      });
+      toast.success(opts?.executorMode === 'escrow' ? 'Mantle agent escrow registered!' : 'Agent wallet registered!');
       setShowOnboarding(false);
       await loadWallets();
     } catch (err: any) {
@@ -70,13 +79,19 @@ export default function AgentsPage() {
 
   const handleEnableExecutor = async (wallet: AgentWallet) => {
     try {
+      const network = getQevorChainByAgentChain(wallet.chain);
+      const escrowAddress = network.agentEscrowAddress ?? null;
       const { error } = await (await import('@/integrations/supabase/client')).supabase
         .from('agent_wallets')
-        .update({ executor_mode: 'escrow' })
+        .update({ executor_mode: 'escrow', escrow_address: escrowAddress })
         .eq('id', wallet.id);
 
       if (error) throw error;
-      toast.success('Autonomous execution enabled. The executor will provision an escrow wallet shortly.');
+      toast.success(
+        escrowAddress
+          ? 'Autonomous execution enabled with the Mantle escrow.'
+          : 'Autonomous execution enabled. The executor will provision an escrow wallet shortly.',
+      );
       await loadWallets();
     } catch (err: any) {
       toast.error(err.message ?? 'Failed to enable executor');

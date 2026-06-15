@@ -63,6 +63,7 @@ export interface QevorChainConfig {
   agentChainCode: 'ARC-TESTNET' | 'MANTLE-SEPOLIA'
   explorerUrl: string
   rpcUrls: readonly string[]
+  agentEscrowAddress?: `0x${string}`
 }
 
 export const qevorChains = [
@@ -83,6 +84,7 @@ export const qevorChains = [
     agentChainCode: 'MANTLE-SEPOLIA',
     explorerUrl: 'https://explorer.sepolia.mantle.xyz',
     rpcUrls: mantleSepolia.rpcUrls.default.http,
+    agentEscrowAddress: '0xb99bc321ab360abd0a87e0b2e1eb8df364851d60',
   },
 ] as const satisfies readonly QevorChainConfig[]
 

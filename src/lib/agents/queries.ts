@@ -17,6 +17,10 @@ export async function registerAgentWallet(
   walletAddress: string,
   chain: string,
   label?: string,
+  opts?: {
+    executorMode?: AgentWallet['executor_mode'];
+    escrowAddress?: string | null;
+  },
 ): Promise<AgentWallet> {
   const { data, error } = await supabase
     .from('agent_wallets')
@@ -25,6 +29,8 @@ export async function registerAgentWallet(
       wallet_address: walletAddress,
       chain,
       label: label ?? null,
+      executor_mode: opts?.executorMode ?? null,
+      escrow_address: opts?.escrowAddress ?? null,
     })
     .select()
     .single();

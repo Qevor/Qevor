@@ -2,13 +2,18 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Copy, Check, Loader2 } from 'lucide-react';
+import { Copy, Check, Loader2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { isAddress } from 'viem';
 import { qevorChains } from '@/lib/chains';
 
 interface Props {
-  onRegister: (address: string, label: string, chain: string) => Promise<void>;
+  onRegister: (
+    address: string,
+    label: string,
+    chain: string,
+    opts?: { executorMode?: 'escrow'; escrowAddress?: string | null },
+  ) => Promise<void>;
   registering: boolean;
 }
 
@@ -38,8 +43,12 @@ const STEPS = [
 export function AgentWalletOnboarding({ onRegister, registering }: Props) {
   const [address, setAddress] = useState('');
   const [label, setLabel] = useState('');
-  const [chain, setChain] = useState(qevorChains[0].agentChainCode);
+  const mantleNetwork = qevorChains.find((network) => network.agentChainCode === 'MANTLE-SEPOLIA');
+  const [chain, setChain] = useState(mantleNetwork?.agentChainCode ?? qevorChains[0].agentChainCode);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const selectedNetwork = qevorChains.find((network) => network.agentChainCode === chain) ?? qevorChains[0];
+  const selectedEscrow = selectedNetwork.agentEscrowAddress;
+  const isMantleEscrow = !!selectedEscrow && address.trim().toLowerCase() === selectedEscrow.toLowerCase();
 
   const copyCommand = (cmd: string, idx: number) => {
     navigator.clipboard.writeText(cmd);
@@ -54,7 +63,19 @@ export function AgentWalletOnboarding({ onRegister, registering }: Props) {
       toast.error('Invalid Ethereum address');
       return;
     }
-    await onRegister(trimmed, label.trim(), chain);
+    await onRegister(
+      trimmed,
+      label.trim(),
+      chain,
+      isMantleEscrow ? { executorMode: 'escrow', escrowAddress: selectedEscrow } : undefined,
+    );
+  };
+
+  const useMantleEscrow = () => {
+    if (!selectedEscrow) return;
+    setAddress(selectedEscrow);
+    setLabel((current) => current || 'Qevor Mantle Agent Escrow');
+    toast.success('Mantle escrow selected');
   };
 
   return (
@@ -108,6 +129,27 @@ export function AgentWalletOnboarding({ onRegister, registering }: Props) {
               </option>
             ))}
           </select>
+          {selectedEscrow && (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2 font-medium">
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    Deployed Mantle escrow
+                  </div>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">{selectedEscrow}</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={useMantleEscrow}>
+                  Use this escrow
+                </Button>
+              </div>
+              {isMantleEscrow && (
+                <p className="mt-2 text-xs text-emerald-500">
+                  This will register the wallet as an enabled policy-gated agent executor.
+                </p>
+              )}
+            </div>
+          )}
           <Input
             placeholder="0x... wallet address"
             value={address}
