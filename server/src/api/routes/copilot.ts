@@ -124,20 +124,35 @@ function normalizePlanCandidate(candidate: unknown, input: z.infer<typeof reques
     };
   }).filter((recipient) => recipient.wallet && Number.isFinite(recipient.amount) && recipient.amount >= 0));
   const maxAmount = typeof constraints.maxAmount === 'number' ? constraints.maxAmount : Number(constraints.maxAmount);
+  const chainKey = value.chainKey === 'arc-testnet' || value.chainKey === 'mantle-sepolia' ? value.chainKey : fallback.chainKey;
+  const executionMode = value.executionMode === 'agent' || value.executionMode === 'human' ? value.executionMode : fallback.executionMode;
+  const planRecipients = recipients.length > 0 ? recipients : fallback.recipients;
+  const chainLabel = chainKey === 'mantle-sepolia' ? 'Mantle Sepolia' : 'Arc Testnet';
+  const rawWarnings = Array.isArray(value.warnings) ? value.warnings.filter((warning): warning is string => typeof warning === 'string') : fallback.warnings;
+  const warnings = executionMode === 'agent'
+    ? [
+      'Agent execution requested. Qevor can queue this without a wallet signature only if the selected agent wallet and policy allow it.',
+      ...rawWarnings.filter((warning) => !/approval|human review|human approval|not permitted|no funds will move/i.test(warning)),
+    ]
+    : rawWarnings;
 
   return {
-    explanation: typeof value.explanation === 'string' && value.explanation.trim() ? value.explanation : fallback.explanation,
+    explanation: executionMode === 'agent'
+      ? `Prepared a policy-gated ${chainLabel} agent draft for ${planRecipients.length} recipient${planRecipients.length === 1 ? '' : 's'}.`
+      : typeof value.explanation === 'string' && value.explanation.trim() ? value.explanation : fallback.explanation,
     title: typeof value.title === 'string' && value.title.trim() ? value.title : fallback.title,
-    description: typeof value.description === 'string' && value.description.trim() ? value.description : fallback.description,
-    chainKey: value.chainKey === 'arc-testnet' || value.chainKey === 'mantle-sepolia' ? value.chainKey : fallback.chainKey,
-    executionMode: value.executionMode === 'agent' || value.executionMode === 'human' ? value.executionMode : fallback.executionMode,
-    recipients: recipients.length > 0 ? recipients : fallback.recipients,
+    description: executionMode === 'agent'
+      ? `Policy-gated agent payment draft on ${chainLabel}. Autonomous execution is allowed only inside the selected agent policy.`
+      : typeof value.description === 'string' && value.description.trim() ? value.description : fallback.description,
+    chainKey,
+    executionMode,
+    recipients: planRecipients,
     constraints: {
       requireHumanApproval: true as const,
       duplicateCheck: true as const,
       maxAmount: Number.isFinite(maxAmount) && maxAmount > 0 ? maxAmount : fallback.constraints.maxAmount,
     },
-    warnings: Array.isArray(value.warnings) ? value.warnings.filter((warning): warning is string => typeof warning === 'string') : fallback.warnings,
+    warnings,
   };
 }
 
@@ -157,7 +172,7 @@ async function buildOpenAiPlan(input: z.infer<typeof requestSchema>) {
       input: [
         {
           role: 'system',
-          content: 'Convert payment intent into a Qevor draft. Human approval is the default. If the user asks for autonomous/no-approval execution, set executionMode to agent, but keep constraints.requireHumanApproval true until policy gates approve it. Never execute funds, and preserve supplied recipients when the instruction refers to them.',
+          content: 'Convert payment intent into a Qevor draft. Human approval is the default. If the user asks for autonomous/no-approval execution, set executionMode to agent; this means policy-gated agent execution, not unsafe bypass. Keep constraints.requireHumanApproval true as the draft-level safety marker. Never execute funds, and preserve supplied recipients when the instruction refers to them.',
         },
         {
           role: 'user',
@@ -241,7 +256,8 @@ async function buildAnthropicPlan(input: z.infer<typeof requestSchema>) {
       temperature: 0,
       system: [
         'Convert payment intent into a Qevor payment draft.',
-        'Human approval is the default. If the user asks for autonomous/no-approval execution, set executionMode to agent, but keep constraints.requireHumanApproval true until policy gates approve it.',
+        'Human approval is the default. If the user asks for autonomous/no-approval execution, set executionMode to agent; this means policy-gated agent execution, not unsafe bypass.',
+        'Keep constraints.requireHumanApproval true as the draft-level safety marker even for agent mode.',
         'Never execute funds, preserve supplied recipients when the instruction refers to them, and return only JSON.',
         'The JSON must include explanation, title, description, chainKey, executionMode, recipients, constraints, and warnings.',
         'chainKey must be arc-testnet or mantle-sepolia. executionMode must be human or agent.',
