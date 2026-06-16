@@ -85,7 +85,10 @@ export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnabl
 
   if (!selected) return null;
 
-  const operational = selected.status === 'active' && selected.executor_mode === 'escrow' && !!selected.escrow_address;
+  const activeEscrowAddress = network.agentEscrowAddress ?? selected.escrow_address;
+  const executionAddress = activeEscrowAddress ?? selected.wallet_address;
+  const isEscrowMode = !!activeEscrowAddress;
+  const operational = selected.status === 'active' && selected.executor_mode === 'escrow' && isEscrowMode;
 
   return (
     <div className="space-y-6">
@@ -109,7 +112,7 @@ export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnabl
               <SelectContent>
                 {wallets.map((wallet) => (
                   <SelectItem key={wallet.id} value={wallet.id}>
-                    {wallet.label || 'Agent wallet'} · {truncate(wallet.wallet_address)}
+                    {wallet.label || 'Agent wallet'} - {truncate(wallet.wallet_address)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -204,10 +207,20 @@ export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnabl
           <div className="rounded-lg border border-border bg-card">
             <div className="border-b border-border p-5">
               <h2 className="font-semibold">{selected.label || 'Agent wallet'}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">{network.label} execution account</p>
+              <p className="mt-1 text-sm text-muted-foreground">{network.label} user-scoped execution account</p>
             </div>
             <div className="space-y-4 p-5">
-              <AgentWalletBalance address={selected.escrow_address || selected.wallet_address} chain={selected.chain} />
+              <AgentWalletBalance
+                address={executionAddress}
+                chain={selected.chain}
+                ownerAddress={selected.profile_wallet}
+                escrowMode={isEscrowMode}
+              />
+              {activeEscrowAddress && (
+                <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  Deposits to this escrow are credited to your connected wallet. Other users cannot see or spend your scoped balance.
+                </p>
+              )}
               <div className="space-y-2 text-sm">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">Wallet</span>
@@ -217,15 +230,15 @@ export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnabl
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">Escrow</span>
-                  {selected.escrow_address ? (
-                    <button className="flex items-center gap-1 font-mono text-xs hover:text-primary" onClick={() => copy(selected.escrow_address!)}>
-                      {truncate(selected.escrow_address)} <Copy className="h-3 w-3" />
+                  {activeEscrowAddress ? (
+                    <button className="flex items-center gap-1 font-mono text-xs hover:text-primary" onClick={() => copy(activeEscrowAddress)}>
+                      {truncate(activeEscrowAddress)} <Copy className="h-3 w-3" />
                     </button>
                   ) : <span className="text-xs text-amber-600">Not provisioned</span>}
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">ERC-8004 identity</span>
-                  <span className="text-xs">{selected.escrow_address ? 'Ready to link' : 'Requires escrow'}</span>
+                  <span className="text-xs">{activeEscrowAddress ? 'Ready to link' : 'Requires escrow'}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">Byreal preflight</span>
@@ -244,7 +257,7 @@ export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnabl
                   </Button>
                 )}
                 <Button variant="ghost" asChild>
-                  <a href={`${network.explorerUrl}/address/${selected.escrow_address || selected.wallet_address}`} target="_blank" rel="noreferrer">
+                  <a href={`${network.explorerUrl}/address/${executionAddress}`} target="_blank" rel="noreferrer">
                     <ExternalLink className="mr-2 h-4 w-4" />
                     View on explorer
                   </a>

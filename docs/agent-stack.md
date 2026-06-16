@@ -20,7 +20,7 @@ Qevor calls Byreal in two places:
 
 This makes Byreal visible in the product without letting it bypass Qevor policy or human approval.
 
-The Mantle contract address requirement is satisfied by deploying `contracts/QevorAgentEscrow.sol` on Mantle Sepolia or Mantle mainnet. The executor calls `executePayment(...)` on that contract, so the contract underpins the agentic payment logic instead of only existing for show.
+The Mantle contract address requirement is satisfied by deploying `contracts/QevorAgentEscrow.sol` on Mantle Sepolia or Mantle mainnet. The executor calls `executePayment(paymentId, userWallet, recipient, amount)` on that contract, so the contract underpins the agentic payment logic instead of only existing for show. The escrow is shared infrastructure, but MNT is tracked per connected wallet through `balanceOf(userWallet)`.
 
 Qevor does not deploy a substitute ERC-8004 registry. After registering the Qevor agent in the official ERC-8004 Identity Registry, the escrow owner calls `setAgentIdentity(identityRegistry, agentId)`. Every `DecisionRecorded` event then includes the ERC-8004 agent ID, linking identity to economic activity.
 
@@ -61,7 +61,7 @@ sequenceDiagram
         else execute on Mantle
             Executor->>Byreal: Optional preflight JSON
             Byreal-->>Executor: allowed / blocked
-            Executor->>Rail: Call QevorAgentEscrow.executePayment
+            Executor->>Rail: Call QevorAgentEscrow.executePayment with user wallet
             Rail-->>Executor: tx_hash
         else cosign_required
             Executor->>Supabase: Insert cosign queue entry
@@ -156,7 +156,7 @@ forge create contracts/QevorAgentEscrow.sol:QevorAgentEscrow \
 
 After deployment:
 
-1. Fund the contract with test MNT.
+1. Fund the contract with test MNT through `depositFor(userWallet)` or from the connected wallet.
 2. Register the Qevor agent using `docs/erc8004-agent-registration.example.json`.
 3. Call `setAgentIdentity(identityRegistry, agentId)` on the escrow.
 4. Set `MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS` on the executor VPS.

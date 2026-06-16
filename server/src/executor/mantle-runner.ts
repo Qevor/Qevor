@@ -2,7 +2,6 @@ import {
   createPublicClient,
   createWalletClient,
   defineChain,
-  formatEther,
   http,
   isAddress,
   keccak256,
@@ -42,10 +41,18 @@ const qevorAgentEscrowAbi = [
     stateMutability: 'nonpayable',
     inputs: [
       { name: 'paymentId', type: 'bytes32' },
+      { name: 'account', type: 'address' },
       { name: 'recipient', type: 'address' },
       { name: 'amount', type: 'uint256' },
     ],
     outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'balanceOf',
+    stateMutability: 'view',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
   },
   {
     type: 'function',
@@ -87,11 +94,24 @@ export class MantleNativeRunner implements RailRunner {
     return { address: this.escrowContractAddress() ?? this.getAccount().address };
   }
 
-  async walletBalance(args: { address: string }): Promise<{ usdc: bigint }> {
+  async walletBalance(args: { address: string; ownerAddress?: string }): Promise<{ usdc: bigint }> {
     if (!isAddress(args.address)) throw new Error('Invalid Mantle address');
-    const balance = await this.publicClient().getBalance({ address: args.address });
-    const asMnt = Number(formatEther(balance));
-    return { usdc: BigInt(Math.round(asMnt * Number(MICRO))) };
+    const escrowContract = this.escrowContractAddress();
+    const useScopedBalance =
+      escrowContract &&
+      args.address.toLowerCase() === escrowContract.toLowerCase() &&
+      args.ownerAddress &&
+      isAddress(args.ownerAddress);
+    const balance = useScopedBalance
+      ? await this.publicClient().readContract({
+          address: escrowContract,
+          abi: qevorAgentEscrowAbi,
+          functionName: 'balanceOf',
+          args: [args.ownerAddress as `0x${string}`],
+        })
+      : await this.publicClient().getBalance({ address: args.address });
+
+    return { usdc: (balance * MICRO) / 10n ** 18n };
   }
 
   async walletTransfer(args: {
@@ -113,6 +133,7 @@ export class MantleNativeRunner implements RailRunner {
     if (args.fromAddress.toLowerCase() !== expectedFromAddress.toLowerCase()) {
       throw new Error('Mantle executor escrow address is not configured for this agent wallet');
     }
+    const ownerAddress = escrowContract ? this.ownerAddressFor(args) : null;
 
     const preflight = await this.byreal.preflight({
       chain: args.chain,
@@ -141,7 +162,7 @@ export class MantleNativeRunner implements RailRunner {
           address: escrowContract as `0x${string}`,
           abi: qevorAgentEscrowAbi,
           functionName: 'executePayment',
-          args: [paymentId, args.toAddress as `0x${string}`, amountWei],
+          args: [paymentId, ownerAddress!, args.toAddress as `0x${string}`, amountWei],
         })
       : await walletClient.sendTransaction({
           to: args.toAddress,
@@ -155,6 +176,7 @@ export class MantleNativeRunner implements RailRunner {
       metadata: {
         rail: escrowContract ? 'mantle-contract-escrow' : 'mantle-native',
         escrow_contract: escrowContract ?? null,
+        escrow_owner: ownerAddress,
         payment_id: paymentId,
         byreal: {
           skipped: preflight.skipped === true,
@@ -252,6 +274,20 @@ export class MantleNativeRunner implements RailRunner {
         ? args.metadata.paymentId
         : args.idempotencyKey ?? `${args.fromAddress}:${args.toAddress}:${args.amount}`;
     return keccak256(stringToHex(id));
+  }
+
+  private ownerAddressFor(args: { metadata?: Record<string, unknown> }): `0x${string}` {
+    const ownerAddress =
+      typeof args.metadata?.profileWallet === 'string'
+        ? args.metadata.profileWallet
+        : typeof args.metadata?.ownerAddress === 'string'
+          ? args.metadata.ownerAddress
+          : null;
+
+    if (!ownerAddress || !isAddress(ownerAddress)) {
+      throw new Error('Mantle escrow execution requires a valid owner wallet in metadata.profileWallet');
+    }
+    return ownerAddress as `0x${string}`;
   }
 
   private getAccount() {

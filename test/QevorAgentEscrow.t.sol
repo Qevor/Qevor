@@ -9,20 +9,25 @@ interface Vm {
 
 contract ReentrantExecutor {
     QevorAgentEscrow private immutable escrow;
+    address private immutable account;
     bool public reentrySucceeded;
 
-    constructor(QevorAgentEscrow target) {
+    constructor(QevorAgentEscrow target, address ownerAccount) {
         escrow = target;
+        account = ownerAccount;
     }
 
     function attack() external {
-        escrow.executePayment(keccak256("outer-payment"), payable(address(this)), 1 ether);
+        escrow.executePayment(keccak256("outer-payment"), account, payable(address(this)), 1 ether);
     }
 
     receive() external payable {
         (reentrySucceeded,) = address(escrow)
             .call(
-                abi.encodeCall(escrow.executePayment, (keccak256("reentrant-payment"), payable(address(this)), 1 ether))
+                abi.encodeCall(
+                    escrow.executePayment,
+                    (keccak256("reentrant-payment"), account, payable(address(this)), 1 ether)
+                )
             );
     }
 }
@@ -31,25 +36,56 @@ contract QevorAgentEscrowTest {
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     QevorAgentEscrow private escrow;
+    address private alice = address(0xA11CE);
+    address private bob = address(0xB0B);
     address payable private recipient = payable(address(0xBEEF));
 
     function setUp() public {
         escrow = new QevorAgentEscrow(address(this), 2 ether, 5 ether);
-        vm.deal(address(escrow), 10 ether);
+        vm.deal(address(this), 10 ether);
+        escrow.depositFor{value: 10 ether}(address(this));
     }
 
     function testExecutePaymentRecordsReplayProtection() public {
         bytes32 paymentId = keccak256("payment-1");
         uint256 beforeBalance = recipient.balance;
 
-        escrow.executePayment(paymentId, recipient, 1 ether);
+        escrow.executePayment(paymentId, address(this), recipient, 1 ether);
 
         require(recipient.balance == beforeBalance + 1 ether, "recipient not paid");
+        require(escrow.balances(address(this)) == 9 ether, "account balance not debited");
         require(escrow.executedPayments(paymentId), "payment not recorded");
 
         (bool replaySucceeded,) =
-            address(escrow).call(abi.encodeCall(escrow.executePayment, (paymentId, recipient, 1 ether)));
+            address(escrow).call(abi.encodeCall(escrow.executePayment, (paymentId, address(this), recipient, 1 ether)));
         require(!replaySucceeded, "replayed payment succeeded");
+    }
+
+    function testDepositsAreScopedToEachAccount() public {
+        QevorAgentEscrow scopedEscrow = new QevorAgentEscrow(address(this), 2 ether, 5 ether);
+        vm.deal(address(this), 3 ether);
+
+        scopedEscrow.depositFor{value: 1 ether}(alice);
+        scopedEscrow.depositFor{value: 2 ether}(bob);
+
+        require(scopedEscrow.balances(alice) == 1 ether, "alice balance wrong");
+        require(scopedEscrow.balances(bob) == 2 ether, "bob balance wrong");
+
+        scopedEscrow.executePayment(keccak256("alice-payment"), alice, recipient, 0.5 ether);
+
+        require(scopedEscrow.balances(alice) == 0.5 ether, "alice balance not debited");
+        require(scopedEscrow.balances(bob) == 2 ether, "bob balance changed");
+    }
+
+    function testCannotSpendAnotherAccountBalance() public {
+        QevorAgentEscrow scopedEscrow = new QevorAgentEscrow(address(this), 2 ether, 5 ether);
+        vm.deal(address(this), 1 ether);
+        scopedEscrow.depositFor{value: 1 ether}(alice);
+
+        (bool succeeded,) =
+            address(scopedEscrow).call(abi.encodeCall(scopedEscrow.executePayment, (keccak256("bob-payment"), bob, recipient, 1 ether)));
+        require(!succeeded, "bob spent alice balance");
+        require(scopedEscrow.balances(alice) == 1 ether, "alice balance changed");
     }
 
     function testDuplicateBatchRecipientIsBlocked() public {
@@ -62,7 +98,7 @@ contract QevorAgentEscrowTest {
         amounts[1] = 0.5 ether;
 
         (bool succeeded,) =
-            address(escrow).call(abi.encodeCall(escrow.executeBatch, (keccak256("batch-1"), recipients, amounts)));
+            address(escrow).call(abi.encodeCall(escrow.executeBatch, (keccak256("batch-1"), address(this), recipients, amounts)));
         require(!succeeded, "duplicate batch recipient succeeded");
     }
 
@@ -80,7 +116,7 @@ contract QevorAgentEscrowTest {
     }
 
     function testBlocksReentrantExecution() public {
-        ReentrantExecutor attacker = new ReentrantExecutor(escrow);
+        ReentrantExecutor attacker = new ReentrantExecutor(escrow, address(this));
         escrow.setExecutor(address(attacker));
 
         attacker.attack();

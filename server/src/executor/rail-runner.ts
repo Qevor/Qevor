@@ -17,6 +17,7 @@ export interface RailRunner {
   walletBalance(args: {
     address: string;
     chain: string;
+    ownerAddress?: string;
   }): Promise<{ usdc: bigint }>;
   walletCreate(args: {
     testnet: boolean;

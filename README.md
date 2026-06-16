@@ -14,7 +14,7 @@ Qevor currently supports Mantle Sepolia and Arc Testnet, with mainnet deployment
 - **AI safety copilot:** scans payment drafts for duplicate recipients, invalid addresses, risky amounts, wrong-chain intent, and suspicious CSV rows.
 - **Agent operation history:** agent-assisted batches are recorded with status, recipients, amounts, and receipt access.
 - **Byreal-compatible execution preflight:** Qevor calls a Mantle adapter before agent execution so external agent tooling can approve or block risky operations.
-- **Escrow-backed agent execution:** `QevorAgentEscrow` provides the Mantle contract surface for policy-controlled agentic payment execution.
+- **Escrow-backed agent execution:** `QevorAgentEscrow` provides the Mantle contract surface for policy-controlled agentic payment execution, with balances scoped per user wallet.
 - **ERC-8004 identity path:** agent activity can be linked to an ERC-8004 identity by registering the agent and setting the identity on the escrow contract.
 
 ## Architecture
@@ -35,12 +35,12 @@ Key docs:
 
 - **App:** [https://qevor.xyz](https://qevor.xyz)
 - **API:** [https://api.qevor.xyz](https://api.qevor.xyz)
-- **Mantle Sepolia escrow:** [`0xb99bc321ab360abd0a87e0b2e1eb8df364851d60`](https://explorer.sepolia.mantle.xyz/address/0xb99bc321ab360abd0a87e0b2e1eb8df364851d60)
+- **Mantle Sepolia escrow:** [`0xf0e6f301D2036b0A0c94808dc945ed764e5a35c4`](https://explorer.sepolia.mantle.xyz/address/0xf0e6f301D2036b0A0c94808dc945ed764e5a35c4)
 - **Contract:** `contracts/QevorAgentEscrow.sol`
 - **Network:** Mantle Sepolia
 - **Mainnet:** not deployed yet; mainnet is intended to remain guarded behind stricter approval, policy, and treasury limits.
 
-The deployed escrow contract is the Mantle contract that underpins Qevor's agentic payment rail. It can execute approved payments, record blocked/cosign/failed decisions, enforce replay protection, enforce payment limits, and link decisions to an ERC-8004 agent identity after `setAgentIdentity(identityRegistry, agentId)` is configured.
+The deployed escrow contract is the Mantle contract that underpins Qevor's agentic payment rail. It can execute approved payments, record blocked/cosign/failed decisions, enforce replay protection, enforce per-user payment limits, and link decisions to an ERC-8004 agent identity after `setAgentIdentity(identityRegistry, agentId)` is configured. MNT sent through the escrow is accounted with `balanceOf(userWallet)`, so one user's deposit does not appear in another user's dashboard.
 
 ## Tech Stack
 
@@ -161,16 +161,23 @@ Core tables include:
 
 The Mantle agent rail is backed by `contracts/QevorAgentEscrow.sol`.
 
+The escrow can be shared across users safely because deposits and spends are keyed by the connected wallet:
+
+- `depositFor(userWallet)` credits only that user's agent balance.
+- `balanceOf(userWallet)` is what the dashboard displays.
+- `executePayment(paymentId, userWallet, recipient, amount)` can only debit that user's scoped balance.
+- Daily spend tracking is also per user wallet.
+
 Deployed Mantle Sepolia contract:
 
 ```txt
-0xb99bc321ab360abd0a87e0b2e1eb8df364851d60
+0xf0e6f301D2036b0A0c94808dc945ed764e5a35c4
 ```
 
 Explorer:
 
 ```txt
-https://explorer.sepolia.mantle.xyz/address/0xb99bc321ab360abd0a87e0b2e1eb8df364851d60
+https://explorer.sepolia.mantle.xyz/address/0xf0e6f301D2036b0A0c94808dc945ed764e5a35c4
 ```
 
 Compile:
@@ -190,7 +197,7 @@ forge create contracts/QevorAgentEscrow.sol:QevorAgentEscrow \
 
 After deployment:
 
-1. Fund the escrow with test MNT.
+1. Fund the escrow with test MNT through `depositFor(userWallet)` or from the connected wallet.
 2. Configure `MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS`.
 3. Register the escrow address as the Mantle agent wallet in Qevor.
 4. Optionally connect the deployed agent to an ERC-8004 identity.

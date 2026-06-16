@@ -68,8 +68,8 @@ async function processBatch(
     .eq('id', batch.executor_agent_wallet_id)
     .single();
 
-  if (!wallet || !wallet.escrow_address) {
-    batchLog.error('No escrow address for agent wallet');
+  if (!wallet) {
+    batchLog.error('No agent wallet found for batch');
     await supabase
       .from('batch_requests')
       .update({ executor_state: 'failed' })
@@ -78,6 +78,20 @@ async function processBatch(
   }
 
   const chain = normalizeAgentChain(wallet.chain);
+  const configuredMantleEscrow = isMantleAgentChain(chain)
+    ? process.env.MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS?.trim()
+    : undefined;
+  const executionFromAddress = configuredMantleEscrow || wallet.escrow_address;
+
+  if (!executionFromAddress) {
+    batchLog.error('No escrow address for agent wallet');
+    await supabase
+      .from('batch_requests')
+      .update({ executor_state: 'failed' })
+      .eq('id', batch.id);
+    return;
+  }
+
   const expectedChainId = isMantleAgentChain(chain) ? MANTLE_SEPOLIA_CHAIN_ID : 5042002;
   if (batch.chain_id != null && batch.chain_id !== expectedChainId) {
     batchLog.error({ batch_chain_id: batch.chain_id, wallet_chain: chain }, 'Batch chain does not match agent wallet chain');
@@ -269,9 +283,15 @@ async function processBatch(
         const result = await runner.walletTransfer({
           toAddress: payment.recipient_wallet,
           amount: payment.amount.toString(),
-          fromAddress: wallet.escrow_address,
+          fromAddress: executionFromAddress,
           chain,
-          metadata: { batchId: batch.id, paymentId: payment.id },
+          metadata: {
+            batchId: batch.id,
+            paymentId: payment.id,
+            profileWallet: wallet.profile_wallet,
+            storedEscrowAddress: wallet.escrow_address,
+            configuredEscrowAddress: configuredMantleEscrow ?? null,
+          },
         });
 
         // Write audit log
@@ -292,7 +312,7 @@ async function processBatch(
 
         // Write receipt
         await supabase.from('receipts').insert({
-          sender: wallet.escrow_address,
+          sender: wallet.profile_wallet,
           receiver: payment.recipient_wallet,
           amount: payment.amount,
           tx_hash: result.txHash,

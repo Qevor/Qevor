@@ -13,23 +13,29 @@ contract QevorAgentEscrow {
     uint256 public maxPaymentWei;
     uint256 public dailyLimitWei;
     uint256 public spentDay;
-    uint256 public spentTodayWei;
     bool private entered;
 
+    mapping(address => uint256) public balances;
+    mapping(address => uint256) public spentDayByAccount;
+    mapping(address => uint256) public spentTodayWei;
     mapping(bytes32 => bool) public executedPayments;
     mapping(bytes32 => bool) public recordedDecisions;
 
-    event Deposited(address indexed sender, uint256 amount);
-    event Withdrawn(address indexed recipient, uint256 amount);
+    event Deposited(address indexed account, address indexed sender, uint256 amount);
+    event Withdrawn(address indexed account, address indexed recipient, uint256 amount);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event ExecutorUpdated(address indexed previousExecutor, address indexed newExecutor);
     event AgentIdentityUpdated(address indexed identityRegistry, uint256 indexed agentId);
     event LimitsUpdated(uint256 maxPaymentWei, uint256 dailyLimitWei);
     event PausedUpdated(bool paused);
     event PaymentExecuted(
-        bytes32 indexed paymentId, address indexed executor, address indexed recipient, uint256 amount
+        bytes32 indexed paymentId,
+        address indexed account,
+        address indexed executor,
+        address recipient,
+        uint256 amount
     );
-    event BatchExecuted(bytes32 indexed batchId, uint256 paymentCount, uint256 totalAmount);
+    event BatchExecuted(bytes32 indexed batchId, address indexed account, uint256 paymentCount, uint256 totalAmount);
     event DecisionRecorded(
         bytes32 indexed decisionId,
         bytes32 indexed paymentId,
@@ -72,11 +78,18 @@ contract QevorAgentEscrow {
         emit OwnershipTransferred(address(0), owner);
         emit ExecutorUpdated(address(0), executor);
         emit LimitsUpdated(maxPaymentWei, dailyLimitWei);
-        if (msg.value > 0) emit Deposited(msg.sender, msg.value);
+        if (msg.value > 0) {
+            balances[msg.sender] += msg.value;
+            emit Deposited(msg.sender, msg.sender, msg.value);
+        }
     }
 
     receive() external payable {
-        emit Deposited(msg.sender, msg.value);
+        _depositFor(msg.sender);
+    }
+
+    function depositFor(address account) external payable notPaused {
+        _depositFor(account);
     }
 
     function setExecutor(address newExecutor) external onlyOwner {
@@ -109,20 +122,20 @@ contract QevorAgentEscrow {
         owner = newOwner;
     }
 
-    function withdraw(address payable recipient, uint256 amount) external onlyOwner nonReentrant {
+    function withdraw(address payable recipient, uint256 amount) external nonReentrant {
         require(recipient != address(0), "ZERO_RECIPIENT");
-        require(amount <= address(this).balance, "INSUFFICIENT_BALANCE");
+        _debit(msg.sender, amount);
         _send(recipient, amount);
-        emit Withdrawn(recipient, amount);
+        emit Withdrawn(msg.sender, recipient, amount);
     }
 
-    function executePayment(bytes32 paymentId, address payable recipient, uint256 amount)
+    function executePayment(bytes32 paymentId, address account, address payable recipient, uint256 amount)
         external
         onlyExecutor
         notPaused
         nonReentrant
     {
-        _executePayment(paymentId, recipient, amount);
+        _executePayment(paymentId, account, recipient, amount);
     }
 
     /// @notice Records an agent decision that does not execute a transfer.
@@ -143,7 +156,12 @@ contract QevorAgentEscrow {
         emit DecisionRecorded(decisionId, paymentId, recipient, amount, outcome, reasonHash, agentId);
     }
 
-    function executeBatch(bytes32 batchId, address payable[] calldata recipients, uint256[] calldata amounts)
+    function executeBatch(
+        bytes32 batchId,
+        address account,
+        address payable[] calldata recipients,
+        uint256[] calldata amounts
+    )
         external
         onlyExecutor
         notPaused
@@ -163,35 +181,53 @@ contract QevorAgentEscrow {
             }
         }
 
-        require(totalAmount <= address(this).balance, "INSUFFICIENT_BALANCE");
+        require(totalAmount <= balances[account], "INSUFFICIENT_BALANCE");
 
         for (uint256 i = 0; i < recipients.length; i++) {
             bytes32 paymentId = keccak256(abi.encodePacked(batchId, i, recipients[i], amounts[i]));
-            _executePayment(paymentId, recipients[i], amounts[i]);
+            _executePayment(paymentId, account, recipients[i], amounts[i]);
         }
 
-        emit BatchExecuted(batchId, recipients.length, totalAmount);
+        emit BatchExecuted(batchId, account, recipients.length, totalAmount);
     }
 
-    function _executePayment(bytes32 paymentId, address payable recipient, uint256 amount) private {
+    function balanceOf(address account) external view returns (uint256) {
+        return balances[account];
+    }
+
+    function _depositFor(address account) private {
+        require(account != address(0), "ZERO_ACCOUNT");
+        require(msg.value > 0, "ZERO_AMOUNT");
+        balances[account] += msg.value;
+        emit Deposited(account, msg.sender, msg.value);
+    }
+
+    function _executePayment(bytes32 paymentId, address account, address payable recipient, uint256 amount) private {
         require(paymentId != bytes32(0), "ZERO_PAYMENT_ID");
+        require(account != address(0), "ZERO_ACCOUNT");
         require(!executedPayments[paymentId], "PAYMENT_ALREADY_EXECUTED");
         require(recipient != address(0), "ZERO_RECIPIENT");
         require(amount > 0, "ZERO_AMOUNT");
-        require(amount <= address(this).balance, "INSUFFICIENT_BALANCE");
         if (maxPaymentWei > 0) require(amount <= maxPaymentWei, "MAX_PAYMENT_EXCEEDED");
 
-        _rollDay();
-        if (dailyLimitWei > 0) require(spentTodayWei + amount <= dailyLimitWei, "DAILY_LIMIT_EXCEEDED");
+        _rollDay(account);
+        if (dailyLimitWei > 0) require(spentTodayWei[account] + amount <= dailyLimitWei, "DAILY_LIMIT_EXCEEDED");
 
         executedPayments[paymentId] = true;
-        spentTodayWei += amount;
+        spentTodayWei[account] += amount;
+        _debit(account, amount);
 
         _send(recipient, amount);
         bytes32 decisionId = keccak256(abi.encodePacked("executed", paymentId));
         recordedDecisions[decisionId] = true;
         emit DecisionRecorded(decisionId, paymentId, recipient, amount, 3, bytes32(0), agentId);
-        emit PaymentExecuted(paymentId, msg.sender, recipient, amount);
+        emit PaymentExecuted(paymentId, account, msg.sender, recipient, amount);
+    }
+
+    function _debit(address account, uint256 amount) private {
+        require(amount > 0, "ZERO_AMOUNT");
+        require(amount <= balances[account], "INSUFFICIENT_BALANCE");
+        balances[account] -= amount;
     }
 
     function _send(address payable recipient, uint256 amount) private {
@@ -199,11 +235,14 @@ contract QevorAgentEscrow {
         require(ok, "TRANSFER_FAILED");
     }
 
-    function _rollDay() private {
+    function _rollDay(address account) private {
         uint256 day = _currentDay();
         if (day != spentDay) {
             spentDay = day;
-            spentTodayWei = 0;
+        }
+        if (day != spentDayByAccount[account]) {
+            spentDayByAccount[account] = day;
+            spentTodayWei[account] = 0;
         }
     }
 

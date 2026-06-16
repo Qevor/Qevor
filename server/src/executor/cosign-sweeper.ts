@@ -56,7 +56,7 @@ export async function processApprovedCosigns(
 ): Promise<void> {
   const { data: approved, error } = await supabase
     .from('agent_cosign_queue')
-    .select('*, agent_wallets!inner(escrow_address, chain)')
+    .select('*, agent_wallets!inner(escrow_address, chain, profile_wallet)')
     .eq('status', 'approved');
 
   if (error) {
@@ -67,10 +67,14 @@ export async function processApprovedCosigns(
   if (!approved || approved.length === 0) return;
 
   for (const entry of approved as any[]) {
-    const escrowAddress = entry.agent_wallets?.escrow_address;
     const chain = normalizeAgentChain(entry.agent_wallets?.chain);
+    const configuredMantleEscrow = isMantleAgentChain(chain)
+      ? process.env.MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS?.trim()
+      : undefined;
+    const escrowAddress = configuredMantleEscrow || entry.agent_wallets?.escrow_address;
+    const profileWallet = entry.agent_wallets?.profile_wallet;
 
-    if (!escrowAddress || !chain) {
+    if (!escrowAddress || !chain || !profileWallet) {
       log.error({ cosign_id: entry.id }, 'Missing escrow address for cosign entry');
       continue;
     }
@@ -87,6 +91,11 @@ export async function processApprovedCosigns(
         amount: entry.amount_usdc.toString(),
         fromAddress: escrowAddress,
         chain,
+        metadata: {
+          paymentId: entry.batch_payment_id,
+          profileWallet,
+          cosignId: entry.id,
+        },
       });
 
       // Mark cosign as completed (change status to distinguish from pending)
@@ -108,7 +117,7 @@ export async function processApprovedCosigns(
       });
 
       await supabase.from('receipts').insert({
-        sender: escrowAddress,
+        sender: profileWallet,
         receiver: entry.recipient_address,
         amount: entry.amount_usdc,
         tx_hash: result.txHash,

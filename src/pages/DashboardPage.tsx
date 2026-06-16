@@ -22,7 +22,7 @@ import { AgentWorkspace } from '@/components/agents/AgentWorkspace';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getAppUrl } from '@/lib/appUrl';
-import { DEFAULT_QEVOR_CHAIN_KEY, getExplorerTxUrl, getQevorChainById, getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains';
+import { DEFAULT_QEVOR_CHAIN_KEY, getExplorerTxUrl, getQevorChainByAgentChain, getQevorChainById, getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains';
 
 function getCopilotSourceLabel(source: PaymentIntentPlan['source']) {
     if (source === 'anthropic') return 'Claude plan';
@@ -44,6 +44,11 @@ function getSupabaseLoadErrorMessage(error: unknown) {
         return 'Could not load saved data. Run the latest Supabase migration.';
     }
     return message ? `Could not load saved data: ${message}` : 'Could not load saved data.';
+}
+
+function hasConfiguredAgentEscrow(wallet: AgentWallet) {
+    const network = getQevorChainByAgentChain(wallet.chain);
+    return wallet.executor_mode === 'escrow' && !!(network.agentEscrowAddress ?? wallet.escrow_address);
 }
 
 export default function DashboardPage() {
@@ -133,7 +138,7 @@ export default function DashboardPage() {
             fetchBatches();
             fetchBatchReceiptGroups();
             fetchAgentWallets(address)
-              .then((all) => setAgentWallets(all.filter((w) => w.executor_mode === 'escrow' && !!w.escrow_address)))
+              .then((all) => setAgentWallets(all.filter(hasConfiguredAgentEscrow)))
               .catch(() => setAgentWallets([]));
         }
     }, [address]);

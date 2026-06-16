@@ -35,19 +35,16 @@ export async function provisionPendingEscrows(
         continue;
       }
 
-      const { address } = await runner.walletCreate({
-        testnet: chain.includes('SEPOLIA') || chain.includes('TESTNET'),
-        idempotencyKey: randomUUID(),
-        chain,
-      });
-
-      if (isMantleAgentChain(chain) && wallet.wallet_address.toLowerCase() !== address.toLowerCase()) {
-        log.error(
-          { wallet_id: wallet.id, registered: wallet.wallet_address, executor: address },
-          'Mantle executor key must match registered wallet before escrow can be enabled',
-        );
-        continue;
-      }
+      const configuredMantleEscrow = isMantleAgentChain(chain)
+        ? process.env.MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS?.trim()
+        : undefined;
+      const { address } = configuredMantleEscrow
+        ? { address: configuredMantleEscrow }
+        : await runner.walletCreate({
+            testnet: chain.includes('SEPOLIA') || chain.includes('TESTNET'),
+            idempotencyKey: randomUUID(),
+            chain,
+          });
 
       const { error: updateErr } = await supabase
         .from('agent_wallets')

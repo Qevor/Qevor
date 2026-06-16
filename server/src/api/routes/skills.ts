@@ -97,12 +97,16 @@ router.post('/batch-payment', requireAgentApiKey, async (req, res) => {
     res.status(404).json({ error: 'Active agent wallet not found' });
     return;
   }
-  if (wallet.executor_mode !== 'escrow' || !wallet.escrow_address) {
+  const chain = normalizeAgentChain(wallet.chain);
+  const configuredMantleEscrow = isMantleAgentChain(chain)
+    ? process.env.MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS?.trim()
+    : undefined;
+  const executionEscrow = configuredMantleEscrow || wallet.escrow_address;
+  if (wallet.executor_mode !== 'escrow' || !executionEscrow) {
     res.status(409).json({ error: 'Agent wallet is not enrolled with an escrow executor' });
     return;
   }
 
-  const chain = normalizeAgentChain(wallet.chain);
   const chainId = isMantleAgentChain(chain) ? 5003 : 5042002;
   const tokenSymbol = isMantleAgentChain(chain) ? 'MNT' : 'USDC';
   const totalAmount = input.recipients.reduce((sum, recipient) => sum + recipient.amount, 0);

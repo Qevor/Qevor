@@ -84,7 +84,7 @@ export const qevorChains = [
     agentChainCode: 'MANTLE-SEPOLIA',
     explorerUrl: 'https://explorer.sepolia.mantle.xyz',
     rpcUrls: mantleSepolia.rpcUrls.default.http,
-    agentEscrowAddress: '0xb99bc321ab360abd0a87e0b2e1eb8df364851d60',
+    agentEscrowAddress: '0xf0e6f301D2036b0A0c94808dc945ed764e5a35c4',
   },
 ] as const satisfies readonly QevorChainConfig[]
 

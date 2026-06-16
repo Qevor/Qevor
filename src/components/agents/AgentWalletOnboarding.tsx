@@ -20,7 +20,7 @@ interface Props {
 const STEPS = [
   {
     title: 'Use the Qevor Mantle agent wallet',
-    description: 'For Mantle Sepolia, Qevor uses the deployed escrow below as the agent wallet that the executor can operate through.',
+    description: 'For Mantle Sepolia, Qevor uses the deployed escrow below as shared agent infrastructure with a separate balance for each user wallet.',
     command: null,
   },
   {
@@ -30,7 +30,7 @@ const STEPS = [
   },
   {
     title: 'Register the escrow once',
-    description: 'Click Use this escrow, then Register Wallet. After that, set a policy and select agent execution in batch payments.',
+    description: 'Click Use this escrow, then Register Wallet. When you fund it from your connected wallet, only your scoped balance increases.',
     command: null,
   },
   {
@@ -95,7 +95,7 @@ export function AgentWalletOnboarding({ onRegister, registering }: Props) {
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4 text-sm text-muted-foreground">
-          Qevor stores the public agent wallet and policy settings. For Mantle, use the deployed escrow below. The VPS executor and Byreal preflight can then run only the operations your policy allows.
+          Qevor stores the public agent wallet and policy settings. For Mantle, use the deployed escrow below. Deposits are tracked per connected wallet, and the VPS executor plus Byreal preflight can run only the operations your policy allows.
         </div>
 
         {STEPS.map((step, i) => (
@@ -151,7 +151,7 @@ export function AgentWalletOnboarding({ onRegister, registering }: Props) {
               </div>
               {isMantleEscrow && (
                 <p className="mt-2 text-xs text-emerald-500">
-                  This will register Qevor's Mantle agent wallet for policy-gated autonomous execution.
+                  This registers Qevor's Mantle agent wallet. Your MNT deposits remain scoped to your connected wallet.
                 </p>
               )}
             </div>

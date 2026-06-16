@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Copy, Check, Settings, Play, History } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AgentWallet } from '@/lib/agents/types';
+import { getQevorChainByAgentChain } from '@/lib/chains';
 import { AgentWalletBalance } from './AgentWalletBalance';
 import { AuditLogViewer } from './AuditLogViewer';
 
@@ -39,7 +40,11 @@ export function AgentWalletList({ wallets, onEditPolicy, onEnableExecutor }: Pro
 
   return (
     <div className="space-y-4">
-      {wallets.map((w) => (
+      {wallets.map((w) => {
+        const network = getQevorChainByAgentChain(w.chain);
+        const activeEscrowAddress = network.agentEscrowAddress ?? w.escrow_address;
+        const executionAddress = activeEscrowAddress ?? w.wallet_address;
+        return (
         <Card key={w.id}>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -71,13 +76,18 @@ export function AgentWalletList({ wallets, onEditPolicy, onEnableExecutor }: Pro
               <span className="text-muted-foreground">Chain: {w.chain}</span>
             </div>
 
-            <AgentWalletBalance address={w.wallet_address} chain={w.chain} />
+            <AgentWalletBalance
+              address={executionAddress}
+              chain={w.chain}
+              ownerAddress={w.profile_wallet}
+              escrowMode={!!activeEscrowAddress}
+            />
 
-            {w.escrow_address && (
+            {activeEscrowAddress && (
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">Escrow:</span>
                 <code className="rounded bg-muted px-2 py-1">
-                  {truncate(w.escrow_address)}
+                  {truncate(activeEscrowAddress)}
                 </code>
               </div>
             )}
@@ -101,7 +111,7 @@ export function AgentWalletList({ wallets, onEditPolicy, onEnableExecutor }: Pro
             )}
           </CardContent>
         </Card>
-      ))}
+      )})}
     </div>
   );
 }
