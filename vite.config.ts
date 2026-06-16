@@ -19,17 +19,6 @@ export default defineConfig(({ mode }) => ({
   build: {
     minify: false,
     sourcemap: false,
-    chunkSizeWarningLimit: 1800,
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (!id.includes("node_modules")) return;
-          if (id.includes("@dynamic-labs") || id.includes("@turnkey")) return "wallet";
-          if (id.includes("wagmi") || id.includes("viem") || id.includes("@tanstack")) return "web3";
-          if (id.includes("@radix-ui") || id.includes("lucide-react")) return "ui";
-          return "vendor";
-        },
-      },
-    },
+    chunkSizeWarningLimit: 8000,
   },
 }));
