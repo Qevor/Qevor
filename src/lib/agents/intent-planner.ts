@@ -50,11 +50,7 @@ export function planPaymentIntentLocally(intent: string, context: PaymentIntentC
   const recipients = parseRecipients(normalized);
   const contextRecipients = (context.currentRecipients ?? []).filter((recipient) => recipient.wallet || recipient.amount > 0);
   const useContextRecipients = recipients.length === 0 && contextRecipients.length > 0;
-  const chainKey = lower.includes('mantle')
-    ? 'mantle-sepolia'
-    : lower.includes('arc')
-      ? 'arc-testnet'
-      : context.currentChainKey;
+  const chainKey = inferChainKey(lower, context.currentChainKey);
   const requestsAgent = agentExecutionPattern.test(lower);
   const maxAmountMatch = lower.match(/(?:max(?:imum)?|limit(?:ed)? to)\s+(\d+(?:\.\d+)?)/);
   const warnings: string[] = [];
@@ -75,8 +71,8 @@ export function planPaymentIntentLocally(intent: string, context: PaymentIntentC
   return {
     source: 'deterministic',
     explanation: recipientCount > 0
-      ? `Prepared a ${chainKey === 'mantle-sepolia' ? 'Mantle Sepolia' : 'Arc Testnet'} payment draft for ${recipientCount} recipient${recipientCount === 1 ? '' : 's'}.`
-      : `Selected ${chainKey === 'mantle-sepolia' ? 'Mantle Sepolia' : 'Arc Testnet'} and preserved the human approval boundary.`,
+      ? `Prepared a ${chainLabel(chainKey)} payment draft for ${recipientCount} recipient${recipientCount === 1 ? '' : 's'}.`
+      : `Selected ${chainLabel(chainKey)} and preserved the human approval boundary.`,
     title: inferTitle(normalized),
     description: normalized,
     chainKey,
@@ -142,4 +138,19 @@ function inferTitle(intent: string): string {
   if (/\b(contributor|contributors)\b/i.test(intent)) return 'Contributor payments';
   if (/\b(invoice|invoices)\b/i.test(intent)) return 'Invoice payments';
   return 'Copilot payment plan';
+}
+
+function inferChainKey(lowerIntent: string, fallback: QevorChainKey): QevorChainKey {
+  if (/\b(mantle\s+mainnet|mainnet|production|live\s+funds?|real\s+funds?|real\s+mnt)\b/.test(lowerIntent)) {
+    return 'mantle-mainnet';
+  }
+  if (lowerIntent.includes('mantle')) return 'mantle-sepolia';
+  if (lowerIntent.includes('arc')) return 'arc-testnet';
+  return fallback;
+}
+
+function chainLabel(chainKey: QevorChainKey) {
+  if (chainKey === 'mantle-mainnet') return 'Mantle Mainnet';
+  if (chainKey === 'mantle-sepolia') return 'Mantle Sepolia';
+  return 'Arc Testnet';
 }

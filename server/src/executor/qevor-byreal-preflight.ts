@@ -33,7 +33,11 @@ async function main() {
 function evaluatePayload(payload: QevorByrealPayload): PreflightResponse {
   const chain = normalizeChain(payload.chain);
   const amount = Number(payload.amount);
-  const maxAmount = Number(process.env.QEVOR_BYREAL_MAX_PREFLIGHT_MNT ?? '100');
+  const maxAmount = Number(
+    chain === 'MANTLE-MAINNET'
+      ? process.env.QEVOR_BYREAL_MAX_MAINNET_PREFLIGHT_MNT ?? '1'
+      : process.env.QEVOR_BYREAL_MAX_PREFLIGHT_MNT ?? '100',
+  );
   const requireByrealCli = process.env.QEVOR_BYREAL_REQUIRE_CLI === '1';
   const byrealCli = getByrealCliStatus();
 
@@ -49,8 +53,8 @@ function evaluatePayload(payload: QevorByrealPayload): PreflightResponse {
     byrealCli,
   };
 
-  if (chain !== 'MANTLE-SEPOLIA') {
-    return deny('Only Mantle Sepolia agent payments are allowed by this Byreal preflight wrapper.', checks);
+  if (chain !== 'MANTLE-SEPOLIA' && chain !== 'MANTLE-MAINNET') {
+    return deny('Only Mantle agent payments are allowed by this Byreal preflight wrapper.', checks);
   }
   if (!payload.fromAddress || !EVM_ADDRESS.test(payload.fromAddress)) {
     return deny('Invalid Mantle sender address.', checks);
@@ -74,8 +78,8 @@ function evaluatePayload(payload: QevorByrealPayload): PreflightResponse {
   return {
     allowed: true,
     reason: byrealCli.available
-      ? 'Byreal-compatible Mantle preflight accepted the Qevor payment operation.'
-      : 'Byreal-compatible Mantle preflight accepted the operation; install byreal-cli to expose Byreal skill metadata.',
+      ? `Byreal-compatible ${chain} preflight accepted the Qevor payment operation.`
+      : `Byreal-compatible ${chain} preflight accepted the operation; install byreal-cli to expose Byreal skill metadata.`,
     checks,
   };
 }
@@ -107,6 +111,7 @@ function parsePayload(raw: string): QevorByrealPayload | null {
 
 function normalizeChain(chain?: string) {
   const value = (chain ?? '').trim().toUpperCase();
+  if (value === 'MANTLE_MAINNET' || value === 'MANTLE MAINNET' || value === 'MAINNET' || value === '5000') return 'MANTLE-MAINNET';
   if (value === 'MANTLE_SEPOLIA' || value === 'MANTLE' || value === '5003') return 'MANTLE-SEPOLIA';
   return value;
 }

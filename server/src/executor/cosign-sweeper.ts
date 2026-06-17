@@ -1,7 +1,13 @@
 import { supabase } from '../lib/supabase.js';
 import type { Logger } from 'pino';
 import type { RailRunner } from './rail-runner.js';
-import { MANTLE_SEPOLIA_CHAIN_ID, isMantleAgentChain, normalizeAgentChain } from './chain-support.js';
+import {
+  chainIdForAgentChain,
+  escrowContractAddressForAgentChain,
+  isMantleAgentChain,
+  normalizeAgentChain,
+  tokenSymbolForAgentChain,
+} from './chain-support.js';
 
 /**
  * Sweep expired cosign queue entries and mark them as 'expired'.
@@ -69,7 +75,7 @@ export async function processApprovedCosigns(
   for (const entry of approved as any[]) {
     const chain = normalizeAgentChain(entry.agent_wallets?.chain);
     const configuredMantleEscrow = isMantleAgentChain(chain)
-      ? process.env.MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS?.trim()
+      ? escrowContractAddressForAgentChain(chain)
       : undefined;
     const escrowAddress = configuredMantleEscrow || entry.agent_wallets?.escrow_address;
     const profileWallet = entry.agent_wallets?.profile_wallet;
@@ -123,8 +129,8 @@ export async function processApprovedCosigns(
         tx_hash: result.txHash,
         status: 'paid',
         initiator_type: 'agent',
-        chain_id: isMantleAgentChain(chain) ? MANTLE_SEPOLIA_CHAIN_ID : 5042002,
-        token_symbol: isMantleAgentChain(chain) ? 'MNT' : 'USDC',
+        chain_id: chainIdForAgentChain(chain),
+        token_symbol: tokenSymbolForAgentChain(chain),
       });
 
       await supabase

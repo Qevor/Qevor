@@ -83,7 +83,8 @@ export default function AgentsPage() {
         executorMode: opts?.executorMode ?? null,
         escrowAddress: opts?.escrowAddress ?? null,
       });
-      toast.success(opts?.executorMode === 'escrow' ? 'Mantle agent escrow registered!' : 'Agent wallet registered!');
+      const network = getQevorChainByAgentChain(chain);
+      toast.success(opts?.executorMode === 'escrow' ? `${network.label} agent escrow registered!` : 'Agent wallet registered!');
       setShowOnboarding(false);
       await loadWallets();
     } catch (err: any) {
@@ -109,7 +110,7 @@ export default function AgentsPage() {
       if (error) throw error;
       toast.success(
         escrowAddress
-          ? 'Autonomous execution enabled with the Mantle escrow.'
+          ? `Autonomous execution enabled with the ${network.label} escrow.`
           : 'Autonomous execution enabled. The executor will provision an escrow wallet shortly.',
       );
       await loadWallets();

@@ -1,9 +1,9 @@
 import { http, createConfig, fallback } from 'wagmi'
 import { injected } from 'wagmi/connectors'
-import { arcTestnet, mantleSepolia } from './chains'
+import { arcTestnet, mantleMainnet, mantleSepolia } from './chains'
 
 export const config = createConfig({
-  chains: [arcTestnet, mantleSepolia],
+  chains: [arcTestnet, mantleSepolia, mantleMainnet],
   connectors: [
     injected(),
   ],
@@ -17,6 +17,9 @@ export const config = createConfig({
     [mantleSepolia.id]: fallback([
       http('https://rpc.sepolia.mantle.xyz'),
       http('https://mantle-sepolia.drpc.org'),
+    ]),
+    [mantleMainnet.id]: fallback([
+      http('https://rpc.mantle.xyz'),
     ]),
   },
 })

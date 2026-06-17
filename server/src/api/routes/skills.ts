@@ -3,7 +3,13 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { z } from 'zod';
 import { isAddress } from 'viem';
 import { supabase } from '../../lib/supabase.js';
-import { isMantleAgentChain, normalizeAgentChain } from '../../executor/chain-support.js';
+import {
+  chainIdForAgentChain,
+  escrowContractAddressForAgentChain,
+  isMantleAgentChain,
+  normalizeAgentChain,
+  tokenSymbolForAgentChain,
+} from '../../executor/chain-support.js';
 
 const router = Router();
 
@@ -28,8 +34,8 @@ const batchSkillSchema = z.object({
 export const qevorSkillManifest = {
   name: 'qevor-mantle-payments',
   version: '0.1.0',
-  description: 'Policy-gated agent payment safety review and batch execution on Mantle.',
-  chain: 'eip155:5003',
+  description: 'Policy-gated agent payment safety review and batch execution on Mantle Sepolia and Mantle Mainnet.',
+  chains: ['eip155:5003', 'eip155:5000'],
   skills: [
     {
       id: 'payment-safety-review',
@@ -98,17 +104,15 @@ router.post('/batch-payment', requireAgentApiKey, async (req, res) => {
     return;
   }
   const chain = normalizeAgentChain(wallet.chain);
-  const configuredMantleEscrow = isMantleAgentChain(chain)
-    ? process.env.MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS?.trim()
-    : undefined;
+  const configuredMantleEscrow = isMantleAgentChain(chain) ? escrowContractAddressForAgentChain(chain) : undefined;
   const executionEscrow = configuredMantleEscrow || wallet.escrow_address;
   if (wallet.executor_mode !== 'escrow' || !executionEscrow) {
     res.status(409).json({ error: 'Agent wallet is not enrolled with an escrow executor' });
     return;
   }
 
-  const chainId = isMantleAgentChain(chain) ? 5003 : 5042002;
-  const tokenSymbol = isMantleAgentChain(chain) ? 'MNT' : 'USDC';
+  const chainId = chainIdForAgentChain(chain);
+  const tokenSymbol = tokenSymbolForAgentChain(chain);
   const totalAmount = input.recipients.reduce((sum, recipient) => sum + recipient.amount, 0);
 
   const { data: batch, error: batchError } = await supabase

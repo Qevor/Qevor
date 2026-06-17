@@ -2,12 +2,14 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { createLogger } from '../../lib/logger.js';
 import { ByrealCliRunner } from '../../executor/byreal-cli.js';
-import { MANTLE_SEPOLIA_AGENT_CHAIN } from '../../executor/chain-support.js';
+import { MANTLE_MAINNET_AGENT_CHAIN, MANTLE_SEPOLIA_AGENT_CHAIN } from '../../executor/chain-support.js';
 
 const router = Router();
 const byrealLog = createLogger('api').child({ route: 'copilot-byreal' });
 const byreal = new ByrealCliRunner(byrealLog);
 const agentExecutionPattern = /\b(agent|autonomous|automatically|autopilot)\b|\b(no approval|without approval|no human approval)\b|do(?:es)?\s+not\s+require\s+(?:my\s+)?approval|don'?t\s+require\s+(?:my\s+)?approval/;
+const qevorChainKeys = ['arc-testnet', 'mantle-sepolia', 'mantle-mainnet'] as const;
+type QevorChainKey = typeof qevorChainKeys[number];
 
 const recipientSchema = z.object({
   wallet: z.string().max(120),
@@ -17,7 +19,7 @@ const recipientSchema = z.object({
 
 const requestSchema = z.object({
   intent: z.string().trim().min(3).max(2000),
-  current_chain: z.enum(['arc-testnet', 'mantle-sepolia']).default('arc-testnet'),
+  current_chain: z.enum(qevorChainKeys).default('arc-testnet'),
   current_recipients: z.array(recipientSchema).max(500).default([]),
   profile_wallet: z.string().max(120).optional(),
 });
@@ -26,7 +28,7 @@ const planSchema = z.object({
   explanation: z.string(),
   title: z.string(),
   description: z.string(),
-  chainKey: z.enum(['arc-testnet', 'mantle-sepolia']),
+  chainKey: z.enum(qevorChainKeys),
   executionMode: z.enum(['human', 'agent']),
   recipients: z.array(recipientSchema),
   constraints: z.object({
@@ -68,11 +70,7 @@ function buildDeterministicPlan(input: z.infer<typeof requestSchema>) {
   const extracted = dedupeRecipients([...addressThenAmount, ...amountThenAddress]);
   const currentRecipients = input.current_recipients.filter((recipient) => recipient.wallet || recipient.amount > 0);
   const recipients = extracted.length > 0 ? extracted : currentRecipients;
-  const chainKey = lower.includes('mantle')
-    ? 'mantle-sepolia'
-    : lower.includes('arc')
-      ? 'arc-testnet'
-      : input.current_chain;
+  const chainKey = inferChainKey(lower, input.current_chain);
   const executionMode: 'human' | 'agent' = agentExecutionPattern.test(lower) ? 'agent' : 'human';
   const maxAmountMatch = lower.match(/(?:max(?:imum)?|limit(?:ed)? to)\s+(\d+(?:\.\d+)?)/);
   const warnings = recipients.length === 0 ? ['No recipients were found. Add recipients or import a CSV.'] : [];
@@ -83,7 +81,7 @@ function buildDeterministicPlan(input: z.infer<typeof requestSchema>) {
 
   return {
     source: 'deterministic' as const,
-    explanation: `Prepared a ${chainKey === 'mantle-sepolia' ? 'Mantle Sepolia' : 'Arc Testnet'} draft for ${recipients.length} recipient${recipients.length === 1 ? '' : 's'}.`,
+    explanation: `Prepared a ${chainLabel(chainKey)} draft for ${recipients.length} recipient${recipients.length === 1 ? '' : 's'}.`,
     title: 'Copilot payment plan',
     description: input.intent,
     chainKey,
@@ -124,10 +122,10 @@ function normalizePlanCandidate(candidate: unknown, input: z.infer<typeof reques
     };
   }).filter((recipient) => recipient.wallet && Number.isFinite(recipient.amount) && recipient.amount >= 0));
   const maxAmount = typeof constraints.maxAmount === 'number' ? constraints.maxAmount : Number(constraints.maxAmount);
-  const chainKey = value.chainKey === 'arc-testnet' || value.chainKey === 'mantle-sepolia' ? value.chainKey : fallback.chainKey;
+  const chainKey = isQevorChainKey(value.chainKey) ? value.chainKey : fallback.chainKey;
   const executionMode = value.executionMode === 'agent' || value.executionMode === 'human' ? value.executionMode : fallback.executionMode;
   const planRecipients = recipients.length > 0 ? recipients : fallback.recipients;
-  const chainLabel = chainKey === 'mantle-sepolia' ? 'Mantle Sepolia' : 'Arc Testnet';
+  const networkLabel = chainLabel(chainKey);
   const rawWarnings = Array.isArray(value.warnings) ? value.warnings.filter((warning): warning is string => typeof warning === 'string') : fallback.warnings;
   const warnings = executionMode === 'agent'
     ? [
@@ -138,11 +136,11 @@ function normalizePlanCandidate(candidate: unknown, input: z.infer<typeof reques
 
   return {
     explanation: executionMode === 'agent'
-      ? `Prepared a policy-gated ${chainLabel} agent draft for ${planRecipients.length} recipient${planRecipients.length === 1 ? '' : 's'}.`
+      ? `Prepared a policy-gated ${networkLabel} agent draft for ${planRecipients.length} recipient${planRecipients.length === 1 ? '' : 's'}.`
       : typeof value.explanation === 'string' && value.explanation.trim() ? value.explanation : fallback.explanation,
     title: typeof value.title === 'string' && value.title.trim() ? value.title : fallback.title,
     description: executionMode === 'agent'
-      ? `Policy-gated agent payment draft on ${chainLabel}. Autonomous execution is allowed only inside the selected agent policy.`
+      ? `Policy-gated agent payment draft on ${networkLabel}. Autonomous execution is allowed only inside the selected agent policy.`
       : typeof value.description === 'string' && value.description.trim() ? value.description : fallback.description,
     chainKey,
     executionMode,
@@ -192,7 +190,7 @@ async function buildOpenAiPlan(input: z.infer<typeof requestSchema>) {
               explanation: { type: 'string' },
               title: { type: 'string' },
               description: { type: 'string' },
-              chainKey: { type: 'string', enum: ['arc-testnet', 'mantle-sepolia'] },
+              chainKey: { type: 'string', enum: qevorChainKeys },
               executionMode: { type: 'string', enum: ['human', 'agent'] },
               recipients: {
                 type: 'array',
@@ -260,7 +258,7 @@ async function buildAnthropicPlan(input: z.infer<typeof requestSchema>) {
         'Keep constraints.requireHumanApproval true as the draft-level safety marker even for agent mode.',
         'Never execute funds, preserve supplied recipients when the instruction refers to them, and return only JSON.',
         'The JSON must include explanation, title, description, chainKey, executionMode, recipients, constraints, and warnings.',
-        'chainKey must be arc-testnet or mantle-sepolia. executionMode must be human or agent.',
+        'chainKey must be arc-testnet, mantle-sepolia, or mantle-mainnet. Bare "Mantle" means mantle-sepolia. Use mantle-mainnet only when the user explicitly says Mantle mainnet, live, production, or real funds. executionMode must be human or agent.',
         'constraints.requireHumanApproval and constraints.duplicateCheck must both be true.',
         'Every recipient must include wallet, amount, and label. Use an empty string for label when unknown.',
         'If the intent says "0.01 MNT to 0x..." then create one recipient with that address and amount 0.01.',
@@ -303,7 +301,7 @@ async function buildByrealExecutionLayer(
   plan: z.infer<typeof planSchema> & { source: 'anthropic' | 'openai' | 'deterministic' },
   input: z.infer<typeof requestSchema>,
 ) {
-  if (plan.chainKey !== 'mantle-sepolia') {
+  if (!isMantleChainKey(plan.chainKey)) {
     return {
       provider: 'byreal' as const,
       checked: false,
@@ -356,7 +354,7 @@ async function buildByrealExecutionLayer(
 
   const totalAmount = plan.recipients.reduce((sum, recipient) => sum + recipient.amount, 0);
   const result = await byreal.preflight({
-    chain: MANTLE_SEPOLIA_AGENT_CHAIN,
+    chain: plan.chainKey === 'mantle-mainnet' ? MANTLE_MAINNET_AGENT_CHAIN : MANTLE_SEPOLIA_AGENT_CHAIN,
     fromAddress,
     toAddress: firstRecipient.wallet,
     amount: String(totalAmount),
@@ -375,3 +373,26 @@ async function buildByrealExecutionLayer(
 }
 
 export default router;
+
+function inferChainKey(lowerIntent: string, fallback: QevorChainKey): QevorChainKey {
+  if (/\b(mantle\s+mainnet|mainnet|production|live\s+funds?|real\s+funds?|real\s+mnt)\b/.test(lowerIntent)) {
+    return 'mantle-mainnet';
+  }
+  if (lowerIntent.includes('mantle')) return 'mantle-sepolia';
+  if (lowerIntent.includes('arc')) return 'arc-testnet';
+  return fallback;
+}
+
+function isQevorChainKey(value: unknown): value is QevorChainKey {
+  return typeof value === 'string' && qevorChainKeys.includes(value as QevorChainKey);
+}
+
+function isMantleChainKey(chainKey: QevorChainKey) {
+  return chainKey === 'mantle-sepolia' || chainKey === 'mantle-mainnet';
+}
+
+function chainLabel(chainKey: QevorChainKey) {
+  if (chainKey === 'mantle-mainnet') return 'Mantle Mainnet';
+  if (chainKey === 'mantle-sepolia') return 'Mantle Sepolia';
+  return 'Arc Testnet';
+}

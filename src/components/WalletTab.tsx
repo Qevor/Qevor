@@ -502,7 +502,7 @@ export function WalletTab() {
                     </div>
                     <div>
                         <h3 className="font-semibold mb-1">Payment Links</h3>
-                        <p className="text-sm text-muted-foreground">Generate shareable links to request exact amounts on Arc or Mantle Sepolia.</p>
+                        <p className="text-sm text-muted-foreground">Generate shareable links to request exact amounts on Arc, Mantle Sepolia, or Mantle Mainnet.</p>
                     </div>
                 </Link>
             </div>

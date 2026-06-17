@@ -350,7 +350,7 @@ const CreatePage = () => {
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold gradient-text">Qevor</h1>
           <p className="text-muted-foreground text-sm">
-            Create a shareable payment link on Arc or Mantle Sepolia
+            Create a shareable payment link on Arc, Mantle Sepolia, or Mantle Mainnet
           </p>
         </div>
 

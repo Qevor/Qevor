@@ -47,7 +47,8 @@ export function useBatchSend() {
     const { chainId } = useAccount();
     const { switchChainAsync } = useSwitchChain();
     const arcClient = usePublicClient({ chainId: getQevorChainByKey(DEFAULT_QEVOR_CHAIN_KEY).chain.id });
-    const mantleClient = usePublicClient({ chainId: getQevorChainByKey('mantle-sepolia').chain.id });
+    const mantleSepoliaClient = usePublicClient({ chainId: getQevorChainByKey('mantle-sepolia').chain.id });
+    const mantleMainnetClient = usePublicClient({ chainId: getQevorChainByKey('mantle-mainnet').chain.id });
 
     const sendBatch = async (
         recipients: BatchSendRecipient[],
@@ -56,7 +57,11 @@ export function useBatchSend() {
         if (recipients.length === 0) throw new Error('No recipients');
 
         const network = getQevorChainByKey(chainKey);
-        const publicClient = network.key === 'mantle-sepolia' ? mantleClient : arcClient;
+        const publicClient = network.key === 'mantle-mainnet'
+            ? mantleMainnetClient
+            : network.key === 'mantle-sepolia'
+                ? mantleSepoliaClient
+                : arcClient;
         const decimals = network.chain.nativeCurrency.decimals;
         if (chainId !== network.chain.id) {
             await switchChainAsync({ chainId: network.chain.id });

@@ -57,6 +57,30 @@ sudo ./deploy/update.sh [git-ref]
 
 Run Supabase migrations **before** running update.sh.
 
+## Mantle Mainnet Escrow
+
+Deploy the guarded mainnet escrow from a trusted machine with Foundry:
+
+```powershell
+$env:QEVOR_ALLOW_MAINNET_DEPLOY="I_UNDERSTAND_MAINNET_FUNDS_ARE_REAL"
+$env:MANTLE_MAINNET_RPC_URL="https://rpc.mantle.xyz"
+$env:MANTLE_MAINNET_DEPLOYER_PRIVATE_KEY="<fresh mainnet deployer key>"
+$env:MANTLE_MAINNET_EXECUTOR_ADDRESS="<executor wallet address>"
+$env:MANTLE_MAINNET_ESCROW_MAX_PAYMENT_WEI="1000000000000000000"
+$env:MANTLE_MAINNET_ESCROW_DAILY_LIMIT_WEI="5000000000000000000"
+$env:FOUNDRY_FORGE_BIN="C:\Users\Admin\.foundry\bin\forge.exe"
+.\deploy\deploy-mantle-mainnet.ps1
+```
+
+After deployment, set these production env vars:
+
+- Frontend: `VITE_MANTLE_MAINNET_AGENT_ESCROW_ADDRESS`
+- API and executor: `MANTLE_MAINNET_AGENT_ESCROW_CONTRACT_ADDRESS`
+- Executor only: `MANTLE_MAINNET_AGENT_PRIVATE_KEY`
+- API and executor: `MANTLE_MAINNET_RPC_URL=https://rpc.mantle.xyz`
+
+Rebuild and restart `qevor-api` and `qevor-executor` after changing the env files.
+
 ## Monitoring
 
 ```bash

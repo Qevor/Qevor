@@ -53,18 +53,49 @@ export const mantleSepolia = defineChain({
   testnet: true,
 })
 
-export type QevorChainKey = 'arc-testnet' | 'mantle-sepolia'
+export const mantleMainnet = defineChain({
+  id: 5000,
+  name: 'Mantle',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'Mantle',
+    symbol: 'MNT',
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://rpc.mantle.xyz'],
+    },
+  },
+  blockExplorers: {
+    default: { name: 'Mantle Explorer', url: 'https://explorer.mantle.xyz' },
+  },
+  contracts: {
+    multicall3: {
+      address: '0xcA11bde05977b3631167028862bE2a173976CA11',
+    },
+  },
+  testnet: false,
+})
+
+export type QevorChainKey = 'arc-testnet' | 'mantle-sepolia' | 'mantle-mainnet'
 
 export interface QevorChainConfig {
   key: QevorChainKey
   chain: Chain
   label: string
   paymentAsset: string
-  agentChainCode: 'ARC-TESTNET' | 'MANTLE-SEPOLIA'
+  agentChainCode: 'ARC-TESTNET' | 'MANTLE-SEPOLIA' | 'MANTLE-MAINNET'
   explorerUrl: string
   rpcUrls: readonly string[]
   agentEscrowAddress?: `0x${string}`
 }
+
+function optionalAddress(value?: string): `0x${string}` | undefined {
+  const trimmed = value?.trim()
+  return trimmed && /^0x[a-fA-F0-9]{40}$/.test(trimmed) ? trimmed as `0x${string}` : undefined
+}
+
+const mantleMainnetEscrowAddress = optionalAddress(import.meta.env.VITE_MANTLE_MAINNET_AGENT_ESCROW_ADDRESS)
 
 export const qevorChains = [
   {
@@ -85,6 +116,16 @@ export const qevorChains = [
     explorerUrl: 'https://explorer.sepolia.mantle.xyz',
     rpcUrls: mantleSepolia.rpcUrls.default.http,
     agentEscrowAddress: '0xf0e6f301D2036b0A0c94808dc945ed764e5a35c4',
+  },
+  {
+    key: 'mantle-mainnet',
+    chain: mantleMainnet,
+    label: 'Mantle Mainnet',
+    paymentAsset: 'MNT',
+    agentChainCode: 'MANTLE-MAINNET',
+    explorerUrl: 'https://explorer.mantle.xyz',
+    rpcUrls: mantleMainnet.rpcUrls.default.http,
+    agentEscrowAddress: mantleMainnetEscrowAddress,
   },
 ] as const satisfies readonly QevorChainConfig[]
 

@@ -2,7 +2,13 @@ import { supabase } from '../lib/supabase.js';
 import type { RailRunner } from './rail-runner.js';
 import type { Logger } from 'pino';
 import { evaluate, type PolicyFields, type EvaluationContext } from './policy-engine-import.js';
-import { MANTLE_SEPOLIA_CHAIN_ID, isMantleAgentChain, normalizeAgentChain } from './chain-support.js';
+import {
+  chainIdForAgentChain,
+  escrowContractAddressForAgentChain,
+  isMantleAgentChain,
+  normalizeAgentChain,
+  tokenSymbolForAgentChain,
+} from './chain-support.js';
 
 interface BatchPaymentRow {
   id: string;
@@ -79,7 +85,7 @@ async function processBatch(
 
   const chain = normalizeAgentChain(wallet.chain);
   const configuredMantleEscrow = isMantleAgentChain(chain)
-    ? process.env.MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS?.trim()
+    ? escrowContractAddressForAgentChain(chain)
     : undefined;
   const executionFromAddress = configuredMantleEscrow || wallet.escrow_address;
 
@@ -92,7 +98,7 @@ async function processBatch(
     return;
   }
 
-  const expectedChainId = isMantleAgentChain(chain) ? MANTLE_SEPOLIA_CHAIN_ID : 5042002;
+  const expectedChainId = chainIdForAgentChain(chain);
   if (batch.chain_id != null && batch.chain_id !== expectedChainId) {
     batchLog.error({ batch_chain_id: batch.chain_id, wallet_chain: chain }, 'Batch chain does not match agent wallet chain');
     await supabase
@@ -319,7 +325,7 @@ async function processBatch(
           status: 'paid',
           initiator_type: 'agent',
           chain_id: payment.chain_id ?? batch.chain_id ?? expectedChainId,
-          token_symbol: payment.token_symbol ?? batch.token_symbol ?? (isMantleAgentChain(chain) ? 'MNT' : 'USDC'),
+          token_symbol: payment.token_symbol ?? batch.token_symbol ?? tokenSymbolForAgentChain(chain),
         });
 
         // Mark payment completed

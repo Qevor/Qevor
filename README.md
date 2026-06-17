@@ -2,13 +2,13 @@
 
 Qevor is an agent-first, multi-chain payment workspace for teams, communities, and autonomous agents. It lets users create payment links, send wallet transfers, import CSV batch payouts, review transaction history, and route payment operations through an AI safety copilot before funds move.
 
-Qevor currently supports Mantle Sepolia and Arc Testnet, with mainnet deployment intended to sit behind stronger policy, approval, and treasury controls.
+Qevor currently supports Mantle Sepolia, Mantle Mainnet, and Arc Testnet. Mainnet execution is guarded behind stricter policy, approval, and treasury controls.
 
 ## Product Focus
 
 - **Agent-first payments:** users describe a payout goal and Qevor prepares a reviewable operation plan.
 - **Human approval by default:** the copilot can draft, validate, and route payments, but it cannot bypass approval gates.
-- **Mantle payment rail:** Mantle Sepolia MNT transfers, CSV batch payouts, receipts, and explorer links.
+- **Mantle payment rail:** Mantle Sepolia and Mantle Mainnet MNT transfers, CSV batch payouts, receipts, and explorer links.
 - **Payment links:** shareable requests for exact amounts across supported rails.
 - **Wallet history:** recent direct sends, payment links, batch requests, receipts, and batch payouts are visible from the wallet dashboard.
 - **AI safety copilot:** scans payment drafts for duplicate recipients, invalid addresses, risky amounts, wrong-chain intent, and suspicious CSV rows.
@@ -36,9 +36,10 @@ Key docs:
 - **App:** [https://qevor.xyz](https://qevor.xyz)
 - **API:** [https://api.qevor.xyz](https://api.qevor.xyz)
 - **Mantle Sepolia escrow:** [`0xf0e6f301D2036b0A0c94808dc945ed764e5a35c4`](https://explorer.sepolia.mantle.xyz/address/0xf0e6f301D2036b0A0c94808dc945ed764e5a35c4)
+- **Mantle Mainnet escrow:** pending guarded deployment
 - **Contract:** `contracts/QevorAgentEscrow.sol`
-- **Network:** Mantle Sepolia
-- **Mainnet:** not deployed yet; mainnet is intended to remain guarded behind stricter approval, policy, and treasury limits.
+- **Networks:** Mantle Sepolia, Mantle Mainnet-ready, Arc Testnet
+- **Mainnet guardrail:** use the dedicated mainnet deploy script and keep strict approval, policy, and treasury limits enabled.
 
 The deployed escrow contract is the Mantle contract that underpins Qevor's agentic payment rail. It can execute approved payments, record blocked/cosign/failed decisions, enforce replay protection, enforce per-user payment limits, and link decisions to an ERC-8004 agent identity after `setAgentIdentity(identityRegistry, agentId)` is configured. MNT sent through the escrow is accounted with `balanceOf(userWallet)`, so one user's deposit does not appear in another user's dashboard.
 
@@ -67,6 +68,7 @@ BYREAL_CLI_BIN=node
 BYREAL_PREFLIGHT_ARGS=/opt/qevor/server/dist/executor/qevor-byreal-preflight.js
 BYREAL_SOLANA_CLI_BIN=byreal-cli
 QEVOR_BYREAL_MAX_PREFLIGHT_MNT=100
+QEVOR_BYREAL_MAX_MAINNET_PREFLIGHT_MNT=1
 QEVOR_BYREAL_REQUIRE_CLI=0
 ```
 
@@ -116,8 +118,11 @@ BYREAL_PREFLIGHT_ARGS=dist/executor/qevor-byreal-preflight.js
 QEVOR_BYREAL_MAX_PREFLIGHT_MNT=100
 QEVOR_BYREAL_REQUIRE_CLI=0
 MANTLE_SEPOLIA_RPC_URL=https://rpc.sepolia.mantle.xyz
+MANTLE_MAINNET_RPC_URL=https://rpc.mantle.xyz
 MANTLE_AGENT_PRIVATE_KEY=
 MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS=
+MANTLE_MAINNET_AGENT_PRIVATE_KEY=
+MANTLE_MAINNET_AGENT_ESCROW_CONTRACT_ADDRESS=
 ```
 
 Run the frontend:
@@ -195,6 +200,26 @@ forge create contracts/QevorAgentEscrow.sol:QevorAgentEscrow \
   --constructor-args "$MANTLE_ESCROW_EXECUTOR_ADDRESS" "$MANTLE_ESCROW_MAX_PAYMENT_WEI" "$MANTLE_ESCROW_DAILY_LIMIT_WEI"
 ```
 
+Deploy to Mantle Mainnet:
+
+```powershell
+$env:QEVOR_ALLOW_MAINNET_DEPLOY="I_UNDERSTAND_MAINNET_FUNDS_ARE_REAL"
+$env:MANTLE_MAINNET_RPC_URL="https://rpc.mantle.xyz"
+$env:MANTLE_MAINNET_DEPLOYER_PRIVATE_KEY="<fresh mainnet deployer key>"
+$env:MANTLE_MAINNET_EXECUTOR_ADDRESS="<executor wallet address>"
+$env:MANTLE_MAINNET_ESCROW_MAX_PAYMENT_WEI="1000000000000000000"
+$env:MANTLE_MAINNET_ESCROW_DAILY_LIMIT_WEI="5000000000000000000"
+$env:FOUNDRY_FORGE_BIN="C:\Users\Admin\.foundry\bin\forge.exe"
+.\deploy\deploy-mantle-mainnet.ps1
+```
+
+After the mainnet deploy succeeds, copy the deployed contract address into:
+
+- `VITE_MANTLE_MAINNET_AGENT_ESCROW_ADDRESS`
+- `MANTLE_MAINNET_AGENT_ESCROW_CONTRACT_ADDRESS`
+
+Then rebuild the frontend and restart the API and executor.
+
 After deployment:
 
 1. Fund the escrow with test MNT through `depositFor(userWallet)` or from the connected wallet.
@@ -232,6 +257,6 @@ See [deploy/README.md](deploy/README.md) for the VPS runbook.
 ## Safety Notes
 
 - Never commit private keys, API keys, Supabase service role keys, or executor secrets.
-- Mainnet should remain guarded by stricter limits, allowlists, daily caps, and human approval.
+- Mainnet should remain guarded by stricter limits, allowlists, daily caps, and human approval unless a user deliberately enables a bounded autonomous policy.
 - Agent execution must always pass policy checks and Byreal-compatible preflight before signing.
 - The copilot prepares plans; it does not directly move funds.

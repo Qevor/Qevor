@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase.js';
 import type { RailRunner } from './rail-runner.js';
 import type { Logger } from 'pino';
 import { randomUUID } from 'node:crypto';
-import { isMantleAgentChain, normalizeAgentChain } from './chain-support.js';
+import { escrowContractAddressForAgentChain, isAgentChainTestnet, isMantleAgentChain, normalizeAgentChain } from './chain-support.js';
 
 /**
  * Checks for agent_wallets with executor_mode='escrow' but no escrow_address.
@@ -36,12 +36,12 @@ export async function provisionPendingEscrows(
       }
 
       const configuredMantleEscrow = isMantleAgentChain(chain)
-        ? process.env.MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS?.trim()
+        ? escrowContractAddressForAgentChain(chain)
         : undefined;
       const { address } = configuredMantleEscrow
         ? { address: configuredMantleEscrow }
         : await runner.walletCreate({
-            testnet: chain.includes('SEPOLIA') || chain.includes('TESTNET'),
+            testnet: isAgentChainTestnet(chain),
             idempotencyKey: randomUUID(),
             chain,
           });

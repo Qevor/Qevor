@@ -20,7 +20,7 @@ interface Props {
 const STEPS = [
   {
     title: 'Use the Qevor Mantle agent wallet',
-    description: 'For Mantle Sepolia, Qevor uses the deployed escrow below as shared agent infrastructure with a separate balance for each user wallet.',
+    description: 'For Mantle Sepolia or Mainnet, Qevor uses the deployed escrow below as shared agent infrastructure with a separate balance for each user wallet.',
     command: null,
   },
   {
@@ -41,21 +41,25 @@ const STEPS = [
 ];
 
 export function AgentWalletOnboarding({ onRegister, registering }: Props) {
-  const mantleNetwork = qevorChains.find((network) => network.agentChainCode === 'MANTLE-SEPOLIA');
+  const mantleNetwork = qevorChains.find((network) => network.agentChainCode === 'MANTLE-MAINNET' && network.agentEscrowAddress)
+    ?? qevorChains.find((network) => network.agentChainCode === 'MANTLE-SEPOLIA');
   const defaultEscrow = mantleNetwork?.agentEscrowAddress ?? '';
-  const [address, setAddress] = useState(defaultEscrow);
-  const [label, setLabel] = useState(defaultEscrow ? 'Qevor Mantle Agent Escrow' : '');
   const [chain, setChain] = useState(mantleNetwork?.agentChainCode ?? qevorChains[0].agentChainCode);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const selectedNetwork = qevorChains.find((network) => network.agentChainCode === chain) ?? qevorChains[0];
   const selectedEscrow = selectedNetwork.agentEscrowAddress;
+  const defaultLabel = selectedNetwork.paymentAsset === 'MNT'
+    ? `Qevor ${selectedNetwork.label} Agent Escrow`
+    : `${selectedNetwork.label} Agent Wallet`;
+  const [address, setAddress] = useState(defaultEscrow);
+  const [label, setLabel] = useState(defaultEscrow ? defaultLabel : '');
   const isMantleEscrow = !!selectedEscrow && address.trim().toLowerCase() === selectedEscrow.toLowerCase();
 
   useEffect(() => {
     if (!selectedEscrow) return;
     setAddress((current) => current || selectedEscrow);
-    setLabel((current) => current || 'Qevor Mantle Agent Escrow');
-  }, [selectedEscrow]);
+    setLabel((current) => current || `Qevor ${selectedNetwork.label} Agent Escrow`);
+  }, [selectedEscrow, selectedNetwork.label]);
 
   const copyCommand = (cmd: string, idx: number) => {
     navigator.clipboard.writeText(cmd);
@@ -81,8 +85,8 @@ export function AgentWalletOnboarding({ onRegister, registering }: Props) {
   const useMantleEscrow = () => {
     if (!selectedEscrow) return;
     setAddress(selectedEscrow);
-    setLabel((current) => current || 'Qevor Mantle Agent Escrow');
-    toast.success('Mantle escrow selected');
+    setLabel((current) => current || `Qevor ${selectedNetwork.label} Agent Escrow`);
+    toast.success(`${selectedNetwork.label} escrow selected`);
   };
 
   return (
@@ -90,7 +94,7 @@ export function AgentWalletOnboarding({ onRegister, registering }: Props) {
       <CardHeader>
         <CardTitle>Add an Agent Wallet</CardTitle>
         <CardDescription>
-          Register an agent wallet for Arc or Mantle Sepolia execution.
+          Register an agent wallet for Arc, Mantle Sepolia, or Mantle Mainnet execution.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -151,7 +155,7 @@ export function AgentWalletOnboarding({ onRegister, registering }: Props) {
               </div>
               {isMantleEscrow && (
                 <p className="mt-2 text-xs text-emerald-500">
-                  This registers Qevor's Mantle agent wallet. Your MNT deposits remain scoped to your connected wallet.
+                  This registers Qevor's {selectedNetwork.label} agent wallet. Your {selectedNetwork.paymentAsset} deposits remain scoped to your connected wallet.
                 </p>
               )}
             </div>

@@ -151,7 +151,14 @@ export function PolicyBuilder({ agentWalletId, chain, onSaved }: Props) {
     mirrored_to_circle_at: null, created_at: '', updated_at: '',
   } as AgentPolicy);
 
+  const isMantle = chain === 'MANTLE-SEPOLIA' || chain === 'MANTLE-MAINNET';
   const isTestnet = chain === 'ARC-TESTNET' || chain === 'MANTLE-SEPOLIA';
+  const policyAsset = isMantle ? 'MNT' : 'USDC';
+  const enforcementLabel = isMantle
+    ? `Enforced by Qevor escrow on ${chain === 'MANTLE-MAINNET' ? 'Mantle mainnet' : 'Mantle testnet'}`
+    : isTestnet
+      ? 'Enforced by Qevor on testnet'
+      : 'Enforced by Circle on mainnet';
 
   if (loading) return <p className="text-muted-foreground">Loading policy...</p>;
 
@@ -164,30 +171,30 @@ export function PolicyBuilder({ agentWalletId, chain, onSaved }: Props) {
             <Shield className="h-5 w-5" />
             <CardTitle className="text-base">On-chain limits</CardTitle>
             <Badge variant="outline" className="text-xs">
-              {isTestnet ? 'Enforced by Qevor on testnet' : 'Enforced by Circle on mainnet'}
+              {enforcementLabel}
             </Badge>
           </div>
           <CardDescription>
-            These limits map to Circle's native spending policies.
+            These limits keep autonomous execution inside your selected payment rail.
             {isTestnet && ' On testnet, Qevor enforces them via the executor.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <Label>Max per transaction (USDC)</Label>
+              <Label>Max per transaction ({policyAsset})</Label>
               <Input type="number" min="0" step="0.01" value={maxPerTx} onChange={(e) => setMaxPerTx(e.target.value)} placeholder="50" />
             </div>
             <div className="space-y-1">
-              <Label>Daily cap (USDC)</Label>
+              <Label>Daily cap ({policyAsset})</Label>
               <Input type="number" min="0" step="0.01" value={dailyCap} onChange={(e) => setDailyCap(e.target.value)} placeholder="500" />
             </div>
             <div className="space-y-1">
-              <Label>Weekly cap (USDC)</Label>
+              <Label>Weekly cap ({policyAsset})</Label>
               <Input type="number" min="0" step="0.01" value={weeklyCap} onChange={(e) => setWeeklyCap(e.target.value)} placeholder="2000" />
             </div>
             <div className="space-y-1">
-              <Label>Monthly cap (USDC)</Label>
+              <Label>Monthly cap ({policyAsset})</Label>
               <Input type="number" min="0" step="0.01" value={monthlyCap} onChange={(e) => setMonthlyCap(e.target.value)} placeholder="5000" />
             </div>
           </div>
@@ -292,7 +299,7 @@ export function PolicyBuilder({ agentWalletId, chain, onSaved }: Props) {
 
           {/* Cosign threshold */}
           <div className="space-y-1">
-            <Label>Cosign threshold (USDC)</Label>
+            <Label>Cosign threshold ({policyAsset})</Label>
             <Input type="number" min="0" step="0.01" value={cosignThreshold} onChange={(e) => setCosignThreshold(e.target.value)} placeholder="200" />
             <p className="text-xs text-muted-foreground">
               Transfers above this amount will require your manual approval.
