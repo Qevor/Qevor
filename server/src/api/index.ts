@@ -49,6 +49,7 @@ import agentEnrollRouter from './routes/agents/wallets-enroll.js';
 import agentCosignRouter from './routes/agents/cosign.js';
 import skillsRouter, { qevorSkillManifest } from './routes/skills.js';
 import copilotRouter from './routes/copilot.js';
+import statsRouter from './routes/stats.js';
 app.use('/api/agents', agentRegisterRouter);
 app.use('/api/agents', agentPoliciesRouter);
 app.use('/api/agents', agentAuditRouter);
@@ -56,6 +57,7 @@ app.use('/api/agents', agentEnrollRouter);
 app.use('/api/agents', agentCosignRouter);
 app.use('/api/skills', skillsRouter);
 app.use('/api/copilot', copilotRouter);
+app.use('/api/stats', statsRouter);
 app.get('/.well-known/qevor-agent-skills.json', (_req, res) => {
   res.json(qevorSkillManifest);
 });

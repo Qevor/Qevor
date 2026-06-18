@@ -56,7 +56,17 @@ interface WalletTransactionStats {
     mainnet: number;
 }
 
+interface PlatformTransactionStats extends WalletTransactionStats {
+    total: number;
+}
+
 const createEmptyTransactionStats = (): WalletTransactionStats => ({
+    testnet: 0,
+    mainnet: 0,
+});
+
+const createEmptyPlatformTransactionStats = (): PlatformTransactionStats => ({
+    total: 0,
     testnet: 0,
     mainnet: 0,
 });
@@ -99,6 +109,7 @@ export function WalletTab() {
     const [activities, setActivities] = useState<WalletActivity[]>([]);
     const [activityLoading, setActivityLoading] = useState(false);
     const [transactionStats, setTransactionStats] = useState<WalletTransactionStats>(() => createEmptyTransactionStats());
+    const [platformTransactionStats, setPlatformTransactionStats] = useState<PlatformTransactionStats>(() => createEmptyPlatformTransactionStats());
     const selectedNetwork = getQevorChainByKey(chainKey);
     const availableChains = getQevorChainsByEnvironment(chainEnvironment);
 
@@ -135,6 +146,25 @@ export function WalletTab() {
             // silently keep last known value
         }
     }, [address, selectedNetwork]);
+
+    const fetchPlatformTransactionStats = useCallback(async () => {
+        const apiUrl = import.meta.env.VITE_QEVOR_API_URL?.replace(/\/$/, '');
+        if (!apiUrl) return;
+
+        try {
+            const response = await fetch(`${apiUrl}/api/stats/transactions`);
+            if (!response.ok) throw new Error(`Stats request failed with ${response.status}`);
+
+            const data = await response.json() as Partial<PlatformTransactionStats>;
+            const testnet = Number(data.testnet ?? 0);
+            const mainnet = Number(data.mainnet ?? 0);
+            const total = Number(data.total ?? testnet + mainnet);
+
+            setPlatformTransactionStats({ total, testnet, mainnet });
+        } catch (error) {
+            console.error('Error loading Qevor transaction stats:', error);
+        }
+    }, []);
 
     const fetchActivity = useCallback(async () => {
         if (!address) {
@@ -284,9 +314,10 @@ export function WalletTab() {
     useEffect(() => {
         fetchBalance();
         fetchActivity();
+        fetchPlatformTransactionStats();
         const id = setInterval(fetchBalance, 5000);
         return () => clearInterval(id);
-    }, [fetchActivity, fetchBalance]);
+    }, [fetchActivity, fetchBalance, fetchPlatformTransactionStats]);
 
     const refetch = () => {
         setTimeout(fetchBalance, 1000);
@@ -294,6 +325,7 @@ export function WalletTab() {
         setTimeout(fetchBalance, 10000);
         setTimeout(fetchActivity, 1500);
         setTimeout(fetchActivity, 6000);
+        setTimeout(fetchPlatformTransactionStats, 6500);
     };
     const navigate = useNavigate();
 
@@ -513,18 +545,22 @@ export function WalletTab() {
                     </Dialog>
                 </div>
 
-                <div className="mt-6 grid w-full max-w-lg grid-cols-3 gap-2 text-left">
+                <div className="mt-5 grid w-full max-w-2xl grid-cols-2 gap-2 text-left sm:grid-cols-4">
                     <div className="rounded-xl border border-border bg-background/45 px-3 py-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Total tx</p>
-                        <p className="mt-1 text-lg font-bold">{totalCompletedTransactions}</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Qevor tx</p>
+                        <p className="mt-1 text-base font-bold">{platformTransactionStats.total}</p>
                     </div>
                     <div className="rounded-xl border border-border bg-background/45 px-3 py-2">
                         <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Testnet</p>
-                        <p className="mt-1 text-lg font-bold">{transactionStats.testnet}</p>
+                        <p className="mt-1 text-base font-bold">{platformTransactionStats.testnet}</p>
                     </div>
                     <div className="rounded-xl border border-border bg-background/45 px-3 py-2">
                         <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Mainnet</p>
-                        <p className="mt-1 text-lg font-bold">{transactionStats.mainnet}</p>
+                        <p className="mt-1 text-base font-bold">{platformTransactionStats.mainnet}</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-background/45 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Your tx</p>
+                        <p className="mt-1 text-base font-bold">{totalCompletedTransactions}</p>
                     </div>
                 </div>
 
