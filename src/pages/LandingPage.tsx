@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -54,12 +54,43 @@ const MARQUEE_ITEMS = [
   'Payment link shared to customer',
 ];
 
+interface LandingTransactionStats {
+  activeUsers: number;
+  total: number;
+  testnet: number;
+  mainnet: number;
+}
+
+const EMPTY_LANDING_STATS: LandingTransactionStats = {
+  activeUsers: 0,
+  total: 0,
+  testnet: 0,
+  mainnet: 0,
+};
+
+const getStatsApiUrl = () => {
+  const configured = import.meta.env.VITE_QEVOR_API_URL?.replace(/\/$/, '');
+  if (configured) return configured;
+
+  if (typeof window !== 'undefined' && window.location.hostname === 'qevor.xyz') {
+    return 'https://api.qevor.xyz';
+  }
+
+  return '';
+};
+
+const formatLandingStat = (value: number) => {
+  if (!Number.isFinite(value)) return '0';
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
+};
+
 export default function LandingPage() {
   const [handle, setHandle] = useState('');
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
   const [chainEnvironment, setChainEnvironment] = useState<QevorChainEnvironment>('testnet');
   const [chainKey, setChainKey] = useState<QevorChainKey>('mantle-sepolia');
+  const [landingStats, setLandingStats] = useState<LandingTransactionStats>(EMPTY_LANDING_STATS);
   const [copied, setCopied] = useState(false);
   const [resolveHandle, setResolveHandle] = useState('');
   const [resolved, setResolved] = useState<{ handle: string; address: string } | null>(null);
@@ -72,6 +103,43 @@ export default function LandingPage() {
   const payLink = handle
     ? `${appUrl}/pay?to=${handle}&amount=${amount || '0'}&chain=${selectedNetwork.key}${memo ? `&memo=${encodeURIComponent(memo)}` : ''}`
     : '';
+
+  useEffect(() => {
+    const apiUrl = getStatsApiUrl();
+    if (!apiUrl) return;
+
+    let mounted = true;
+
+    const loadStats = () => {
+      fetch(`${apiUrl}/api/stats/transactions`)
+        .then((response) => {
+          if (!response.ok) throw new Error(`Stats request failed with ${response.status}`);
+          return response.json();
+        })
+        .then((data: Partial<LandingTransactionStats>) => {
+          if (!mounted) return;
+          const testnet = Number(data.testnet ?? 0);
+          const mainnet = Number(data.mainnet ?? 0);
+          setLandingStats({
+            activeUsers: Number(data.activeUsers ?? 0),
+            total: Number(data.total ?? testnet + mainnet),
+            testnet,
+            mainnet,
+          });
+        })
+        .catch((error) => {
+          console.error('Error loading landing transaction stats:', error);
+        });
+    };
+
+    loadStats();
+    const refreshId = window.setInterval(loadStats, 30_000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(refreshId);
+    };
+  }, []);
 
   const handleEnvironmentChange = (environment: QevorChainEnvironment) => {
     setChainEnvironment(environment);
@@ -175,9 +243,23 @@ export default function LandingPage() {
                 Build a test link
               </a>
             </div>
+
+            <div className="mt-8 grid max-w-4xl grid-cols-2 overflow-hidden rounded-lg border border-border bg-card/80 shadow-sm backdrop-blur md:grid-cols-4">
+              {[
+                ['Active users', landingStats.activeUsers],
+                ['Total tx', landingStats.total],
+                ['Testnet tx', landingStats.testnet],
+                ['Mainnet tx', landingStats.mainnet],
+              ].map(([label, value]) => (
+                <div key={label as string} className="border-border px-3 py-3 text-center odd:border-r first:border-b [&:nth-child(2)]:border-b md:border-b-0 md:border-r md:px-4 md:py-4 md:last:border-r-0">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label as string}</p>
+                  <p className="mt-1 font-mono text-2xl font-bold text-foreground md:text-3xl">{formatLandingStat(value as number)}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="mt-14 grid max-w-5xl gap-3 sm:grid-cols-3">
+          <div className="mt-10 grid max-w-5xl gap-3 sm:grid-cols-3">
             {[
               ['Agent planner', 'Intent to operation', 'reviewable before execution'],
               ['Policy engine', 'Hard safety gates', 'approval required by default'],
