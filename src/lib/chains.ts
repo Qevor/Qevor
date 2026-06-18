@@ -78,9 +78,11 @@ export const mantleMainnet = defineChain({
 })
 
 export type QevorChainKey = 'arc-testnet' | 'mantle-sepolia' | 'mantle-mainnet'
+export type QevorChainEnvironment = 'testnet' | 'mainnet'
 
 export interface QevorChainConfig {
   key: QevorChainKey
+  environment: QevorChainEnvironment
   chain: Chain
   label: string
   paymentAsset: string
@@ -100,6 +102,7 @@ const mantleMainnetEscrowAddress = optionalAddress(import.meta.env.VITE_MANTLE_M
 export const qevorChains = [
   {
     key: 'arc-testnet',
+    environment: 'testnet',
     chain: arcTestnet,
     label: 'Arc Testnet',
     paymentAsset: 'USDC',
@@ -109,6 +112,7 @@ export const qevorChains = [
   },
   {
     key: 'mantle-sepolia',
+    environment: 'testnet',
     chain: mantleSepolia,
     label: 'Mantle Sepolia',
     paymentAsset: 'MNT',
@@ -119,6 +123,7 @@ export const qevorChains = [
   },
   {
     key: 'mantle-mainnet',
+    environment: 'mainnet',
     chain: mantleMainnet,
     label: 'Mantle Mainnet',
     paymentAsset: 'MNT',
@@ -142,6 +147,19 @@ export function getQevorChainById(chainId?: number | null) {
 
 export function getQevorChainByAgentChain(agentChain?: string | null) {
   return qevorChains.find(c => c.agentChainCode === agentChain) ?? qevorChains[0]
+}
+
+export function getQevorChainEnvironment(key?: string | null): QevorChainEnvironment {
+  return getQevorChainByKey(key).environment
+}
+
+export function getQevorChainsByEnvironment(environment: QevorChainEnvironment) {
+  return qevorChains.filter(c => c.environment === environment)
+}
+
+export function getDefaultQevorChainForEnvironment(environment: QevorChainEnvironment) {
+  if (environment === 'mainnet') return getQevorChainByKey('mantle-mainnet')
+  return getQevorChainByKey('mantle-sepolia')
 }
 
 export function getExplorerTxUrl(chainId: number | null | undefined, txHash: string) {

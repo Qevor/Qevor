@@ -5,7 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Copy, Check, Loader2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { isAddress } from 'viem';
-import { qevorChains } from '@/lib/chains';
+import { ChainEnvironmentToggle } from '@/components/ChainEnvironmentToggle';
+import {
+  getDefaultQevorChainForEnvironment,
+  getQevorChainsByEnvironment,
+  qevorChains,
+  type QevorChainConfig,
+  type QevorChainEnvironment,
+} from '@/lib/chains';
 
 interface Props {
   onRegister: (
@@ -40,26 +47,44 @@ const STEPS = [
   },
 ];
 
+function getAgentWalletLabel(network: Pick<QevorChainConfig, 'label' | 'paymentAsset'>) {
+  return network.paymentAsset === 'MNT'
+    ? `Qevor ${network.label} Agent Escrow`
+    : `${network.label} Agent Wallet`;
+}
+
 export function AgentWalletOnboarding({ onRegister, registering }: Props) {
-  const mantleNetwork = qevorChains.find((network) => network.agentChainCode === 'MANTLE-MAINNET' && network.agentEscrowAddress)
+  const defaultNetwork = qevorChains.find((network) => network.agentChainCode === 'MANTLE-MAINNET' && network.agentEscrowAddress)
     ?? qevorChains.find((network) => network.agentChainCode === 'MANTLE-SEPOLIA');
-  const defaultEscrow = mantleNetwork?.agentEscrowAddress ?? '';
-  const [chain, setChain] = useState(mantleNetwork?.agentChainCode ?? qevorChains[0].agentChainCode);
+  const initialNetwork = defaultNetwork ?? qevorChains[0];
+  const defaultEscrow = initialNetwork.agentEscrowAddress ?? '';
+  const [chainEnvironment, setChainEnvironment] = useState<QevorChainEnvironment>(initialNetwork.environment);
+  const [chain, setChain] = useState(initialNetwork.agentChainCode);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const selectedNetwork = qevorChains.find((network) => network.agentChainCode === chain) ?? qevorChains[0];
+  const availableChains = getQevorChainsByEnvironment(chainEnvironment);
   const selectedEscrow = selectedNetwork.agentEscrowAddress;
-  const defaultLabel = selectedNetwork.paymentAsset === 'MNT'
-    ? `Qevor ${selectedNetwork.label} Agent Escrow`
-    : `${selectedNetwork.label} Agent Wallet`;
+  const defaultLabel = getAgentWalletLabel(selectedNetwork);
   const [address, setAddress] = useState(defaultEscrow);
   const [label, setLabel] = useState(defaultEscrow ? defaultLabel : '');
   const isMantleEscrow = !!selectedEscrow && address.trim().toLowerCase() === selectedEscrow.toLowerCase();
 
+  const setSelectedNetwork = (network: QevorChainConfig) => {
+    setChain(network.agentChainCode);
+    setAddress(network.agentEscrowAddress ?? '');
+    setLabel(network.agentEscrowAddress ? getAgentWalletLabel(network) : '');
+  };
+
+  const handleEnvironmentChange = (environment: QevorChainEnvironment) => {
+    setChainEnvironment(environment);
+    setSelectedNetwork(getDefaultQevorChainForEnvironment(environment));
+  };
+
   useEffect(() => {
     if (!selectedEscrow) return;
     setAddress((current) => current || selectedEscrow);
-    setLabel((current) => current || `Qevor ${selectedNetwork.label} Agent Escrow`);
-  }, [selectedEscrow, selectedNetwork.label]);
+    setLabel((current) => current || getAgentWalletLabel(selectedNetwork));
+  }, [selectedEscrow, selectedNetwork]);
 
   const copyCommand = (cmd: string, idx: number) => {
     navigator.clipboard.writeText(cmd);
@@ -128,12 +153,19 @@ export function AgentWalletOnboarding({ onRegister, registering }: Props) {
         ))}
 
         <div className="ml-8 space-y-3">
+          <ChainEnvironmentToggle
+            value={chainEnvironment}
+            onChange={handleEnvironmentChange}
+          />
           <select
             value={chain}
-            onChange={(e) => setChain(e.target.value)}
+            onChange={(e) => {
+              const nextNetwork = qevorChains.find((network) => network.agentChainCode === e.target.value);
+              if (nextNetwork) setSelectedNetwork(nextNetwork);
+            }}
             className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
           >
-            {qevorChains.map((network) => (
+            {availableChains.map((network) => (
               <option key={network.agentChainCode} value={network.agentChainCode}>
                 {network.label} ({network.paymentAsset})
               </option>

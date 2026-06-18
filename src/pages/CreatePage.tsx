@@ -7,7 +7,14 @@ import { usePaymentLinks } from '@/hooks/usePaymentLinks'
 import { useAccount } from 'wagmi'
 import { useProfiles } from '@/hooks/useProfiles'
 import { getAppUrl } from '@/lib/appUrl'
-import { DEFAULT_QEVOR_CHAIN_KEY, getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains'
+import { ChainEnvironmentToggle } from '@/components/ChainEnvironmentToggle'
+import {
+  getDefaultQevorChainForEnvironment,
+  getQevorChainByKey,
+  getQevorChainsByEnvironment,
+  type QevorChainEnvironment,
+  type QevorChainKey,
+} from '@/lib/chains'
 
 const CreatePage = () => {
   const { createLinks, loading: isCreatingLinks } = usePaymentLinks()
@@ -16,8 +23,19 @@ const CreatePage = () => {
 
   const [recipientInput, setRecipientInput] = useState('')
   const [amount, setAmount] = useState('')
-  const [chainKey, setChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY)
+  const [generated, setGenerated] = useState(false)
+  const [generatedLinkId, setGeneratedLinkId] = useState<string | null>(null)
+  const [chainEnvironment, setChainEnvironment] = useState<QevorChainEnvironment>('testnet')
+  const [chainKey, setChainKey] = useState<QevorChainKey>(() => getDefaultQevorChainForEnvironment('testnet').key)
   const selectedNetwork = getQevorChainByKey(chainKey)
+  const availableChains = getQevorChainsByEnvironment(chainEnvironment)
+
+  const handleEnvironmentChange = (environment: QevorChainEnvironment) => {
+    setChainEnvironment(environment)
+    setChainKey(getDefaultQevorChainForEnvironment(environment).key)
+    setGenerated(false)
+    setGeneratedLinkId(null)
+  }
 
   useEffect(() => {
     if (connectedWallet && !recipientInput) {
@@ -28,11 +46,9 @@ const CreatePage = () => {
     }
   }, [connectedWallet, getProfileByWallet])
 
-  const [generated, setGenerated] = useState(false)
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null)
   const [generatedSplitLinks, setGeneratedSplitLinks] = useState<Array<{ id: string; amount: number }>>([])
   const [isSplitResultsView, setIsSplitResultsView] = useState(false)
-  const [generatedLinkId, setGeneratedLinkId] = useState<string | null>(null)
 
   const generatedCardRef = useRef<HTMLDivElement>(null)
 
@@ -383,6 +399,10 @@ const CreatePage = () => {
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Network</label>
+            <ChainEnvironmentToggle
+              value={chainEnvironment}
+              onChange={handleEnvironmentChange}
+            />
             <select
               value={chainKey}
               onChange={(e) => {
@@ -392,7 +412,7 @@ const CreatePage = () => {
               }}
               className="w-full rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
             >
-              {qevorChains.map(network => (
+              {availableChains.map(network => (
                 <option key={network.key} value={network.key}>
                   {network.label} ({network.paymentAsset})
                 </option>

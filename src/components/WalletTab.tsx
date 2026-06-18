@@ -10,7 +10,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { useProfiles } from '@/hooks/useProfiles';
 import { useArcSend } from '@/hooks/useArcSend';
 import { Link, useNavigate } from 'react-router-dom';
-import { DEFAULT_QEVOR_CHAIN_KEY, getExplorerTxUrl, getQevorChainById, getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains';
+import { ChainEnvironmentToggle } from '@/components/ChainEnvironmentToggle';
+import {
+    getDefaultQevorChainForEnvironment,
+    getExplorerTxUrl,
+    getQevorChainById,
+    getQevorChainByKey,
+    getQevorChainsByEnvironment,
+    type QevorChainEnvironment,
+    type QevorChainKey,
+} from '@/lib/chains';
 
 const USDC_ADDRESS = '0x3600000000000000000000000000000000000000' as const;
 
@@ -64,10 +73,18 @@ const formatActivityDate = (date: string) => {
 export function WalletTab() {
     const { address } = useAccount();
     const [displayBalance, setDisplayBalance] = useState('0.0000');
-    const [chainKey, setChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY);
+    const [chainEnvironment, setChainEnvironment] = useState<QevorChainEnvironment>('testnet');
+    const [chainKey, setChainKey] = useState<QevorChainKey>(() => getDefaultQevorChainForEnvironment('testnet').key);
     const [activities, setActivities] = useState<WalletActivity[]>([]);
     const [activityLoading, setActivityLoading] = useState(false);
     const selectedNetwork = getQevorChainByKey(chainKey);
+    const availableChains = getQevorChainsByEnvironment(chainEnvironment);
+
+    const handleChainEnvironmentChange = (environment: QevorChainEnvironment) => {
+        setChainEnvironment(environment);
+        setChainKey(getDefaultQevorChainForEnvironment(environment).key);
+        setDisplayBalance('0.0000');
+    };
 
     const fetchBalance = useCallback(async () => {
         if (!address) return;
@@ -344,6 +361,11 @@ export function WalletTab() {
                 </div>
                 <p className="text-primary/80 font-medium mb-4">{selectedNetwork.paymentAsset} ({selectedNetwork.label})</p>
                 <div className="w-full max-w-xs mb-8">
+                    <ChainEnvironmentToggle
+                        value={chainEnvironment}
+                        onChange={handleChainEnvironmentChange}
+                        className="mb-3"
+                    />
                     <select
                         value={chainKey}
                         onChange={(e) => {
@@ -352,7 +374,7 @@ export function WalletTab() {
                         }}
                         className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
                     >
-                        {qevorChains.map(network => (
+                        {availableChains.map(network => (
                             <option key={network.key} value={network.key}>
                                 {network.label} ({network.paymentAsset})
                             </option>

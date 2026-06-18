@@ -17,8 +17,16 @@ import {
   UploadCloud,
   Users,
 } from 'lucide-react';
-import { getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains';
+import { ChainEnvironmentToggle } from '@/components/ChainEnvironmentToggle';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { getAppUrl } from '@/lib/appUrl';
+import {
+  getDefaultQevorChainForEnvironment,
+  getQevorChainByKey,
+  getQevorChainsByEnvironment,
+  type QevorChainEnvironment,
+  type QevorChainKey,
+} from '@/lib/chains';
 
 const SectionLabel = ({ n, label }: { n: string; label: string }) => (
   <div className="mb-6 flex items-center gap-3">
@@ -50,6 +58,7 @@ export default function LandingPage() {
   const [handle, setHandle] = useState('');
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
+  const [chainEnvironment, setChainEnvironment] = useState<QevorChainEnvironment>('testnet');
   const [chainKey, setChainKey] = useState<QevorChainKey>('mantle-sepolia');
   const [copied, setCopied] = useState(false);
   const [resolveHandle, setResolveHandle] = useState('');
@@ -58,9 +67,16 @@ export default function LandingPage() {
   const tryRef = useRef<HTMLDivElement>(null);
 
   const selectedNetwork = getQevorChainByKey(chainKey);
+  const appUrl = getAppUrl();
+  const availableChains = getQevorChainsByEnvironment(chainEnvironment);
   const payLink = handle
-    ? `https://qevor.vercel.app/pay?to=${handle}&amount=${amount || '0'}&chain=${selectedNetwork.key}${memo ? `&memo=${encodeURIComponent(memo)}` : ''}`
+    ? `${appUrl}/pay?to=${handle}&amount=${amount || '0'}&chain=${selectedNetwork.key}${memo ? `&memo=${encodeURIComponent(memo)}` : ''}`
     : '';
+
+  const handleEnvironmentChange = (environment: QevorChainEnvironment) => {
+    setChainEnvironment(environment);
+    setChainKey(getDefaultQevorChainForEnvironment(environment).key);
+  };
 
   const copyLink = () => {
     if (!payLink) return;
@@ -300,6 +316,10 @@ export default function LandingPage() {
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="space-y-4 rounded-lg border border-border bg-card p-5">
             <h3 className="text-lg font-semibold text-foreground">Payment link generator</h3>
+            <ChainEnvironmentToggle
+              value={chainEnvironment}
+              onChange={handleEnvironmentChange}
+            />
             <div className="grid gap-3 sm:grid-cols-[1fr_0.72fr]">
               <label className="flex rounded-lg border border-border bg-background focus-within:border-primary/50">
                 <span className="flex items-center border-r border-border px-3 font-mono text-sm text-muted-foreground">@</span>
@@ -315,7 +335,7 @@ export default function LandingPage() {
                 onChange={(e) => setChainKey(e.target.value as QevorChainKey)}
                 className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/50"
               >
-                {qevorChains.map((network) => (
+                {availableChains.map((network) => (
                   <option key={network.key} value={network.key}>
                     {network.label} ({network.paymentAsset})
                   </option>

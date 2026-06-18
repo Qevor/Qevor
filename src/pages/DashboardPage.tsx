@@ -19,10 +19,21 @@ import type { AgentWallet } from '@/lib/agents/types';
 import { reviewPaymentDraft } from '@/lib/agents/safety-review';
 import { planPaymentIntent, type PaymentIntentPlan } from '@/lib/agents/intent-planner';
 import { AgentWorkspace } from '@/components/agents/AgentWorkspace';
+import { ChainEnvironmentToggle } from '@/components/ChainEnvironmentToggle';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getAppUrl } from '@/lib/appUrl';
-import { DEFAULT_QEVOR_CHAIN_KEY, getExplorerTxUrl, getQevorChainByAgentChain, getQevorChainById, getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains';
+import {
+    getDefaultQevorChainForEnvironment,
+    getExplorerTxUrl,
+    getQevorChainByAgentChain,
+    getQevorChainById,
+    getQevorChainByKey,
+    getQevorChainEnvironment,
+    getQevorChainsByEnvironment,
+    type QevorChainEnvironment,
+    type QevorChainKey,
+} from '@/lib/chains';
 
 function getCopilotSourceLabel(source: PaymentIntentPlan['source']) {
     if (source === 'anthropic') return 'Claude plan';
@@ -71,11 +82,13 @@ export default function DashboardPage() {
     const [batchTitle, setBatchTitle] = useState('');
     const [batchDesc, setBatchDesc] = useState('');
     const [batchRecipients, setBatchRecipients] = useState<BatchRecipient[]>([{ wallet: '', amount: 0, label: '' }]);
-    const [batchChainKey, setBatchChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY);
+    const [batchEnvironment, setBatchEnvironment] = useState<QevorChainEnvironment>('testnet');
+    const [batchChainKey, setBatchChainKey] = useState<QevorChainKey>(() => getDefaultQevorChainForEnvironment('testnet').key);
     const [copilotIntent, setCopilotIntent] = useState('');
     const [copilotPlan, setCopilotPlan] = useState<PaymentIntentPlan | null>(null);
     const [copilotPlanning, setCopilotPlanning] = useState(false);
     const selectedBatchNetwork = getQevorChainByKey(batchChainKey);
+    const batchNetworks = getQevorChainsByEnvironment(batchEnvironment);
 
     type SendStep = 'form' | 'sending' | 'done' | 'queued';
     type SendResult = { wallet: string; amount: number; label?: string; txHash?: string; success: boolean };
@@ -113,8 +126,10 @@ export default function DashboardPage() {
     const [linkExpiresAt, setLinkExpiresAt] = useState('');
     const [linkUnlimitedUses, setLinkUnlimitedUses] = useState(true);
     const [linkMaxUses, setLinkMaxUses] = useState('');
-    const [linkChainKey, setLinkChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY);
+    const [linkEnvironment, setLinkEnvironment] = useState<QevorChainEnvironment>('testnet');
+    const [linkChainKey, setLinkChainKey] = useState<QevorChainKey>(() => getDefaultQevorChainForEnvironment('testnet').key);
     const selectedLinkNetwork = getQevorChainByKey(linkChainKey);
+    const linkNetworks = getQevorChainsByEnvironment(linkEnvironment);
     const [createdLinks, setCreatedLinks] = useState<Array<{ id: string; amount: number; token_symbol?: string }>>([]);
     const [copiedLinkIds, setCopiedLinkIds] = useState<Set<string>>(new Set());
 
@@ -130,6 +145,20 @@ export default function DashboardPage() {
     }>>([]);
 
     const appUrl = getAppUrl();
+
+    const handleBatchEnvironmentChange = (environment: QevorChainEnvironment) => {
+        setBatchEnvironment(environment);
+        setBatchChainKey(getDefaultQevorChainForEnvironment(environment).key);
+        setExecutorAgentId(null);
+        setCopilotPlan(null);
+    };
+
+    const handleLinkEnvironmentChange = (environment: QevorChainEnvironment) => {
+        setLinkEnvironment(environment);
+        setLinkChainKey(getDefaultQevorChainForEnvironment(environment).key);
+        setCreatedLinks([]);
+        setCopiedLinkIds(new Set());
+    };
 
     useEffect(() => {
         if (address) {
@@ -258,7 +287,8 @@ export default function DashboardPage() {
         setLinkExpiresAt('');
         setLinkUnlimitedUses(true);
         setLinkMaxUses('');
-        setLinkChainKey(DEFAULT_QEVOR_CHAIN_KEY);
+        setLinkEnvironment('testnet');
+        setLinkChainKey(getDefaultQevorChainForEnvironment('testnet').key);
         setCreatedLinks([]);
         setCopiedLinkIds(new Set());
     };
@@ -274,7 +304,8 @@ export default function DashboardPage() {
         setBatchTitle('');
         setBatchDesc('');
         setBatchRecipients([{ wallet: '', amount: 0, label: '' }]);
-        setBatchChainKey(DEFAULT_QEVOR_CHAIN_KEY);
+        setBatchEnvironment('testnet');
+        setBatchChainKey(getDefaultQevorChainForEnvironment('testnet').key);
         setBatchSendStep('form');
         setBatchSendResults([]);
         setExecutorAgentId(null);
@@ -348,6 +379,7 @@ export default function DashboardPage() {
         if (!copilotPlan) return;
         setBatchTitle(copilotPlan.title);
         setBatchDesc(copilotPlan.description);
+        setBatchEnvironment(getQevorChainEnvironment(copilotPlan.chainKey));
         setBatchChainKey(copilotPlan.chainKey);
         if (copilotPlan.recipients.length > 0) {
             setBatchRecipients(copilotPlan.recipients);
@@ -636,12 +668,16 @@ export default function DashboardPage() {
 
                                         <div className="space-y-2">
                                             <label className="text-sm font-medium">Network</label>
+                                            <ChainEnvironmentToggle
+                                                value={linkEnvironment}
+                                                onChange={handleLinkEnvironmentChange}
+                                            />
                                             <select
                                                 value={linkChainKey}
                                                 onChange={(e) => setLinkChainKey(e.target.value as QevorChainKey)}
                                                 className="w-full bg-secondary border border-border rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-primary"
                                             >
-                                                {qevorChains.map(network => (
+                                                {linkNetworks.map(network => (
                                                     <option key={network.key} value={network.key}>
                                                         {network.label} ({network.paymentAsset})
                                                     </option>
@@ -877,12 +913,16 @@ export default function DashboardPage() {
 
                                             <div className="space-y-2">
                                                 <label className="text-sm font-medium">Network</label>
+                                                <ChainEnvironmentToggle
+                                                    value={batchEnvironment}
+                                                    onChange={handleBatchEnvironmentChange}
+                                                />
                                                 <select
                                                     value={batchChainKey}
                                                     onChange={(e) => setBatchChainKey(e.target.value as QevorChainKey)}
                                                     className="w-full bg-secondary border border-border rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
                                                 >
-                                                    {qevorChains.map(network => (
+                                                    {batchNetworks.map(network => (
                                                         <option key={network.key} value={network.key}>
                                                             {network.label} ({network.paymentAsset})
                                                         </option>
