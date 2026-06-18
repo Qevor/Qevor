@@ -51,7 +51,28 @@ interface WalletActivity {
     txHash?: string | null;
 }
 
+interface WalletTransactionStats {
+    testnet: number;
+    mainnet: number;
+}
+
+const createEmptyTransactionStats = (): WalletTransactionStats => ({
+    testnet: 0,
+    mainnet: 0,
+});
+
 const normalizeWallet = (wallet?: string | null) => wallet?.toLowerCase() ?? '';
+
+const isCompletedWalletTransaction = (status?: string | null, txHash?: string | null) => {
+    const normalized = status?.toLowerCase() ?? '';
+    if (!txHash) return false;
+    return !['pending', 'queued', 'failed', 'cancelled'].includes(normalized);
+};
+
+const addCompletedTransactionStat = (stats: WalletTransactionStats, chainId?: number | null) => {
+    const environment = getQevorChainById(chainId).environment;
+    stats[environment] += 1;
+};
 
 const formatShortAddress = (wallet?: string | null) => {
     if (!wallet) return 'Unknown wallet';
@@ -77,6 +98,7 @@ export function WalletTab() {
     const [chainKey, setChainKey] = useState<QevorChainKey>(() => getDefaultQevorChainForEnvironment('testnet').key);
     const [activities, setActivities] = useState<WalletActivity[]>([]);
     const [activityLoading, setActivityLoading] = useState(false);
+    const [transactionStats, setTransactionStats] = useState<WalletTransactionStats>(() => createEmptyTransactionStats());
     const selectedNetwork = getQevorChainByKey(chainKey);
     const availableChains = getQevorChainsByEnvironment(chainEnvironment);
 
@@ -117,6 +139,7 @@ export function WalletTab() {
     const fetchActivity = useCallback(async () => {
         if (!address) {
             setActivities([]);
+            setTransactionStats(createEmptyTransactionStats());
             return;
         }
 
@@ -126,6 +149,7 @@ export function WalletTab() {
             const walletFilter = `sender.ilike.${address},receiver.ilike.${address}`;
             const batchPaymentFilter = `payer_wallet.ilike.${address},recipient_wallet.ilike.${address}`;
             const linkFilter = `creator_wallet.ilike.${address},receiver_wallet.ilike.${address}`;
+            const nextStats = createEmptyTransactionStats();
 
             const [receiptResult, batchPaymentResult, batchRequestResult, linkResult] = await Promise.all([
                 supabase
@@ -133,13 +157,13 @@ export function WalletTab() {
                     .select('*')
                     .or(walletFilter)
                     .order('created_at', { ascending: false })
-                    .limit(25),
+                    .limit(1000),
                 supabase
                     .from('batch_payments')
                     .select('*')
                     .or(batchPaymentFilter)
                     .order('created_at', { ascending: false })
-                    .limit(25),
+                    .limit(1000),
                 supabase
                     .from('batch_requests')
                     .select('*')
@@ -159,6 +183,9 @@ export function WalletTab() {
             if (receiptResult.data) {
                 for (const receipt of receiptResult.data as any[]) {
                     const chain = getQevorChainById(receipt.chain_id);
+                    if (isCompletedWalletTransaction(receipt.status, receipt.tx_hash)) {
+                        addCompletedTransactionStat(nextStats, receipt.chain_id);
+                    }
                     const direction: WalletActivityDirection = normalizeWallet(receipt.sender) === wallet ? 'sent' : 'received';
                     const otherWallet = direction === 'sent' ? receipt.receiver : receipt.sender;
                     next.push({
@@ -180,6 +207,9 @@ export function WalletTab() {
             if (batchPaymentResult.data) {
                 for (const payment of batchPaymentResult.data as any[]) {
                     const chain = getQevorChainById(payment.chain_id);
+                    if (isCompletedWalletTransaction(payment.status, payment.tx_hash)) {
+                        addCompletedTransactionStat(nextStats, payment.chain_id);
+                    }
                     const direction: WalletActivityDirection = normalizeWallet(payment.payer_wallet) === wallet ? 'sent' : 'received';
                     const otherWallet = direction === 'sent' ? payment.recipient_wallet : payment.payer_wallet;
                     next.push({
@@ -236,6 +266,7 @@ export function WalletTab() {
                 }
             }
 
+            setTransactionStats(nextStats);
             setActivities(
                 next
                     .filter((activity) => activity.createdAt)
@@ -349,6 +380,8 @@ export function WalletTab() {
         return activity.direction === 'received' ? <ArrowDownLeft className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />;
     };
 
+    const totalCompletedTransactions = transactionStats.testnet + transactionStats.mainnet;
+
     return (
         <div className="space-y-8">
             <div className="glass-card p-10 rounded-3xl flex flex-col items-center justify-center text-center relative overflow-hidden">
@@ -360,35 +393,34 @@ export function WalletTab() {
                     {displayBalance}
                 </div>
                 <p className="text-primary/80 font-medium mb-4">{selectedNetwork.paymentAsset} ({selectedNetwork.label})</p>
-                <div className="w-full max-w-md mb-8 rounded-2xl border border-primary/20 bg-background/50 p-3">
-                    <div className="mb-2 flex items-center justify-between gap-3 text-left">
-                        <div>
-                            <p className="text-xs font-bold uppercase tracking-widest text-primary">Rail environment</p>
-                            <p className="text-xs text-muted-foreground">Choose sandbox testing or real mainnet funds.</p>
-                        </div>
-                        <span className="rounded-full border border-border bg-secondary px-3 py-1 text-xs font-semibold text-muted-foreground">
-                            {chainEnvironment === 'mainnet' ? 'Live' : 'Safe test'}
+                <div className="mb-6 w-full max-w-md space-y-2">
+                    <div className="flex items-center justify-between gap-3 text-left">
+                        <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Rail</span>
+                        <span className="rounded-full border border-border bg-secondary px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+                            {chainEnvironment === 'mainnet' ? 'Mainnet live' : 'Testnet'}
                         </span>
                     </div>
-                    <ChainEnvironmentToggle
-                        value={chainEnvironment}
-                        onChange={handleChainEnvironmentChange}
-                        className="mb-3"
-                    />
-                    <select
-                        value={chainKey}
-                        onChange={(e) => {
-                            setChainKey(e.target.value as QevorChainKey);
-                            setDisplayBalance('0.0000');
-                        }}
-                        className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
-                    >
-                        {availableChains.map(network => (
-                            <option key={network.key} value={network.key}>
-                                {network.label} ({network.paymentAsset})
-                            </option>
-                        ))}
-                    </select>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        <ChainEnvironmentToggle
+                            value={chainEnvironment}
+                            onChange={handleChainEnvironmentChange}
+                            className="w-full sm:w-40"
+                        />
+                        <select
+                            value={chainKey}
+                            onChange={(e) => {
+                                setChainKey(e.target.value as QevorChainKey);
+                                setDisplayBalance('0.0000');
+                            }}
+                            className="min-w-0 flex-1 rounded-xl border border-border bg-secondary px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
+                        >
+                            {availableChains.map(network => (
+                                <option key={network.key} value={network.key}>
+                                    {network.label} ({network.paymentAsset})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
 
                 {/* Primary action buttons — Send & Receive */}
@@ -479,6 +511,21 @@ export function WalletTab() {
                             </div>
                         </DialogContent>
                     </Dialog>
+                </div>
+
+                <div className="mt-6 grid w-full max-w-lg grid-cols-3 gap-2 text-left">
+                    <div className="rounded-xl border border-border bg-background/45 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Total tx</p>
+                        <p className="mt-1 text-lg font-bold">{totalCompletedTransactions}</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-background/45 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Testnet</p>
+                        <p className="mt-1 text-lg font-bold">{transactionStats.testnet}</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-background/45 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Mainnet</p>
+                        <p className="mt-1 text-lg font-bold">{transactionStats.mainnet}</p>
+                    </div>
                 </div>
 
 

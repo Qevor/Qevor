@@ -9,14 +9,14 @@ interface ChainEnvironmentToggleProps {
 
 export function ChainEnvironmentToggle({ value, onChange, className }: ChainEnvironmentToggleProps) {
   const environments = [
-    { key: 'testnet', label: 'Testnet', helper: 'Sandbox' },
-    { key: 'mainnet', label: 'Mainnet', helper: 'Live funds' },
+    { key: 'testnet', label: 'Testnet' },
+    { key: 'mainnet', label: 'Mainnet' },
   ] as const;
 
   return (
     <div
       className={cn(
-        'grid grid-cols-2 gap-1 rounded-2xl border border-primary/30 bg-background/60 p-1 shadow-sm',
+        'inline-grid grid-cols-2 gap-1 rounded-xl border border-border bg-secondary/70 p-1 shadow-sm',
         className,
       )}
       aria-label="Rail environment"
@@ -29,16 +29,13 @@ export function ChainEnvironmentToggle({ value, onChange, className }: ChainEnvi
             type="button"
             onClick={() => onChange(environment.key)}
             className={cn(
-              'rounded-xl px-3 py-2 text-left transition-colors',
+              'h-8 rounded-lg px-3 text-xs font-semibold transition-colors',
               active
-                ? 'bg-primary text-primary-foreground shadow-glow'
+                ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
             )}
           >
-            <span className="block text-sm font-bold">{environment.label}</span>
-            <span className={cn('block text-xs', active ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
-              {environment.helper}
-            </span>
+            {environment.label}
           </button>
         );
       })}
