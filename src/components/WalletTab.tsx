@@ -360,7 +360,16 @@ export function WalletTab() {
                     {displayBalance}
                 </div>
                 <p className="text-primary/80 font-medium mb-4">{selectedNetwork.paymentAsset} ({selectedNetwork.label})</p>
-                <div className="w-full max-w-xs mb-8">
+                <div className="w-full max-w-md mb-8 rounded-2xl border border-primary/20 bg-background/50 p-3">
+                    <div className="mb-2 flex items-center justify-between gap-3 text-left">
+                        <div>
+                            <p className="text-xs font-bold uppercase tracking-widest text-primary">Rail environment</p>
+                            <p className="text-xs text-muted-foreground">Choose sandbox testing or real mainnet funds.</p>
+                        </div>
+                        <span className="rounded-full border border-border bg-secondary px-3 py-1 text-xs font-semibold text-muted-foreground">
+                            {chainEnvironment === 'mainnet' ? 'Live' : 'Safe test'}
+                        </span>
+                    </div>
                     <ChainEnvironmentToggle
                         value={chainEnvironment}
                         onChange={handleChainEnvironmentChange}
