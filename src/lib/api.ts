@@ -1,9 +1,13 @@
-const PRODUCTION_HOSTS = new Set(['qevor.xyz', 'www.qevor.xyz']);
+const PRODUCTION_HOSTS = new Set(['qevor.xyz', 'www.qevor.xyz', 'qevor.vercel.app']);
 
 export const getQevorApiUrl = () => {
   if (typeof window !== 'undefined' && PRODUCTION_HOSTS.has(window.location.hostname)) {
     return 'https://api.qevor.xyz';
   }
 
-  return import.meta.env.VITE_QEVOR_API_URL?.replace(/\/$/, '') ?? '';
+  if (import.meta.env.DEV) {
+    return import.meta.env.VITE_QEVOR_API_URL?.replace(/\/$/, '') ?? '';
+  }
+
+  return '';
 };
