@@ -10,6 +10,7 @@ Qevor currently supports Mantle Sepolia, Mantle Mainnet, and Arc Testnet. Mainne
 - **Human approval by default:** the copilot can draft, validate, and route payments, but it cannot bypass approval gates.
 - **Mantle payment rail:** Mantle Sepolia and Mantle Mainnet MNT transfers, CSV batch payouts, receipts, and explorer links.
 - **Payment links:** shareable requests for exact amounts across supported rails.
+- **Subscriptions and recurring payments:** schedule repeat payments for retainers, dues, subscriptions, payroll, and recurring invoices.
 - **Wallet history:** recent direct sends, payment links, batch requests, receipts, and batch payouts are visible from the wallet dashboard.
 - **AI safety copilot:** scans payment drafts for duplicate recipients, invalid addresses, risky amounts, wrong-chain intent, and suspicious CSV rows.
 - **Agent operation history:** agent-assisted batches are recorded with status, recipients, amounts, and receipt access.
@@ -157,6 +158,7 @@ Core tables include:
 - `batch_requests`
 - `batch_payments`
 - `receipts`
+- `recurring_payments`
 - `agent_wallets`
 - `agent_policies`
 - `agent_audit_log`

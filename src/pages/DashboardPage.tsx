@@ -20,6 +20,7 @@ import { reviewPaymentDraft } from '@/lib/agents/safety-review';
 import { planPaymentIntent, type PaymentIntentPlan } from '@/lib/agents/intent-planner';
 import { AgentWorkspace } from '@/components/agents/AgentWorkspace';
 import { ChainEnvironmentToggle } from '@/components/ChainEnvironmentToggle';
+import { RecurringPaymentsTab } from '@/components/RecurringPaymentsTab';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getAppUrl } from '@/lib/appUrl';
@@ -532,6 +533,7 @@ export default function DashboardPage() {
                     <TabsTrigger value="wallet" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">Wallet</TabsTrigger>
                     <TabsTrigger value="links" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">My Links</TabsTrigger>
                     <TabsTrigger value="batch" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">Batch Payments</TabsTrigger>
+                    <TabsTrigger value="recurring" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">Recurring</TabsTrigger>
                     <TabsTrigger value="receipts" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-max">Receipts</TabsTrigger>
                 </TabsList>
 
@@ -1254,6 +1256,11 @@ export default function DashboardPage() {
                             ))}
                         </div>
                     )}
+                </TabsContent>
+
+                {/* RECURRING PAYMENTS TAB */}
+                <TabsContent value="recurring" className="animate-in fade-in-50">
+                    <RecurringPaymentsTab wallet={address} />
                 </TabsContent>
 
                 {/* RECEIPTS TAB */}
