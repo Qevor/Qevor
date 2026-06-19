@@ -7,6 +7,7 @@ import { Send, Download, Loader2, ArrowUpRight, ArrowDownLeft, Users, Link as Li
 import QRCode from 'react-qr-code';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { getQevorApiUrl } from '@/lib/api';
 import { useProfiles } from '@/hooks/useProfiles';
 import { useArcSend } from '@/hooks/useArcSend';
 import { Link, useNavigate } from 'react-router-dom';
@@ -148,7 +149,7 @@ export function WalletTab() {
     }, [address, selectedNetwork]);
 
     const fetchPlatformTransactionStats = useCallback(async () => {
-        const apiUrl = import.meta.env.VITE_QEVOR_API_URL?.replace(/\/$/, '');
+        const apiUrl = getQevorApiUrl();
         if (!apiUrl) return;
 
         try {

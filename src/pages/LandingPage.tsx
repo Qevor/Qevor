@@ -20,6 +20,7 @@ import {
 import { ChainEnvironmentToggle } from '@/components/ChainEnvironmentToggle';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { getAppUrl } from '@/lib/appUrl';
+import { getQevorApiUrl } from '@/lib/api';
 import {
   getDefaultQevorChainForEnvironment,
   getQevorChainByKey,
@@ -68,17 +69,6 @@ const EMPTY_LANDING_STATS: LandingTransactionStats = {
   mainnet: 0,
 };
 
-const getStatsApiUrl = () => {
-  const configured = import.meta.env.VITE_QEVOR_API_URL?.replace(/\/$/, '');
-  if (configured) return configured;
-
-  if (typeof window !== 'undefined' && window.location.hostname === 'qevor.xyz') {
-    return 'https://api.qevor.xyz';
-  }
-
-  return '';
-};
-
 const formatLandingStat = (value: number) => {
   if (!Number.isFinite(value)) return '0';
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
@@ -105,7 +95,7 @@ export default function LandingPage() {
     : '';
 
   useEffect(() => {
-    const apiUrl = getStatsApiUrl();
+    const apiUrl = getQevorApiUrl();
     if (!apiUrl) return;
 
     let mounted = true;

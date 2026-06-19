@@ -1,4 +1,5 @@
 import type { QevorChainKey } from '@/lib/chains';
+import { getQevorApiUrl } from '@/lib/api';
 
 export interface CopilotRecipient {
   wallet: string;
@@ -92,7 +93,7 @@ export async function planPaymentIntent(
   context: PaymentIntentContext,
 ): Promise<PaymentIntentPlan> {
   const fallback = planPaymentIntentLocally(intent, context);
-  const apiUrl = import.meta.env.VITE_QEVOR_API_URL?.replace(/\/$/, '');
+  const apiUrl = getQevorApiUrl();
   if (!apiUrl) return fallback;
 
   try {
