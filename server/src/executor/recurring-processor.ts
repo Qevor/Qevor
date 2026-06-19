@@ -22,6 +22,8 @@ interface RecurringPaymentRow {
 }
 
 const DUE_LIMIT = 20;
+const MISSING_TABLE_BACKOFF_MS = 5 * 60 * 1000;
+let recurringTableUnavailableUntil = 0;
 
 /**
  * Turn due agent recurring plans into normal batch requests.
@@ -29,6 +31,8 @@ const DUE_LIMIT = 20;
  */
 export async function queueDueRecurringPayments(log: Logger): Promise<void> {
   const now = new Date();
+
+  if (Date.now() < recurringTableUnavailableUntil) return;
 
   const { data: plans, error } = await supabase
     .from('recurring_payments')
@@ -41,6 +45,14 @@ export async function queueDueRecurringPayments(log: Logger): Promise<void> {
     .limit(DUE_LIMIT);
 
   if (error) {
+    if (error.code === 'PGRST205') {
+      recurringTableUnavailableUntil = Date.now() + MISSING_TABLE_BACKOFF_MS;
+      log.warn(
+        { retry_after_ms: MISSING_TABLE_BACKOFF_MS },
+        'Recurring payments table is not available yet; skipping recurring scheduler',
+      );
+      return;
+    }
     log.error({ error }, 'Failed to query due recurring payments');
     return;
   }
