@@ -4,6 +4,7 @@ import { RealCircleCliRunner } from './circle-cli.js';
 import { MantleNativeRunner } from './mantle-runner.js';
 import { provisionPendingEscrows } from './escrow-provisioner.js';
 import { processPendingBatches } from './batch-processor.js';
+import { queueDueRecurringPayments } from './recurring-processor.js';
 import { sweepExpiredCosigns, processApprovedCosigns } from './cosign-sweeper.js';
 import { isMantleAgentChain, normalizeAgentChain } from './chain-support.js';
 
@@ -61,6 +62,7 @@ async function pollLoop() {
     if (sessionState === 'authenticated') {
       log.debug('Polling for pending batch requests...');
       await provisionPendingEscrows(getRunnerForChain, log);
+      await queueDueRecurringPayments(log);
       await processPendingBatches(getRunnerForChain, log);
       await sweepExpiredCosigns(log);
       await processApprovedCosigns(getRunnerForChain, log);
