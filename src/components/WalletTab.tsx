@@ -61,6 +61,13 @@ interface PlatformTransactionStats extends WalletTransactionStats {
     total: number;
 }
 
+interface MainnetWalletStats {
+    transactions: number;
+    gasSpent: number;
+    amountReceived: number;
+    amountSent: number;
+}
+
 const createEmptyTransactionStats = (): WalletTransactionStats => ({
     testnet: 0,
     mainnet: 0,
@@ -70,6 +77,13 @@ const createEmptyPlatformTransactionStats = (): PlatformTransactionStats => ({
     total: 0,
     testnet: 0,
     mainnet: 0,
+});
+
+const createEmptyMainnetWalletStats = (): MainnetWalletStats => ({
+    transactions: 0,
+    gasSpent: 0,
+    amountReceived: 0,
+    amountSent: 0,
 });
 
 const normalizeWallet = (wallet?: string | null) => wallet?.toLowerCase() ?? '';
@@ -83,6 +97,19 @@ const isCompletedWalletTransaction = (status?: string | null, txHash?: string | 
 const addCompletedTransactionStat = (stats: WalletTransactionStats, chainId?: number | null) => {
     const environment = getQevorChainById(chainId).environment;
     stats[environment] += 1;
+};
+
+const addMainnetTransaction = (stats: MainnetWalletStats, txHashes: Set<string>, txHash?: string | null) => {
+    const normalized = txHash?.trim().toLowerCase();
+    if (!normalized || txHashes.has(normalized)) return;
+
+    txHashes.add(normalized);
+    stats.transactions += 1;
+};
+
+const addMainnetGasHash = (gasHashes: Set<string>, txHash?: string | null) => {
+    const normalized = txHash?.trim().toLowerCase();
+    if (normalized) gasHashes.add(normalized);
 };
 
 const formatShortAddress = (wallet?: string | null) => {
@@ -111,6 +138,7 @@ export function WalletTab() {
     const [activityLoading, setActivityLoading] = useState(false);
     const [transactionStats, setTransactionStats] = useState<WalletTransactionStats>(() => createEmptyTransactionStats());
     const [platformTransactionStats, setPlatformTransactionStats] = useState<PlatformTransactionStats>(() => createEmptyPlatformTransactionStats());
+    const [mainnetWalletStats, setMainnetWalletStats] = useState<MainnetWalletStats>(() => createEmptyMainnetWalletStats());
     const selectedNetwork = getQevorChainByKey(chainKey);
     const availableChains = getQevorChainsByEnvironment(chainEnvironment);
 
@@ -171,6 +199,7 @@ export function WalletTab() {
         if (!address) {
             setActivities([]);
             setTransactionStats(createEmptyTransactionStats());
+            setMainnetWalletStats(createEmptyMainnetWalletStats());
             return;
         }
 
@@ -181,6 +210,9 @@ export function WalletTab() {
             const batchPaymentFilter = `payer_wallet.ilike.${address},recipient_wallet.ilike.${address}`;
             const linkFilter = `creator_wallet.ilike.${address},receiver_wallet.ilike.${address}`;
             const nextStats = createEmptyTransactionStats();
+            const nextMainnetStats = createEmptyMainnetWalletStats();
+            const mainnetTxHashes = new Set<string>();
+            const mainnetGasHashes = new Set<string>();
 
             const [receiptResult, batchPaymentResult, batchRequestResult, linkResult] = await Promise.all([
                 supabase
@@ -219,6 +251,15 @@ export function WalletTab() {
                     }
                     const direction: WalletActivityDirection = normalizeWallet(receipt.sender) === wallet ? 'sent' : 'received';
                     const otherWallet = direction === 'sent' ? receipt.receiver : receipt.sender;
+                    if (chain.key === 'mantle-mainnet' && isCompletedWalletTransaction(receipt.status, receipt.tx_hash)) {
+                        addMainnetTransaction(nextMainnetStats, mainnetTxHashes, receipt.tx_hash);
+                        if (direction === 'sent') {
+                            nextMainnetStats.amountSent += Number(receipt.amount ?? 0);
+                            addMainnetGasHash(mainnetGasHashes, receipt.tx_hash);
+                        } else {
+                            nextMainnetStats.amountReceived += Number(receipt.amount ?? 0);
+                        }
+                    }
                     next.push({
                         id: `receipt-${receipt.id}`,
                         kind: 'direct',
@@ -243,6 +284,15 @@ export function WalletTab() {
                     }
                     const direction: WalletActivityDirection = normalizeWallet(payment.payer_wallet) === wallet ? 'sent' : 'received';
                     const otherWallet = direction === 'sent' ? payment.recipient_wallet : payment.payer_wallet;
+                    if (chain.key === 'mantle-mainnet' && isCompletedWalletTransaction(payment.status, payment.tx_hash)) {
+                        addMainnetTransaction(nextMainnetStats, mainnetTxHashes, payment.tx_hash);
+                        if (direction === 'sent') {
+                            nextMainnetStats.amountSent += Number(payment.amount ?? 0);
+                            addMainnetGasHash(mainnetGasHashes, payment.tx_hash);
+                        } else {
+                            nextMainnetStats.amountReceived += Number(payment.amount ?? 0);
+                        }
+                    }
                     next.push({
                         id: `batch-payment-${payment.id}`,
                         kind: 'batch-payment',
@@ -304,6 +354,25 @@ export function WalletTab() {
                     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                     .slice(0, 12),
             );
+            if (mainnetGasHashes.size > 0) {
+                const mainnetNetwork = getQevorChainByKey('mantle-mainnet');
+                const client = createPublicClient({
+                    chain: mainnetNetwork.chain,
+                    transport: http(mainnetNetwork.rpcUrls[0]),
+                });
+                const gasAmounts = await Promise.all(
+                    Array.from(mainnetGasHashes).map(async (hash) => {
+                        try {
+                            const receipt = await client.getTransactionReceipt({ hash: hash as `0x${string}` });
+                            return Number(formatUnits(receipt.gasUsed * (receipt.effectiveGasPrice ?? 0n), 18));
+                        } catch {
+                            return 0;
+                        }
+                    }),
+                );
+                nextMainnetStats.gasSpent = gasAmounts.reduce((total, value) => total + value, 0);
+            }
+            setMainnetWalletStats(nextMainnetStats);
         } catch (error) {
             console.error('Error loading wallet activity:', error);
             toast.error('Could not load wallet history');
@@ -414,6 +483,9 @@ export function WalletTab() {
     };
 
     const totalCompletedTransactions = transactionStats.testnet + transactionStats.mainnet;
+    const formatMainnetAmount = (value: number) => value.toLocaleString(undefined, {
+        maximumFractionDigits: value > 0 && value < 0.0001 ? 8 : 4,
+    });
 
     return (
         <div className="space-y-8">
@@ -562,6 +634,25 @@ export function WalletTab() {
                     <div className="rounded-xl border border-border bg-background/45 px-3 py-2">
                         <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Your tx</p>
                         <p className="mt-1 text-base font-bold">{totalCompletedTransactions}</p>
+                    </div>
+                </div>
+
+                <div className="mt-3 grid w-full max-w-2xl grid-cols-2 gap-2 text-left sm:grid-cols-4">
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Your mainnet tx</p>
+                        <p className="mt-1 text-base font-bold">{mainnetWalletStats.transactions}</p>
+                    </div>
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Gas spent</p>
+                        <p className="mt-1 text-base font-bold">{formatMainnetAmount(mainnetWalletStats.gasSpent)} MNT</p>
+                    </div>
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Received</p>
+                        <p className="mt-1 text-base font-bold">{formatMainnetAmount(mainnetWalletStats.amountReceived)} MNT</p>
+                    </div>
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Sent out</p>
+                        <p className="mt-1 text-base font-bold">{formatMainnetAmount(mainnetWalletStats.amountSent)} MNT</p>
                     </div>
                 </div>
 
