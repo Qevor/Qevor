@@ -1,25 +1,27 @@
 {
   "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
-  "name": "Qevor Payment Safety Agent",
-  "description": "A policy-gated payment agent that reviews and executes multichain payment requests, detects duplicate recipients, escalates risky transfers for human cosigning, and records decisions on Mantle.",
-  "image": "https://qevor.vercel.app/qevor-logo.png",
+  "name": "Qevor Mantle Agent Wallet",
+  "description": "A policy-gated payment agent that plans, reviews, and executes Mantle payment requests, recurring payments, and CSV batch payouts while recording ERC-8004-linked decisions.",
+  "image": "https://qevor.xyz/qevor-logo.png",
+  "agentURI": "https://qevor.xyz/.well-known/erc8004/qevor-agent.json",
   "services": [
     {
       "name": "web",
-      "endpoint": "https://qevor.vercel.app/agents"
+      "endpoint": "https://qevor.xyz/agents"
     },
     {
       "name": "MCP",
-      "endpoint": "https://api.qevor.example/mcp",
+      "endpoint": "https://api.qevor.xyz/mcp",
       "version": "2025-06-18"
     },
     {
       "name": "OASF",
-      "endpoint": "https://api.qevor.example/.well-known/qevor-agent-skills.json",
+      "endpoint": "https://api.qevor.xyz/.well-known/qevor-agent-skills.json",
       "version": "0.8",
       "skills": [
         "payment-request",
         "batch-payment",
+        "recurring-payment",
         "payment-safety-review",
         "policy-enforcement"
       ],
@@ -34,7 +36,8 @@
   "registrations": [
     {
       "agentId": 0,
-      "agentRegistry": "eip155:5003:0xIDENTITY_REGISTRY_ADDRESS"
+      "agentRegistry": "eip155:5000:0xMANTLE_ERC8004_IDENTITY_REGISTRY_ADDRESS",
+      "agentWallet": "eip155:5000:0xQEVOR_MAINNET_AGENT_ESCROW"
     }
   ],
   "supportedTrust": [

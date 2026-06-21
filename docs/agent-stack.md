@@ -4,10 +4,11 @@
 
 The Agent Stack turns Qevor into policy-gated payment infrastructure that can be used by people and autonomous agents.
 
-It now supports two execution rails:
+It now supports three execution rails:
 
 1. **Arc Testnet via Circle CLI** - agent wallets, Circle session auth, and USDC transfers.
 2. **Mantle Sepolia via contract escrow** - MNT transfers are executed through `QevorAgentEscrow` when `MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS` is configured, with optional Byreal CLI preflight before signing.
+3. **Mantle Mainnet via ERC-8004-linked escrow** - the same escrow pattern runs on Mantle mainnet, but the mainnet deploy path must link the escrow to Qevor's ERC-8004 agent identity.
 
 Circle CLI does not currently expose Mantle as a wallet-transfer chain, so Mantle execution is handled by Qevor's native `viem` runner. Byreal is integrated as a configurable execution-layer preflight hook instead of a hardcoded command.
 
@@ -22,7 +23,9 @@ This makes Byreal visible in the product without letting it bypass Qevor policy 
 
 The Mantle contract address requirement is satisfied by deploying `contracts/QevorAgentEscrow.sol` on Mantle Sepolia or Mantle mainnet. The executor calls `executePayment(paymentId, userWallet, recipient, amount)` on that contract, so the contract underpins the agentic payment logic instead of only existing for show. The escrow is shared infrastructure, but MNT is tracked per connected wallet through `balanceOf(userWallet)`.
 
-Qevor does not deploy a substitute ERC-8004 registry. After registering the Qevor agent in the official ERC-8004 Identity Registry, the escrow owner calls `setAgentIdentity(identityRegistry, agentId)`. Every `DecisionRecorded` event then includes the ERC-8004 agent ID, linking identity to economic activity.
+Qevor does not deploy a substitute ERC-8004 registry. The registry owns the agent identity. Qevor's escrow is the agent wallet and economic execution account for that identity. After registering the Qevor agent in Mantle's ERC-8004 Identity Registry, the escrow owner calls `setAgentIdentity(identityRegistry, agentId, agentURI)`. Every `DecisionRecorded` event then includes the ERC-8004 agent ID, linking identity to economic activity, and the escrow also exposes `agentIdentity()` for registry/id/metadata discovery.
+
+The escrow implements ERC-1271 `isValidSignature(bytes32,bytes)`, so verifiers can treat it as a contract-based agent wallet controlled by the escrow owner.
 
 ## Agent Skill API
 
@@ -137,6 +140,9 @@ Mantle rail:
 MANTLE_SEPOLIA_RPC_URL=https://rpc.sepolia.mantle.xyz
 MANTLE_AGENT_PRIVATE_KEY=
 MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS=
+MANTLE_MAINNET_RPC_URL=https://rpc.mantle.xyz
+MANTLE_MAINNET_AGENT_PRIVATE_KEY=
+MANTLE_MAINNET_AGENT_ESCROW_CONTRACT_ADDRESS=
 ```
 
 Compile the escrow:
@@ -154,14 +160,24 @@ forge create contracts/QevorAgentEscrow.sol:QevorAgentEscrow \
   --constructor-args "$MANTLE_ESCROW_EXECUTOR_ADDRESS" "$MANTLE_ESCROW_MAX_PAYMENT_WEI" "$MANTLE_ESCROW_DAILY_LIMIT_WEI"
 ```
 
-After deployment:
+After Sepolia deployment:
 
 1. Fund the contract with test MNT through `depositFor(userWallet)` or from the connected wallet.
 2. Register the Qevor agent using `docs/erc8004-agent-registration.example.json`.
-3. Call `setAgentIdentity(identityRegistry, agentId)` on the escrow.
+3. Call `setAgentIdentity(identityRegistry, agentId, agentURI)` on the escrow if an ERC-8004 test identity is available.
 4. Set `MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS` on the executor VPS.
 5. Register the contract address as the Mantle agent wallet in Qevor.
 6. Restart only the `qevor-executor` service.
+
+For Mantle mainnet, use `deploy/deploy-mantle-mainnet.ps1`. It requires:
+
+```env
+MANTLE_MAINNET_ERC8004_IDENTITY_REGISTRY_ADDRESS=
+MANTLE_MAINNET_ERC8004_AGENT_ID=
+QEVOR_MAINNET_AGENT_URI=https://qevor.xyz/.well-known/erc8004/qevor-agent.json
+```
+
+The script deploys the escrow, then links the registry, agent ID, and metadata URI in the same operational run.
 
 Optional Byreal preflight:
 

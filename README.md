@@ -16,7 +16,7 @@ Qevor currently supports Mantle Sepolia, Mantle Mainnet, and Arc Testnet. Mainne
 - **Agent operation history:** agent-assisted batches are recorded with status, recipients, amounts, and receipt access.
 - **Byreal-compatible execution preflight:** Qevor calls a Mantle adapter before agent execution so external agent tooling can approve or block risky operations.
 - **Escrow-backed agent execution:** `QevorAgentEscrow` provides the Mantle contract surface for policy-controlled agentic payment execution, with balances scoped per user wallet.
-- **ERC-8004 identity path:** agent activity can be linked to an ERC-8004 identity by registering the agent and setting the identity on the escrow contract.
+- **ERC-8004 agent identity:** the Mantle agent escrow can be attached as Qevor's ERC-8004 agent wallet, with an agent URI, registry address, and agent ID recorded on-chain.
 
 ## Architecture
 
@@ -42,7 +42,7 @@ Key docs:
 - **Networks:** Mantle Sepolia, Mantle Mainnet-ready, Arc Testnet
 - **Mainnet guardrail:** use the dedicated mainnet deploy script and keep strict approval, policy, and treasury limits enabled.
 
-The deployed escrow contract is the Mantle contract that underpins Qevor's agentic payment rail. It can execute approved payments, record blocked/cosign/failed decisions, enforce replay protection, enforce per-user payment limits, and link decisions to an ERC-8004 agent identity after `setAgentIdentity(identityRegistry, agentId)` is configured. MNT sent through the escrow is accounted with `balanceOf(userWallet)`, so one user's deposit does not appear in another user's dashboard.
+The deployed escrow contract is the Mantle contract that underpins Qevor's agentic payment rail. It can execute approved payments, record blocked/cosign/failed decisions, enforce replay protection, enforce per-user payment limits, validate owner signatures through ERC-1271, and link decisions to Qevor's ERC-8004 agent identity after `setAgentIdentity(identityRegistry, agentId, agentURI)` is configured. MNT sent through the escrow is accounted with `balanceOf(userWallet)`, so one user's deposit does not appear in another user's dashboard.
 
 ## Tech Stack
 
@@ -209,11 +209,16 @@ $env:QEVOR_ALLOW_MAINNET_DEPLOY="I_UNDERSTAND_MAINNET_FUNDS_ARE_REAL"
 $env:MANTLE_MAINNET_RPC_URL="https://rpc.mantle.xyz"
 $env:MANTLE_MAINNET_DEPLOYER_PRIVATE_KEY="<fresh mainnet deployer key>"
 $env:MANTLE_MAINNET_EXECUTOR_ADDRESS="<executor wallet address>"
+$env:MANTLE_MAINNET_ERC8004_IDENTITY_REGISTRY_ADDRESS="<mantle erc-8004 identity registry>"
+$env:MANTLE_MAINNET_ERC8004_AGENT_ID="<qevor agent id>"
+$env:QEVOR_MAINNET_AGENT_URI="https://qevor.xyz/.well-known/erc8004/qevor-agent.json"
 $env:MANTLE_MAINNET_ESCROW_MAX_PAYMENT_WEI="1000000000000000000"
 $env:MANTLE_MAINNET_ESCROW_DAILY_LIMIT_WEI="5000000000000000000"
 $env:FOUNDRY_FORGE_BIN="C:\Users\Admin\.foundry\bin\forge.exe"
 .\deploy\deploy-mantle-mainnet.ps1
 ```
+
+The mainnet script refuses to complete as a Qevor agent deployment unless the Mantle ERC-8004 registry address and Qevor agent ID are supplied. If you intentionally need an unregistered emergency deploy, set `QEVOR_ALLOW_UNREGISTERED_MAINNET_AGENT=I_ACCEPT_UNREGISTERED_MAINNET_AGENT`, but do not use that for the hackathon submission.
 
 After the mainnet deploy succeeds, copy the deployed contract address into:
 
@@ -224,11 +229,12 @@ Then rebuild the frontend and restart the API and executor.
 
 After deployment:
 
-1. Fund the escrow with test MNT through `depositFor(userWallet)` or from the connected wallet.
-2. Configure `MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS`.
-3. Register the escrow address as the Mantle agent wallet in Qevor.
-4. Optionally connect the deployed agent to an ERC-8004 identity.
-5. Restart the API and executor.
+1. Register the Qevor agent in Mantle's ERC-8004 identity registry using `docs/erc8004-agent-registration.example.json`.
+2. Deploy the escrow with `deploy/deploy-mantle-mainnet.ps1`, supplying the registry address, Qevor agent ID, and agent URI.
+3. Configure `MANTLE_MAINNET_AGENT_ESCROW_CONTRACT_ADDRESS`.
+4. Register the escrow address as the Mantle agent wallet in Qevor.
+5. Fund the escrow with MNT through `depositFor(userWallet)` or from the connected wallet.
+6. Restart the API and executor.
 
 ## Agent Skill API
 

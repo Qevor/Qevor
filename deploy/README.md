@@ -66,11 +66,16 @@ $env:QEVOR_ALLOW_MAINNET_DEPLOY="I_UNDERSTAND_MAINNET_FUNDS_ARE_REAL"
 $env:MANTLE_MAINNET_RPC_URL="https://rpc.mantle.xyz"
 $env:MANTLE_MAINNET_DEPLOYER_PRIVATE_KEY="<fresh mainnet deployer key>"
 $env:MANTLE_MAINNET_EXECUTOR_ADDRESS="<executor wallet address>"
+$env:MANTLE_MAINNET_ERC8004_IDENTITY_REGISTRY_ADDRESS="<mantle erc-8004 identity registry>"
+$env:MANTLE_MAINNET_ERC8004_AGENT_ID="<qevor agent id>"
+$env:QEVOR_MAINNET_AGENT_URI="https://qevor.xyz/.well-known/erc8004/qevor-agent.json"
 $env:MANTLE_MAINNET_ESCROW_MAX_PAYMENT_WEI="1000000000000000000"
 $env:MANTLE_MAINNET_ESCROW_DAILY_LIMIT_WEI="5000000000000000000"
 $env:FOUNDRY_FORGE_BIN="C:\Users\Admin\.foundry\bin\forge.exe"
 .\deploy\deploy-mantle-mainnet.ps1
 ```
+
+The script links the escrow to the supplied ERC-8004 identity by calling `setAgentIdentity(identityRegistry, agentId, agentURI)`. By default it refuses to deploy an unregistered mainnet agent. For an emergency unregistered deploy only, set `QEVOR_ALLOW_UNREGISTERED_MAINNET_AGENT=I_ACCEPT_UNREGISTERED_MAINNET_AGENT`.
 
 After deployment, set these production env vars:
 

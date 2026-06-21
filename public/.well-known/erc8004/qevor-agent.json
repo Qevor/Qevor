@@ -1,0 +1,75 @@
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "Qevor Mantle Agent Wallet",
+  "description": "An ERC-8004 agent wallet for policy-gated payments on Mantle. It plans payment operations, checks safety rules, executes approved or policy-allowed payouts, and records verifiable agent decisions.",
+  "homepage": "https://qevor.xyz",
+  "image": "https://qevor.xyz/qevor-logo.png",
+  "active": true,
+  "x402Support": false,
+  "registrations": [],
+  "supportedTrust": [
+    "reputation",
+    "crypto-economic"
+  ],
+  "chains": [
+    {
+      "chainId": 5000,
+      "name": "Mantle Mainnet",
+      "nativeToken": "MNT"
+    },
+    {
+      "chainId": 5003,
+      "name": "Mantle Sepolia",
+      "nativeToken": "MNT"
+    }
+  ],
+  "capabilities": [
+    "payment-request",
+    "batch-payment",
+    "recurring-payment",
+    "payment-safety-review",
+    "policy-enforcement",
+    "byreal-compatible-preflight"
+  ],
+  "controls": {
+    "defaultApproval": "human",
+    "autonomousMode": "policy-gated",
+    "riskChecks": [
+      "duplicate-recipient",
+      "invalid-address",
+      "wrong-chain",
+      "insufficient-balance",
+      "daily-limit",
+      "max-payment"
+    ]
+  },
+  "services": [
+    {
+      "name": "web",
+      "endpoint": "https://qevor.xyz/agents"
+    },
+    {
+      "name": "MCP",
+      "endpoint": "https://api.qevor.xyz/mcp",
+      "version": "2025-06-18"
+    },
+    {
+      "name": "OASF",
+      "endpoint": "https://api.qevor.xyz/.well-known/qevor-agent-skills.json",
+      "version": "0.8",
+      "skills": [
+        "payment-request",
+        "batch-payment",
+        "recurring-payment",
+        "payment-safety-review",
+        "policy-enforcement",
+        "byreal-compatible-preflight"
+      ],
+      "domains": [
+        "payments",
+        "agent-wallets",
+        "mantle"
+      ]
+    }
+  ]
+}

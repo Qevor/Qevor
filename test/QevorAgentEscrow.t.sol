@@ -5,6 +5,8 @@ import {QevorAgentEscrow} from "../contracts/QevorAgentEscrow.sol";
 
 interface Vm {
     function deal(address account, uint256 newBalance) external;
+    function addr(uint256 privateKey) external returns (address);
+    function sign(uint256 privateKey, bytes32 digest) external returns (uint8 v, bytes32 r, bytes32 s);
 }
 
 contract ReentrantExecutor {
@@ -113,6 +115,30 @@ contract QevorAgentEscrowTest {
         escrow.setAgentIdentity(identityRegistry, 42);
         require(escrow.identityRegistry() == identityRegistry, "registry not linked");
         require(escrow.agentId() == 42, "agent id not linked");
+    }
+
+    function testLinksErc8004IdentityWithAgentURI() public {
+        address identityRegistry = address(0x8004);
+        string memory uri = "https://qevor.xyz/.well-known/erc8004/qevor-agent.json";
+
+        escrow.setAgentIdentity(identityRegistry, 42, uri);
+
+        require(escrow.identityRegistry() == identityRegistry, "registry not linked");
+        require(escrow.agentId() == 42, "agent id not linked");
+        require(keccak256(bytes(escrow.agentURI())) == keccak256(bytes(uri)), "agent uri not linked");
+    }
+
+    function testErc1271ValidatesOwnerSignature() public {
+        uint256 ownerKey = 0xA11CE;
+        address newOwner = vm.addr(ownerKey);
+        bytes32 digest = keccak256("qevor-agent-wallet");
+
+        escrow.transferOwnership(newOwner);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        require(escrow.isValidSignature(digest, signature) == 0x1626ba7e, "owner signature rejected");
+        require(escrow.isValidSignature(keccak256("wrong"), signature) == 0xffffffff, "wrong digest accepted");
     }
 
     function testBlocksReentrantExecution() public {

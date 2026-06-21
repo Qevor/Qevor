@@ -4,10 +4,14 @@ pragma solidity ^0.8.24;
 /// @title QevorAgentEscrow
 /// @notice Mantle-native escrow for policy-gated agent payouts.
 contract QevorAgentEscrow {
+    bytes4 private constant ERC1271_MAGIC_VALUE = 0x1626ba7e;
+    bytes4 private constant ERC1271_INVALID_VALUE = 0xffffffff;
+
     address public owner;
     address public executor;
     address public identityRegistry;
     uint256 public agentId;
+    string public agentURI;
     bool public paused;
 
     uint256 public maxPaymentWei;
@@ -26,6 +30,7 @@ contract QevorAgentEscrow {
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event ExecutorUpdated(address indexed previousExecutor, address indexed newExecutor);
     event AgentIdentityUpdated(address indexed identityRegistry, uint256 indexed agentId);
+    event AgentMetadataURIUpdated(string agentURI);
     event LimitsUpdated(uint256 maxPaymentWei, uint256 dailyLimitWei);
     event PausedUpdated(bool paused);
     event PaymentExecuted(
@@ -103,6 +108,33 @@ contract QevorAgentEscrow {
         identityRegistry = newIdentityRegistry;
         agentId = newAgentId;
         emit AgentIdentityUpdated(newIdentityRegistry, newAgentId);
+    }
+
+    function setAgentIdentity(address newIdentityRegistry, uint256 newAgentId, string calldata newAgentURI)
+        external
+        onlyOwner
+    {
+        require(newIdentityRegistry != address(0), "ZERO_IDENTITY_REGISTRY");
+        identityRegistry = newIdentityRegistry;
+        agentId = newAgentId;
+        agentURI = newAgentURI;
+        emit AgentIdentityUpdated(newIdentityRegistry, newAgentId);
+        emit AgentMetadataURIUpdated(newAgentURI);
+    }
+
+    function setAgentURI(string calldata newAgentURI) external onlyOwner {
+        agentURI = newAgentURI;
+        emit AgentMetadataURIUpdated(newAgentURI);
+    }
+
+    function agentIdentity() external view returns (address registry, uint256 id, string memory uri) {
+        return (identityRegistry, agentId, agentURI);
+    }
+
+    /// @notice ERC-1271 signature validation so this escrow can be attached as a contract-based agent wallet.
+    /// @dev The registry or verifier should pass the digest that was signed by the current escrow owner.
+    function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4) {
+        return _recoverSigner(hash, signature) == owner ? ERC1271_MAGIC_VALUE : ERC1271_INVALID_VALUE;
     }
 
     function setLimits(uint256 newMaxPaymentWei, uint256 newDailyLimitWei) external onlyOwner {
@@ -248,5 +280,21 @@ contract QevorAgentEscrow {
 
     function _currentDay() private view returns (uint256) {
         return block.timestamp / 1 days;
+    }
+
+    function _recoverSigner(bytes32 hash, bytes calldata signature) private pure returns (address) {
+        if (signature.length != 65) return address(0);
+
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        assembly {
+            r := calldataload(signature.offset)
+            s := calldataload(add(signature.offset, 0x20))
+            v := byte(0, calldataload(add(signature.offset, 0x40)))
+        }
+        if (v < 27) v += 27;
+        if (v != 27 && v != 28) return address(0);
+        return ecrecover(hash, v, r, s);
     }
 }
