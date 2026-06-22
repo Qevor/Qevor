@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Bot,
@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { AgentAuditEntry, AgentPolicy, AgentWallet, CosignQueueEntry } from '@/lib/agents/types';
 import { fetchAuditLog, fetchCosignQueue, fetchPolicy } from '@/lib/agents/queries';
-import { getQevorChainByAgentChain } from '@/lib/chains';
+import { getQevorChainByAgentChain, getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains';
 import { AgentWalletBalance } from './AgentWalletBalance';
 import { AgentSafetyReview } from './AgentSafetyReview';
 
@@ -35,21 +35,39 @@ interface Props {
 const truncate = (value: string) => `${value.slice(0, 6)}...${value.slice(-4)}`;
 
 export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnableExecutor }: Props) {
-  const [selectedId, setSelectedId] = useState(wallets[0]?.id ?? '');
+  const defaultWallet = wallets.find((wallet) => wallet.chain === 'MANTLE-MAINNET') ?? wallets[0];
+  const defaultNetwork = defaultWallet ? getQevorChainByAgentChain(defaultWallet.chain) : getQevorChainByKey('mantle-mainnet');
+  const [selectedChainKey, setSelectedChainKey] = useState<QevorChainKey>(defaultNetwork.key);
+  const [selectedId, setSelectedId] = useState(defaultWallet?.id ?? '');
   const [policy, setPolicy] = useState<AgentPolicy | null>(null);
   const [recentActivity, setRecentActivity] = useState<AgentAuditEntry[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<CosignQueueEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const selected = wallets.find((wallet) => wallet.id === selectedId) ?? wallets[0];
-  const network = getQevorChainByAgentChain(selected?.chain);
+  const network = getQevorChainByKey(selectedChainKey);
+  const walletsForNetwork = useMemo(
+    () => wallets.filter((wallet) => wallet.chain === network.agentChainCode),
+    [network.agentChainCode, wallets],
+  );
+  const selected = useMemo(
+    () => walletsForNetwork.find((wallet) => wallet.id === selectedId) ?? walletsForNetwork[0] ?? null,
+    [selectedId, walletsForNetwork],
+  );
 
   useEffect(() => {
-    if (!wallets.some((wallet) => wallet.id === selectedId)) setSelectedId(wallets[0]?.id ?? '');
-  }, [selectedId, wallets]);
+    if (!selected || selected.chain !== network.agentChainCode) {
+      setSelectedId(walletsForNetwork[0]?.id ?? '');
+    }
+  }, [network.agentChainCode, selected, walletsForNetwork]);
 
   const load = useCallback(async () => {
-    if (!selected) return;
+    if (!selected) {
+      setPolicy(null);
+      setRecentActivity([]);
+      setPendingApprovals([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [nextPolicy, activity, approvals] = await Promise.all([
@@ -83,12 +101,10 @@ export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnabl
     return <Badge variant="destructive">{outcome === 'blocked' ? 'Blocked' : 'Failed'}</Badge>;
   };
 
-  if (!selected) return null;
-
-  const activeEscrowAddress = network.agentEscrowAddress ?? selected.escrow_address;
-  const executionAddress = activeEscrowAddress ?? selected.wallet_address;
+  const activeEscrowAddress = selected ? network.agentEscrowAddress ?? selected.escrow_address : network.agentEscrowAddress ?? null;
+  const executionAddress = selected ? activeEscrowAddress ?? selected.wallet_address : activeEscrowAddress;
   const isEscrowMode = !!activeEscrowAddress;
-  const operational = selected.status === 'active' && selected.executor_mode === 'escrow' && isEscrowMode;
+  const operational = !!selected && selected.status === 'active' && selected.executor_mode === 'escrow' && isEscrowMode;
 
   return (
     <div className="space-y-6">
@@ -105,12 +121,29 @@ export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnabl
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={selected.id} onValueChange={setSelectedId}>
-              <SelectTrigger className="w-[220px]">
+            <Select value={selectedChainKey} onValueChange={(value) => setSelectedChainKey(value as QevorChainKey)}>
+              <SelectTrigger className="w-[210px]">
+                <SelectValue placeholder="Select network" />
+              </SelectTrigger>
+              <SelectContent>
+                {qevorChains.map((chain) => (
+                  <SelectItem key={chain.key} value={chain.key}>
+                    {chain.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selected?.id ?? 'none'} onValueChange={(value) => value !== 'none' && setSelectedId(value)}>
+              <SelectTrigger className="w-[240px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {wallets.map((wallet) => (
+                {walletsForNetwork.length === 0 && (
+                  <SelectItem value="none" disabled>
+                    No {network.label} agent wallet
+                  </SelectItem>
+                )}
+                {walletsForNetwork.map((wallet) => (
                   <SelectItem key={wallet.id} value={wallet.id}>
                     {wallet.label || 'Agent wallet'} - {truncate(wallet.wallet_address)}
                   </SelectItem>
@@ -132,9 +165,9 @@ export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnabl
         {[
           {
             label: 'Agent status',
-            value: operational ? 'Operational' : selected.status === 'active' ? 'Setup required' : selected.status,
+            value: operational ? 'Operational' : selected ? (selected.status === 'active' ? 'Setup required' : selected.status) : 'Not registered',
             icon: operational ? CheckCircle2 : AlertTriangle,
-            detail: operational ? 'Escrow executor active' : 'Complete executor setup',
+            detail: operational ? 'Escrow executor active' : selected ? 'Complete executor setup' : `Add a ${network.label} wallet`,
           },
           {
             label: 'Network',
@@ -144,7 +177,7 @@ export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnabl
           },
           {
             label: 'Safety policy',
-            value: policy ? 'Active' : 'Not configured',
+            value: policy ? 'Active' : selected ? 'Not configured' : 'Waiting for wallet',
             icon: ShieldCheck,
             detail: policy?.max_per_tx_usdc ? `${policy.max_per_tx_usdc} max per payment` : 'Set spending controls',
           },
@@ -179,6 +212,17 @@ export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnabl
               {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
             </div>
             <div className="divide-y divide-border">
+              {!selected && (
+                <div className="p-5">
+                  <p className="text-sm text-muted-foreground">
+                    No agent wallet is registered for {network.label} yet. Add one to enable policy-controlled execution on this rail.
+                  </p>
+                  <Button className="mt-4" onClick={onAddWallet}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add {network.label} wallet
+                  </Button>
+                </div>
+              )}
               {!loading && recentActivity.length === 0 && (
                 <p className="p-5 text-sm text-muted-foreground">No agent decisions recorded yet.</p>
               )}
@@ -206,16 +250,22 @@ export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnabl
         <div className="space-y-6">
           <div className="rounded-lg border border-border bg-card">
             <div className="border-b border-border p-5">
-              <h2 className="font-semibold">{selected.label || 'Agent wallet'}</h2>
+              <h2 className="font-semibold">{selected?.label || `${network.label} agent wallet`}</h2>
               <p className="mt-1 text-sm text-muted-foreground">{network.label} user-scoped execution account</p>
             </div>
             <div className="space-y-4 p-5">
-              <AgentWalletBalance
-                address={executionAddress}
-                chain={selected.chain}
-                ownerAddress={selected.profile_wallet}
-                escrowMode={isEscrowMode}
-              />
+              {selected && executionAddress ? (
+                <AgentWalletBalance
+                  address={executionAddress}
+                  chain={selected.chain}
+                  ownerAddress={selected.profile_wallet}
+                  escrowMode={isEscrowMode}
+                />
+              ) : (
+                <div className="rounded-md border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                  Register a {network.label} agent wallet to view scoped escrow balance and enable autonomous execution.
+                </div>
+              )}
               {activeEscrowAddress && (
                 <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                   Deposits to this escrow are credited to your connected wallet. Other users cannot see or spend your scoped balance.
@@ -224,9 +274,11 @@ export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnabl
               <div className="space-y-2 text-sm">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">Wallet</span>
-                  <button className="flex items-center gap-1 font-mono text-xs hover:text-primary" onClick={() => copy(selected.wallet_address)}>
-                    {truncate(selected.wallet_address)} <Copy className="h-3 w-3" />
-                  </button>
+                  {selected ? (
+                    <button className="flex items-center gap-1 font-mono text-xs hover:text-primary" onClick={() => copy(selected.wallet_address)}>
+                      {truncate(selected.wallet_address)} <Copy className="h-3 w-3" />
+                    </button>
+                  ) : <span className="text-xs text-amber-600">Not registered</span>}
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">Escrow</span>
@@ -246,22 +298,33 @@ export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnabl
                 </div>
               </div>
               <div className="grid gap-2 pt-2">
-                <Button variant="outline" onClick={() => onEditPolicy(selected)}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Edit safety policy
-                </Button>
-                {!selected.executor_mode && (
-                  <Button onClick={() => onEnableExecutor(selected)}>
-                    <Play className="mr-2 h-4 w-4" />
-                    Enable autonomous execution
+                {selected ? (
+                  <>
+                    <Button variant="outline" onClick={() => onEditPolicy(selected)}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Edit safety policy
+                    </Button>
+                    {!selected.executor_mode && (
+                      <Button onClick={() => onEnableExecutor(selected)}>
+                        <Play className="mr-2 h-4 w-4" />
+                        Enable autonomous execution
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <Button onClick={onAddWallet}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add {network.label} wallet
                   </Button>
                 )}
-                <Button variant="ghost" asChild>
-                  <a href={`${network.explorerUrl}/address/${executionAddress}`} target="_blank" rel="noreferrer">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    View on explorer
-                  </a>
-                </Button>
+                {executionAddress && (
+                  <Button variant="ghost" asChild>
+                    <a href={`${network.explorerUrl}/address/${executionAddress}`} target="_blank" rel="noreferrer">
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      View on explorer
+                    </a>
+                  </Button>
+                )}
               </div>
             </div>
           </div>
