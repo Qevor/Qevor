@@ -134,19 +134,24 @@ export const qevorChains = [
   },
 ] as const satisfies readonly QevorChainConfig[]
 
-export const DEFAULT_QEVOR_CHAIN_KEY: QevorChainKey = 'arc-testnet'
+export const DEFAULT_QEVOR_CHAIN_ENVIRONMENT: QevorChainEnvironment = 'mainnet'
+export const DEFAULT_QEVOR_CHAIN_KEY: QevorChainKey = 'mantle-mainnet'
 export const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11' as const
 
+function getDefaultQevorChain() {
+  return qevorChains.find(c => c.key === DEFAULT_QEVOR_CHAIN_KEY) ?? qevorChains[0]
+}
+
 export function getQevorChainByKey(key?: string | null) {
-  return qevorChains.find(c => c.key === key) ?? qevorChains[0]
+  return qevorChains.find(c => c.key === key) ?? getDefaultQevorChain()
 }
 
 export function getQevorChainById(chainId?: number | null) {
-  return qevorChains.find(c => c.chain.id === chainId) ?? qevorChains[0]
+  return qevorChains.find(c => c.chain.id === chainId) ?? getDefaultQevorChain()
 }
 
 export function getQevorChainByAgentChain(agentChain?: string | null) {
-  return qevorChains.find(c => c.agentChainCode === agentChain) ?? qevorChains[0]
+  return qevorChains.find(c => c.agentChainCode === agentChain) ?? getDefaultQevorChain()
 }
 
 export function getQevorChainEnvironment(key?: string | null): QevorChainEnvironment {

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAccount, usePublicClient, useSendTransaction, useSwitchChain } from 'wagmi';
 import { parseUnits } from 'viem';
-import { DEFAULT_QEVOR_CHAIN_KEY, getQevorChainByKey, type QevorChainKey } from '@/lib/chains';
+import { getQevorChainByKey, type QevorChainKey } from '@/lib/chains';
 
 interface ArcSendParams {
     to: string;
@@ -19,7 +19,7 @@ export function useArcSend() {
     const { chainId } = useAccount();
     const { switchChainAsync } = useSwitchChain();
     const { sendTransactionAsync } = useSendTransaction();
-    const arcClient = usePublicClient({ chainId: getQevorChainByKey(DEFAULT_QEVOR_CHAIN_KEY).chain.id });
+    const arcClient = usePublicClient({ chainId: getQevorChainByKey('arc-testnet').chain.id });
     const mantleSepoliaClient = usePublicClient({ chainId: getQevorChainByKey('mantle-sepolia').chain.id });
     const mantleMainnetClient = usePublicClient({ chainId: getQevorChainByKey('mantle-mainnet').chain.id });
 

@@ -9,6 +9,8 @@ import { useProfiles } from '@/hooks/useProfiles'
 import { getAppUrl } from '@/lib/appUrl'
 import { ChainEnvironmentToggle } from '@/components/ChainEnvironmentToggle'
 import {
+  DEFAULT_QEVOR_CHAIN_ENVIRONMENT,
+  DEFAULT_QEVOR_CHAIN_KEY,
   getDefaultQevorChainForEnvironment,
   getQevorChainByKey,
   getQevorChainsByEnvironment,
@@ -25,8 +27,8 @@ const CreatePage = () => {
   const [amount, setAmount] = useState('')
   const [generated, setGenerated] = useState(false)
   const [generatedLinkId, setGeneratedLinkId] = useState<string | null>(null)
-  const [chainEnvironment, setChainEnvironment] = useState<QevorChainEnvironment>('testnet')
-  const [chainKey, setChainKey] = useState<QevorChainKey>(() => getDefaultQevorChainForEnvironment('testnet').key)
+  const [chainEnvironment, setChainEnvironment] = useState<QevorChainEnvironment>(DEFAULT_QEVOR_CHAIN_ENVIRONMENT)
+  const [chainKey, setChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY)
   const selectedNetwork = getQevorChainByKey(chainKey)
   const availableChains = getQevorChainsByEnvironment(chainEnvironment)
 

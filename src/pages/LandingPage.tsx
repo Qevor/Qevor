@@ -22,6 +22,8 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { getAppUrl } from '@/lib/appUrl';
 import { getQevorApiUrl } from '@/lib/api';
 import {
+  DEFAULT_QEVOR_CHAIN_ENVIRONMENT,
+  DEFAULT_QEVOR_CHAIN_KEY,
   getDefaultQevorChainForEnvironment,
   getQevorChainByKey,
   getQevorChainsByEnvironment,
@@ -51,7 +53,7 @@ const MARQUEE_ITEMS = [
   '10 recipients, 1 signature',
   'Receipt sealed with chain metadata',
   'Agent policy simulation passed',
-  'Mainnet mode locked behind safety checks',
+  'Mainnet mode guarded by safety checks',
   'Payment link shared to customer',
 ];
 
@@ -78,8 +80,8 @@ export default function LandingPage() {
   const [handle, setHandle] = useState('');
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
-  const [chainEnvironment, setChainEnvironment] = useState<QevorChainEnvironment>('testnet');
-  const [chainKey, setChainKey] = useState<QevorChainKey>('mantle-sepolia');
+  const [chainEnvironment, setChainEnvironment] = useState<QevorChainEnvironment>(DEFAULT_QEVOR_CHAIN_ENVIRONMENT);
+  const [chainKey, setChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY);
   const [landingStats, setLandingStats] = useState<LandingTransactionStats>(EMPTY_LANDING_STATS);
   const [copied, setCopied] = useState(false);
   const [resolveHandle, setResolveHandle] = useState('');
@@ -176,6 +178,7 @@ export default function LandingPage() {
               ['#safety', 'Safety'],
               ['#try', 'Try it'],
               ['#networks', 'Networks'],
+              ['/agent-guide', 'Agent Guide'],
               ['#start', 'Start'],
             ].map(([href, label]) => (
               <a key={href} href={href} className="transition-colors hover:text-foreground">
@@ -501,9 +504,9 @@ export default function LandingPage() {
           </h2>
           <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3">
             {[
-              ['Testnet rails', 'Live now', 'Arc and Mantle are enabled for safe demos, grant proof, and hackathon testing.'],
+              ['Testnet rails', 'Sandbox ready', 'Arc and Mantle Sepolia remain available for safe demos, grant proof, and hackathon testing.'],
               ['Network registry', 'Expandable', 'Every payment stores chain id, token symbol, RPC, and explorer metadata.'],
-              ['Mainnet rails', 'Planned', 'Locked until safety confirmations, limits, and stronger previews are complete.'],
+              ['Mainnet rails', 'Live guarded', 'Mantle Mainnet is enabled by default with visible environment controls and policy-first review.'],
             ].map(([name, status, body]) => (
               <div key={name} className="bg-card p-6">
                 <p className="text-xl font-semibold text-foreground">{name}</p>
@@ -560,6 +563,7 @@ export default function LandingPage() {
               ['#product', 'Product'],
               ['#safety', 'Safety'],
               ['#networks', 'Networks'],
+              ['/agent-guide', 'Agent Guide'],
               ['/dashboard?tab=agent', 'Agent Workspace'],
             ].map(([href, label]) => (
               <a key={href} href={href} className="transition-colors hover:text-foreground">

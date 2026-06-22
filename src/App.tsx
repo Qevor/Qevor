@@ -13,6 +13,7 @@ import DashboardPage from '@/pages/DashboardPage'
 import RequestPage from '@/pages/RequestPage'
 import SendPage from '@/pages/SendPage'
 import AgentsPage from '@/pages/AgentsPage'
+import AgentGuidePage from '@/pages/AgentGuidePage'
 
 const ThemedToaster = () => {
   const { resolvedTheme } = useTheme();
@@ -52,6 +53,7 @@ const App = () => (
               <Route path="/request/:id" element={<RequestPage />} />
               <Route path="/agents" element={<AgentsPage />} />
               <Route path="/agents/cosign" element={<AgentsPage />} />
+              <Route path="/agent-guide" element={<AgentGuidePage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Layout>

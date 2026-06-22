@@ -7,7 +7,7 @@ describe('planPaymentIntentLocally', () => {
       currentChainKey: 'arc-testnet',
     });
 
-    expect(plan.chainKey).toBe('mantle-sepolia');
+    expect(plan.chainKey).toBe('mantle-mainnet');
     expect(plan.recipients).toEqual([{ wallet: '@alice', amount: 5, label: '' }]);
     expect(plan.constraints.requireHumanApproval).toBe(true);
     expect(plan.warnings.some((warning) => warning.includes('unverified'))).toBe(true);
@@ -25,7 +25,7 @@ describe('planPaymentIntentLocally', () => {
     expect(plan.warnings).not.toContain('No recipients were found. Add recipients manually or import a CSV before applying the plan.');
   });
 
-  it('uses Mantle mainnet only when mainnet is explicit', () => {
+  it('uses Mantle mainnet for generic Mantle prompts', () => {
     const wallet = '0x1111111111111111111111111111111111111111';
     const plan = planPaymentIntentLocally(`Pay 0.01 MNT to ${wallet} on Mantle mainnet. Require my approval.`, {
       currentChainKey: 'mantle-sepolia',

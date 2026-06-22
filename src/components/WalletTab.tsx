@@ -13,6 +13,8 @@ import { useArcSend } from '@/hooks/useArcSend';
 import { Link, useNavigate } from 'react-router-dom';
 import { ChainEnvironmentToggle } from '@/components/ChainEnvironmentToggle';
 import {
+    DEFAULT_QEVOR_CHAIN_ENVIRONMENT,
+    DEFAULT_QEVOR_CHAIN_KEY,
     getDefaultQevorChainForEnvironment,
     getExplorerTxUrl,
     getQevorChainById,
@@ -132,8 +134,8 @@ const formatActivityDate = (date: string) => {
 export function WalletTab() {
     const { address } = useAccount();
     const [displayBalance, setDisplayBalance] = useState('0.0000');
-    const [chainEnvironment, setChainEnvironment] = useState<QevorChainEnvironment>('testnet');
-    const [chainKey, setChainKey] = useState<QevorChainKey>(() => getDefaultQevorChainForEnvironment('testnet').key);
+    const [chainEnvironment, setChainEnvironment] = useState<QevorChainEnvironment>(DEFAULT_QEVOR_CHAIN_ENVIRONMENT);
+    const [chainKey, setChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY);
     const [activities, setActivities] = useState<WalletActivity[]>([]);
     const [activityLoading, setActivityLoading] = useState(false);
     const [transactionStats, setTransactionStats] = useState<WalletTransactionStats>(() => createEmptyTransactionStats());

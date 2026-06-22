@@ -25,6 +25,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from 'sonner';
 import { getAppUrl } from '@/lib/appUrl';
 import {
+    DEFAULT_QEVOR_CHAIN_ENVIRONMENT,
+    DEFAULT_QEVOR_CHAIN_KEY,
     getDefaultQevorChainForEnvironment,
     getExplorerTxUrl,
     getQevorChainByAgentChain,
@@ -83,8 +85,8 @@ export default function DashboardPage() {
     const [batchTitle, setBatchTitle] = useState('');
     const [batchDesc, setBatchDesc] = useState('');
     const [batchRecipients, setBatchRecipients] = useState<BatchRecipient[]>([{ wallet: '', amount: 0, label: '' }]);
-    const [batchEnvironment, setBatchEnvironment] = useState<QevorChainEnvironment>('testnet');
-    const [batchChainKey, setBatchChainKey] = useState<QevorChainKey>(() => getDefaultQevorChainForEnvironment('testnet').key);
+    const [batchEnvironment, setBatchEnvironment] = useState<QevorChainEnvironment>(DEFAULT_QEVOR_CHAIN_ENVIRONMENT);
+    const [batchChainKey, setBatchChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY);
     const [copilotIntent, setCopilotIntent] = useState('');
     const [copilotPlan, setCopilotPlan] = useState<PaymentIntentPlan | null>(null);
     const [copilotPlanning, setCopilotPlanning] = useState(false);
@@ -127,8 +129,8 @@ export default function DashboardPage() {
     const [linkExpiresAt, setLinkExpiresAt] = useState('');
     const [linkUnlimitedUses, setLinkUnlimitedUses] = useState(true);
     const [linkMaxUses, setLinkMaxUses] = useState('');
-    const [linkEnvironment, setLinkEnvironment] = useState<QevorChainEnvironment>('testnet');
-    const [linkChainKey, setLinkChainKey] = useState<QevorChainKey>(() => getDefaultQevorChainForEnvironment('testnet').key);
+    const [linkEnvironment, setLinkEnvironment] = useState<QevorChainEnvironment>(DEFAULT_QEVOR_CHAIN_ENVIRONMENT);
+    const [linkChainKey, setLinkChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY);
     const selectedLinkNetwork = getQevorChainByKey(linkChainKey);
     const linkNetworks = getQevorChainsByEnvironment(linkEnvironment);
     const [createdLinks, setCreatedLinks] = useState<Array<{ id: string; amount: number; token_symbol?: string }>>([]);
@@ -288,8 +290,8 @@ export default function DashboardPage() {
         setLinkExpiresAt('');
         setLinkUnlimitedUses(true);
         setLinkMaxUses('');
-        setLinkEnvironment('testnet');
-        setLinkChainKey(getDefaultQevorChainForEnvironment('testnet').key);
+        setLinkEnvironment(DEFAULT_QEVOR_CHAIN_ENVIRONMENT);
+        setLinkChainKey(DEFAULT_QEVOR_CHAIN_KEY);
         setCreatedLinks([]);
         setCopiedLinkIds(new Set());
     };
@@ -305,8 +307,8 @@ export default function DashboardPage() {
         setBatchTitle('');
         setBatchDesc('');
         setBatchRecipients([{ wallet: '', amount: 0, label: '' }]);
-        setBatchEnvironment('testnet');
-        setBatchChainKey(getDefaultQevorChainForEnvironment('testnet').key);
+        setBatchEnvironment(DEFAULT_QEVOR_CHAIN_ENVIRONMENT);
+        setBatchChainKey(DEFAULT_QEVOR_CHAIN_KEY);
         setBatchSendStep('form');
         setBatchSendResults([]);
         setExecutorAgentId(null);

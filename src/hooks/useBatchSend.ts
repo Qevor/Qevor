@@ -46,7 +46,7 @@ export function useBatchSend() {
     const { writeContractAsync, isPending } = useWriteContract();
     const { chainId } = useAccount();
     const { switchChainAsync } = useSwitchChain();
-    const arcClient = usePublicClient({ chainId: getQevorChainByKey(DEFAULT_QEVOR_CHAIN_KEY).chain.id });
+    const arcClient = usePublicClient({ chainId: getQevorChainByKey('arc-testnet').chain.id });
     const mantleSepoliaClient = usePublicClient({ chainId: getQevorChainByKey('mantle-sepolia').chain.id });
     const mantleMainnetClient = usePublicClient({ chainId: getQevorChainByKey('mantle-mainnet').chain.id });
 
