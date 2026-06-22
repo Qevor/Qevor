@@ -217,7 +217,7 @@ export default function AgentGuidePage() {
         </div>
 
         <section className="mt-10 rounded-lg border border-border bg-card p-6">
-          <h2 className="text-2xl font-semibold text-foreground">Consumer Track Fit</h2>
+          <h2 className="text-2xl font-semibold text-foreground">Consumer Payment Capability</h2>
           <div className="mt-5 grid gap-4 lg:grid-cols-3">
             {trackFit.map((item) => (
               <div key={item.name} className="rounded-lg border border-border bg-background/70 p-5">
@@ -229,7 +229,7 @@ export default function AgentGuidePage() {
         </section>
 
         <section className="mt-10 rounded-lg border border-primary/30 bg-primary/10 p-6">
-          <h2 className="text-2xl font-semibold text-foreground">What Judges Should Test</h2>
+          <h2 className="text-2xl font-semibold text-foreground">Core Product Flow</h2>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {demoSteps.map((step, index) => (
               <div key={step} className="flex gap-3 rounded-lg bg-background/70 p-4">
