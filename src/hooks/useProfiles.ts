@@ -127,7 +127,7 @@ export function useProfiles() {
         try {
             const { data, error } = await supabase
                 .from('profiles')
-                .insert([{ wallet: walletKey }])
+                .upsert({ wallet: walletKey, updated_at: new Date().toISOString() }, { onConflict: 'wallet' })
                 .select()
                 .single();
 

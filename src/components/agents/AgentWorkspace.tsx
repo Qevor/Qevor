@@ -16,7 +16,13 @@ import {
   WalletCards,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getQevorChainByKey } from '@/lib/chains';
+import { ChainEnvironmentToggle } from '@/components/ChainEnvironmentToggle';
+import {
+  getQevorChainByKey,
+  getQevorChainsByEnvironment,
+  type QevorChainEnvironment,
+  type QevorChainKey,
+} from '@/lib/chains';
 import type { PaymentIntentPlan } from '@/lib/agents/intent-planner';
 
 interface Props {
@@ -25,7 +31,11 @@ interface Props {
   planning: boolean;
   agentWalletCount: number;
   importedRecipientCount: number;
+  selectedEnvironment: QevorChainEnvironment;
+  selectedChainKey: QevorChainKey;
   onIntentChange: (intent: string) => void;
+  onEnvironmentChange: (environment: QevorChainEnvironment) => void;
+  onChainChange: (chainKey: QevorChainKey) => void;
   onCsvImport: (event: ChangeEvent<HTMLInputElement>) => void;
   onPlan: () => void;
   onOpenPlan: () => void;
@@ -49,11 +59,17 @@ export function AgentWorkspace({
   planning,
   agentWalletCount,
   importedRecipientCount,
+  selectedEnvironment,
+  selectedChainKey,
   onIntentChange,
+  onEnvironmentChange,
+  onChainChange,
   onCsvImport,
   onPlan,
   onOpenPlan,
 }: Props) {
+  const selectedChain = getQevorChainByKey(selectedChainKey);
+  const availableChains = getQevorChainsByEnvironment(selectedEnvironment);
   const wantsAgentExecution = plan?.executionMode === 'agent';
   const hasEligibleAgentWallet = agentWalletCount > 0;
   const agentCanAutonomouslyQueue = wantsAgentExecution && hasEligibleAgentWallet;
@@ -94,6 +110,26 @@ export function AgentWorkspace({
             <p className="mt-1 text-sm text-muted-foreground">The agent creates a reviewable plan. It never bypasses deterministic policy or approval gates.</p>
           </div>
           <div className="space-y-4 p-5">
+            <div className="rounded-lg border border-border bg-secondary/25 p-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <ChainEnvironmentToggle value={selectedEnvironment} onChange={onEnvironmentChange} />
+                <select
+                  value={selectedChainKey}
+                  onChange={(event) => onChainChange(event.target.value as QevorChainKey)}
+                  className="min-h-10 flex-1 rounded-md border border-input bg-background px-3 text-sm font-medium outline-none focus:ring-2 focus:ring-primary"
+                  aria-label="Agent payment rail"
+                >
+                  {availableChains.map((chain) => (
+                    <option key={chain.key} value={chain.key}>
+                      {chain.label} ({chain.paymentAsset})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Qevor will use {selectedChain.label} unless your prompt clearly names another supported rail.
+              </p>
+            </div>
             <textarea
               value={intent}
               onChange={(event) => onIntentChange(event.target.value)}

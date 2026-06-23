@@ -10,6 +10,8 @@ const registerSchema = z.object({
   wallet_address: z.string().refine((v) => isAddress(v), 'Invalid EVM address'),
   chain: z.string().min(1),
   label: z.string().optional(),
+  executor_mode: z.enum(['escrow']).nullable().optional(),
+  escrow_address: z.string().refine((v) => isAddress(v), 'Invalid escrow address').nullable().optional(),
 });
 
 router.post('/register', async (req, res) => {
@@ -19,15 +21,28 @@ router.post('/register', async (req, res) => {
     return;
   }
 
-  const { profile_wallet, wallet_address, chain, label } = parsed.data;
+  const { profile_wallet, wallet_address, chain, label, executor_mode, escrow_address } = parsed.data;
+  const normalizedProfileWallet = profile_wallet.trim().toLowerCase();
+  const normalizedWalletAddress = wallet_address.trim().toLowerCase();
+
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .upsert({ wallet: normalizedProfileWallet, updated_at: new Date().toISOString() }, { onConflict: 'wallet' });
+
+  if (profileError) {
+    res.status(500).json({ error: profileError.message });
+    return;
+  }
 
   const { data, error } = await supabase
     .from('agent_wallets')
     .insert({
-      profile_wallet,
-      wallet_address,
+      profile_wallet: normalizedProfileWallet,
+      wallet_address: normalizedWalletAddress,
       chain,
       label: label ?? null,
+      executor_mode: executor_mode ?? null,
+      escrow_address: escrow_address ?? null,
     })
     .select()
     .single();

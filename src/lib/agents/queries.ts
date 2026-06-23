@@ -1,6 +1,18 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { AgentWallet, AgentPolicy, AgentAuditEntry, CosignQueueEntry } from './types';
 
+async function ensureAgentProfile(profileWallet: string): Promise<string> {
+  const wallet = profileWallet.trim().toLowerCase();
+  if (!wallet) throw new Error('Connect your wallet before registering an agent wallet.');
+
+  const { error } = await supabase
+    .from('profiles')
+    .upsert({ wallet, updated_at: new Date().toISOString() }, { onConflict: 'wallet' });
+
+  if (error) throw error;
+  return wallet;
+}
+
 export async function fetchAgentWallets(profileWallet: string): Promise<AgentWallet[]> {
   const { data, error } = await supabase
     .from('agent_wallets')
@@ -22,11 +34,13 @@ export async function registerAgentWallet(
     escrowAddress?: string | null;
   },
 ): Promise<AgentWallet> {
+  const normalizedProfileWallet = await ensureAgentProfile(profileWallet);
+
   const { data, error } = await supabase
     .from('agent_wallets')
     .insert({
-      profile_wallet: profileWallet.trim().toLowerCase(),
-      wallet_address: walletAddress,
+      profile_wallet: normalizedProfileWallet,
+      wallet_address: walletAddress.trim().toLowerCase(),
       chain,
       label: label ?? null,
       executor_mode: opts?.executorMode ?? null,

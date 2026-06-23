@@ -156,6 +156,13 @@ export default function DashboardPage() {
         setCopilotPlan(null);
     };
 
+    const handleBatchChainChange = (chainKey: QevorChainKey) => {
+        setBatchChainKey(chainKey);
+        setBatchEnvironment(getQevorChainEnvironment(chainKey));
+        setExecutorAgentId(null);
+        setCopilotPlan(null);
+    };
+
     const handleLinkEnvironmentChange = (environment: QevorChainEnvironment) => {
         setLinkEnvironment(environment);
         setLinkChainKey(getDefaultQevorChainForEnvironment(environment).key);
@@ -546,7 +553,11 @@ export default function DashboardPage() {
                         planning={copilotPlanning}
                         agentWalletCount={copilotEligibleAgentWallets.length}
                         importedRecipientCount={batchRecipients.filter((recipient) => recipient.wallet && recipient.amount > 0).length}
+                        selectedEnvironment={batchEnvironment}
+                        selectedChainKey={batchChainKey}
                         onIntentChange={setCopilotIntent}
+                        onEnvironmentChange={handleBatchEnvironmentChange}
+                        onChainChange={handleBatchChainChange}
                         onCsvImport={handleCsvImport}
                         onPlan={handlePlanPaymentIntent}
                         onOpenPlan={openCopilotPlanInBatch}
