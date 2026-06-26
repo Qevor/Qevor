@@ -290,7 +290,9 @@ export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnabl
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">ERC-8004 identity</span>
-                  <span className="text-xs">{activeEscrowAddress ? 'Ready to link' : 'Requires escrow'}</span>
+                  <span className={activeEscrowAddress ? 'text-xs text-amber-400' : 'text-xs'}>
+                    {activeEscrowAddress ? 'Not linked on-chain' : 'Requires escrow'}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">Byreal preflight</span>

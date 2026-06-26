@@ -27,7 +27,7 @@ router.post('/register', async (req, res) => {
 
   const { error: profileError } = await supabase
     .from('profiles')
-    .upsert({ wallet: normalizedProfileWallet, updated_at: new Date().toISOString() }, { onConflict: 'wallet' });
+    .upsert({ wallet: normalizedProfileWallet }, { onConflict: 'wallet' });
 
   if (profileError) {
     res.status(500).json({ error: profileError.message });

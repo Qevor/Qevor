@@ -90,7 +90,7 @@ export function useProfiles() {
             const query = walletProfile
                 ? supabase
                     .from('profiles')
-                    .update({ username: usernameKey, updated_at: new Date().toISOString() })
+                    .update({ username: usernameKey })
                     .ilike('wallet', walletKey)
                 : supabase
                     .from('profiles')
@@ -127,7 +127,7 @@ export function useProfiles() {
         try {
             const { data, error } = await supabase
                 .from('profiles')
-                .upsert({ wallet: walletKey, updated_at: new Date().toISOString() }, { onConflict: 'wallet' })
+                .upsert({ wallet: walletKey }, { onConflict: 'wallet' })
                 .select()
                 .single();
 

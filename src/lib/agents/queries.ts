@@ -7,7 +7,7 @@ async function ensureAgentProfile(profileWallet: string): Promise<string> {
 
   const { error } = await supabase
     .from('profiles')
-    .upsert({ wallet, updated_at: new Date().toISOString() }, { onConflict: 'wallet' });
+    .upsert({ wallet }, { onConflict: 'wallet' });
 
   if (error) throw error;
   return wallet;

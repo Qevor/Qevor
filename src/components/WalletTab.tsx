@@ -197,6 +197,27 @@ export function WalletTab() {
         }
     }, []);
 
+    const fetchMainnetWalletStats = useCallback(async (walletAddress: string): Promise<MainnetWalletStats | null> => {
+        const apiUrl = getQevorApiUrl();
+        if (!apiUrl) return null;
+
+        try {
+            const response = await fetch(`${apiUrl}/api/stats/mantle-mainnet-wallet/${walletAddress}`);
+            if (!response.ok) return null;
+
+            const data = await response.json() as Partial<MainnetWalletStats>;
+            return {
+                transactions: Number(data.transactions ?? 0),
+                gasSpent: Number(data.gasSpent ?? 0),
+                amountReceived: Number(data.amountReceived ?? 0),
+                amountSent: Number(data.amountSent ?? 0),
+            };
+        } catch (error) {
+            console.warn('Could not load Mantle mainnet wallet stats:', error);
+            return null;
+        }
+    }, []);
+
     const fetchActivity = useCallback(async () => {
         if (!address) {
             setActivities([]);
@@ -374,14 +395,15 @@ export function WalletTab() {
                 );
                 nextMainnetStats.gasSpent = gasAmounts.reduce((total, value) => total + value, 0);
             }
-            setMainnetWalletStats(nextMainnetStats);
+            const onchainMainnetStats = await fetchMainnetWalletStats(address);
+            setMainnetWalletStats(onchainMainnetStats ?? nextMainnetStats);
         } catch (error) {
             console.error('Error loading wallet activity:', error);
             toast.error('Could not load wallet history');
         } finally {
             setActivityLoading(false);
         }
-    }, [address]);
+    }, [address, fetchMainnetWalletStats]);
 
     useEffect(() => {
         fetchBalance();

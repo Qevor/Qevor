@@ -20,6 +20,17 @@ interface TransactionStats {
   activeUsers: number;
 }
 
+interface MantlescanTx {
+  hash?: string;
+  from?: string;
+  to?: string;
+  value?: string;
+  gasUsed?: string;
+  gasPrice?: string;
+  isError?: string;
+  txreceipt_status?: string;
+}
+
 const router = Router();
 
 const chainEnvironmentById: Record<number, RailEnvironment> = {
@@ -58,6 +69,22 @@ function addUniqueTransaction(stats: TransactionStats, seen: Set<string>, row: T
 function addWallet(wallets: Set<string>, wallet?: string | null) {
   const normalized = wallet?.trim().toLowerCase();
   if (normalized) wallets.add(normalized);
+}
+
+function isEvmAddress(address: string) {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+}
+
+function readBigInt(value?: string | null) {
+  try {
+    return BigInt(value ?? '0');
+  } catch {
+    return 0n;
+  }
+}
+
+function weiToMnt(wei: bigint) {
+  return Number(wei) / 1_000_000_000_000_000_000;
 }
 
 router.get('/transactions', async (_req, res) => {
@@ -120,6 +147,111 @@ router.get('/transactions', async (_req, res) => {
 
   res.setHeader('Cache-Control', 'public, max-age=30');
   res.json(stats);
+});
+
+router.get('/mantle-mainnet-wallet/:address', async (req, res) => {
+  const rawAddress = req.params.address?.trim();
+
+  if (!rawAddress || !isEvmAddress(rawAddress)) {
+    res.status(400).json({ error: 'Invalid EVM address' });
+    return;
+  }
+
+  const wallet = rawAddress.toLowerCase();
+  const params = new URLSearchParams({
+    module: 'account',
+    action: 'txlist',
+    address: rawAddress,
+    startblock: '0',
+    endblock: '99999999',
+    page: '1',
+    offset: '1000',
+    sort: 'desc',
+  });
+
+  if (process.env.MANTLESCAN_API_KEY) {
+    params.set('apikey', process.env.MANTLESCAN_API_KEY);
+  }
+
+  try {
+    const response = await fetch(`https://api.mantlescan.xyz/api?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`Mantlescan responded ${response.status}`);
+    }
+
+    const payload = (await response.json()) as {
+      status?: string;
+      message?: string;
+      result?: MantlescanTx[] | string;
+    };
+
+    if (!Array.isArray(payload.result)) {
+      const noTransactions =
+        payload.status === '0' && /no transactions/i.test(String(payload.message ?? payload.result ?? ''));
+
+      if (!noTransactions) {
+        throw new Error(String(payload.result ?? payload.message ?? 'Unknown Mantlescan response'));
+      }
+
+      res.setHeader('Cache-Control', 'public, max-age=30');
+      res.json({
+        address: rawAddress,
+        chainId: 5000,
+        transactions: 0,
+        gasSpent: 0,
+        amountReceived: 0,
+        amountSent: 0,
+        source: 'mantlescan',
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    let receivedWei = 0n;
+    let sentWei = 0n;
+    let gasSpentWei = 0n;
+    const seen = new Set<string>();
+
+    for (const tx of payload.result) {
+      const from = tx.from?.toLowerCase();
+      const to = tx.to?.toLowerCase();
+
+      if (from !== wallet && to !== wallet) continue;
+      if (tx.isError === '1' || tx.txreceipt_status === '0') continue;
+
+      const hash = tx.hash?.toLowerCase();
+      if (hash) seen.add(hash);
+
+      const valueWei = readBigInt(tx.value);
+
+      if (to === wallet) {
+        receivedWei += valueWei;
+      }
+
+      if (from === wallet) {
+        sentWei += valueWei;
+        gasSpentWei += readBigInt(tx.gasUsed) * readBigInt(tx.gasPrice);
+      }
+    }
+
+    res.setHeader('Cache-Control', 'public, max-age=30');
+    res.json({
+      address: rawAddress,
+      chainId: 5000,
+      transactions: seen.size,
+      gasSpent: weiToMnt(gasSpentWei),
+      amountReceived: weiToMnt(receivedWei),
+      amountSent: weiToMnt(sentWei),
+      source: 'mantlescan',
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Mantle mainnet wallet stats error:', error);
+    res.status(502).json({
+      error: 'Could not load Mantle mainnet wallet stats',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
 });
 
 export default router;
