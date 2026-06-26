@@ -32,11 +32,14 @@ interface MantlescanTx {
 }
 
 const router = Router();
+const mantleMainnetChainId = 5000;
+const mantleMainnetRpcUrl =
+  process.env.MANTLE_MAINNET_RPC_URL ?? process.env.MANTLE_RPC_URL ?? 'https://rpc.mantle.xyz';
 
 const chainEnvironmentById: Record<number, RailEnvironment> = {
   5042002: 'testnet',
   5003: 'testnet',
-  5000: 'mainnet',
+  [mantleMainnetChainId]: 'mainnet',
 };
 
 const inactiveStatuses = new Set(['pending', 'queued', 'failed', 'cancelled', 'canceled']);
@@ -84,7 +87,68 @@ function readBigInt(value?: string | null) {
 }
 
 function weiToMnt(wei: bigint) {
-  return Number(wei) / 1_000_000_000_000_000_000;
+  const sign = wei < 0n ? -1 : 1;
+  const abs = wei < 0n ? -wei : wei;
+  const whole = abs / 1_000_000_000_000_000_000n;
+  const fractional = (abs % 1_000_000_000_000_000_000n) / 1_000_000_000_000n;
+  return sign * Number(`${whole}.${fractional.toString().padStart(6, '0')}`);
+}
+
+async function fetchMantleRpc<T>(method: string, params: unknown[] = []): Promise<T> {
+  const response = await fetch(mantleMainnetRpcUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method,
+      params,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Mantle RPC responded ${response.status}`);
+  }
+
+  const payload = (await response.json()) as { result?: T; error?: { message?: string } };
+  if (payload.error) {
+    throw new Error(payload.error.message ?? `Mantle RPC ${method} failed`);
+  }
+
+  return payload.result as T;
+}
+
+async function getMantleWalletRpcSnapshot(rawAddress: string) {
+  const [balanceHex, txCountHex] = await Promise.all([
+    fetchMantleRpc<string>('eth_getBalance', [rawAddress, 'latest']),
+    fetchMantleRpc<string>('eth_getTransactionCount', [rawAddress, 'latest']),
+  ]);
+
+  return {
+    currentBalance: weiToMnt(readBigInt(balanceHex)),
+    transactionCount: Number(readBigInt(txCountHex)),
+  };
+}
+
+function buildMantleExplorerUrl(rawAddress: string) {
+  const params = new URLSearchParams({
+    chainid: String(mantleMainnetChainId),
+    module: 'account',
+    action: 'txlist',
+    address: rawAddress,
+    startblock: '0',
+    endblock: '99999999',
+    page: '1',
+    offset: '1000',
+    sort: 'desc',
+  });
+
+  const apiKey = process.env.ETHERSCAN_API_KEY ?? process.env.MANTLESCAN_API_KEY;
+  if (apiKey) {
+    params.set('apikey', apiKey);
+  }
+
+  return `https://api.etherscan.io/v2/api?${params.toString()}`;
 }
 
 router.get('/transactions', async (_req, res) => {
@@ -158,25 +222,15 @@ router.get('/mantle-mainnet-wallet/:address', async (req, res) => {
   }
 
   const wallet = rawAddress.toLowerCase();
-  const params = new URLSearchParams({
-    module: 'account',
-    action: 'txlist',
-    address: rawAddress,
-    startblock: '0',
-    endblock: '99999999',
-    page: '1',
-    offset: '1000',
-    sort: 'desc',
-  });
-
-  if (process.env.MANTLESCAN_API_KEY) {
-    params.set('apikey', process.env.MANTLESCAN_API_KEY);
-  }
 
   try {
-    const response = await fetch(`https://api.mantlescan.xyz/api?${params.toString()}`);
+    const [response, rpcSnapshot] = await Promise.all([
+      fetch(buildMantleExplorerUrl(rawAddress)),
+      getMantleWalletRpcSnapshot(rawAddress),
+    ]);
+
     if (!response.ok) {
-      throw new Error(`Mantlescan responded ${response.status}`);
+      throw new Error(`Etherscan V2 responded ${response.status}`);
     }
 
     const payload = (await response.json()) as {
@@ -196,12 +250,13 @@ router.get('/mantle-mainnet-wallet/:address', async (req, res) => {
       res.setHeader('Cache-Control', 'public, max-age=30');
       res.json({
         address: rawAddress,
-        chainId: 5000,
-        transactions: 0,
+        chainId: mantleMainnetChainId,
+        transactions: rpcSnapshot.transactionCount,
         gasSpent: 0,
-        amountReceived: 0,
+        amountReceived: rpcSnapshot.currentBalance,
         amountSent: 0,
-        source: 'mantlescan',
+        currentBalance: rpcSnapshot.currentBalance,
+        source: 'mantle-rpc-fallback',
         updatedAt: new Date().toISOString(),
       });
       return;
@@ -237,20 +292,38 @@ router.get('/mantle-mainnet-wallet/:address', async (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=30');
     res.json({
       address: rawAddress,
-      chainId: 5000,
-      transactions: seen.size,
+      chainId: mantleMainnetChainId,
+      transactions: Math.max(seen.size, rpcSnapshot.transactionCount),
       gasSpent: weiToMnt(gasSpentWei),
-      amountReceived: weiToMnt(receivedWei),
+      amountReceived: Math.max(weiToMnt(receivedWei), rpcSnapshot.currentBalance),
       amountSent: weiToMnt(sentWei),
-      source: 'mantlescan',
+      currentBalance: rpcSnapshot.currentBalance,
+      source: 'etherscan-v2',
       updatedAt: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Mantle mainnet wallet stats error:', error);
-    res.status(502).json({
-      error: 'Could not load Mantle mainnet wallet stats',
-      details: error instanceof Error ? error.message : String(error),
-    });
+    try {
+      const rpcSnapshot = await getMantleWalletRpcSnapshot(rawAddress);
+      res.setHeader('Cache-Control', 'public, max-age=30');
+      res.json({
+        address: rawAddress,
+        chainId: mantleMainnetChainId,
+        transactions: rpcSnapshot.transactionCount,
+        gasSpent: 0,
+        amountReceived: rpcSnapshot.currentBalance,
+        amountSent: 0,
+        currentBalance: rpcSnapshot.currentBalance,
+        source: 'mantle-rpc-fallback',
+        fallbackReason: error instanceof Error ? error.message : String(error),
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (rpcError) {
+      console.error('Mantle mainnet wallet stats error:', error, rpcError);
+      res.status(502).json({
+        error: 'Could not load Mantle mainnet wallet stats',
+        details: rpcError instanceof Error ? rpcError.message : String(rpcError),
+      });
+    }
   }
 });
 
