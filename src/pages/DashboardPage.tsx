@@ -23,6 +23,7 @@ import { ChainEnvironmentToggle } from '@/components/ChainEnvironmentToggle';
 import { RecurringPaymentsTab } from '@/components/RecurringPaymentsTab';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { createPublicClient, formatUnits, http, isAddress, parseUnits } from 'viem';
 import { getAppUrl } from '@/lib/appUrl';
 import {
     DEFAULT_QEVOR_CHAIN_ENVIRONMENT,
@@ -64,6 +65,16 @@ function hasConfiguredAgentEscrow(wallet: AgentWallet) {
     const network = getQevorChainByAgentChain(wallet.chain);
     return wallet.executor_mode === 'escrow' && !!(network.agentEscrowAddress ?? wallet.escrow_address);
 }
+
+const qevorAgentEscrowBalanceAbi = [
+    {
+        type: 'function',
+        name: 'balanceOf',
+        stateMutability: 'view',
+        inputs: [{ name: 'account', type: 'address' }],
+        outputs: [{ name: '', type: 'uint256' }],
+    },
+] as const;
 
 export default function DashboardPage() {
     const { address, isConnected } = useAccount();
@@ -441,6 +452,42 @@ export default function DashboardPage() {
         }
 
         const totalAmount = resolvedRecipients.reduce((s, r) => s + Number(r.amount), 0);
+
+        if (executorAgentId) {
+            const selectedAgent = agentWallets.find((wallet) => wallet.id === executorAgentId);
+            const escrowAddress = selectedBatchNetwork.agentEscrowAddress ?? selectedAgent?.escrow_address ?? null;
+
+            if (!selectedAgent || !escrowAddress || !isAddress(escrowAddress) || !isAddress(address)) {
+                toast.error('Selected agent escrow is not ready. Reconnect your wallet or register the agent escrow again.');
+                return;
+            }
+
+            if (selectedBatchNetwork.paymentAsset === 'MNT') {
+                try {
+                    const client = createPublicClient({
+                        chain: selectedBatchNetwork.chain,
+                        transport: http(selectedBatchNetwork.rpcUrls[0]),
+                    });
+                    const scopedBalance = await client.readContract({
+                        address: escrowAddress as `0x${string}`,
+                        abi: qevorAgentEscrowBalanceAbi,
+                        functionName: 'balanceOf',
+                        args: [address as `0x${string}`],
+                    });
+                    const required = parseUnits(totalAmount.toString(), 18);
+
+                    if (scopedBalance < required) {
+                        toast.error(
+                            `Fund the ${selectedBatchNetwork.label} agent escrow first. Escrowed: ${formatUnits(scopedBalance, 18)} ${selectedBatchNetwork.paymentAsset}; required: ${totalAmount.toFixed(4)} ${selectedBatchNetwork.paymentAsset}.`
+                        );
+                        return;
+                    }
+                } catch (err: any) {
+                    toast.error(err?.shortMessage || err?.message || 'Could not verify the agent escrow balance. Try again after funding the escrow.');
+                    return;
+                }
+            }
+        }
 
         // Create the batch record in DB before sending - acts as the receipt container.
         // If this fails, do not open a wallet tx; otherwise Mantle receipts could be lost.

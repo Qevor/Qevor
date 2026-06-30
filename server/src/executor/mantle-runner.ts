@@ -2,6 +2,7 @@ import {
   createPublicClient,
   createWalletClient,
   defineChain,
+  formatEther,
   http,
   isAddress,
   keccak256,
@@ -170,6 +171,22 @@ export class MantleNativeRunner implements RailRunner {
       throw new Error('Mantle executor escrow address is not configured for this agent wallet');
     }
     const ownerAddress = escrowContract ? this.ownerAddressFor(args) : null;
+    const amountWei = parseEther(args.amount);
+
+    if (escrowContract && ownerAddress) {
+      const scopedBalance = await this.publicClient(chain).readContract({
+        address: escrowContract,
+        abi: qevorAgentEscrowAbi,
+        functionName: 'balanceOf',
+        args: [ownerAddress],
+      });
+
+      if (scopedBalance < amountWei) {
+        throw new Error(
+          `Insufficient Mantle escrow balance. Escrowed ${formatEther(scopedBalance)} MNT; required ${formatEther(amountWei)} MNT. Deposit MNT into the Qevor agent escrow before autonomous execution.`,
+        );
+      }
+    }
 
     const preflight = await this.byreal.preflight({
       chain,
@@ -191,7 +208,6 @@ export class MantleNativeRunner implements RailRunner {
       transport: http(this.rpcUrl(chain)),
     });
 
-    const amountWei = parseEther(args.amount);
     const paymentId = this.paymentIdFor(args);
     const txHash = escrowContract
       ? await walletClient.writeContract({
