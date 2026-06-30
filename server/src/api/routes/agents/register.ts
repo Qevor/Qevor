@@ -26,17 +26,19 @@ async function ensureProfile(wallet: string) {
     .ilike('wallet', wallet)
     .maybeSingle();
 
-  if (selectError) return selectError;
-  if (existingProfile) return null;
+  if (selectError) return { error: selectError, wallet: null };
+  if (existingProfile?.wallet) return { error: null, wallet: existingProfile.wallet };
 
-  const { error: insertError } = await supabase
+  const { data: insertedProfile, error: insertError } = await supabase
     .from('profiles')
     .insert({
       wallet,
       username: fallbackUsernameForWallet(wallet),
-    });
+    })
+    .select('wallet')
+    .single();
 
-  return insertError;
+  return { error: insertError, wallet: insertedProfile?.wallet ?? wallet };
 }
 
 router.post('/register', async (req, res) => {
@@ -50,17 +52,17 @@ router.post('/register', async (req, res) => {
   const normalizedProfileWallet = profile_wallet.trim().toLowerCase();
   const normalizedWalletAddress = wallet_address.trim().toLowerCase();
 
-  const profileError = await ensureProfile(normalizedProfileWallet);
+  const profileResult = await ensureProfile(normalizedProfileWallet);
 
-  if (profileError) {
-    res.status(500).json({ error: profileError.message });
+  if (profileResult.error || !profileResult.wallet) {
+    res.status(500).json({ error: profileResult.error?.message ?? 'Could not create profile' });
     return;
   }
 
   const { data, error } = await supabase
     .from('agent_wallets')
     .insert({
-      profile_wallet: normalizedProfileWallet,
+      profile_wallet: profileResult.wallet,
       wallet_address: normalizedWalletAddress,
       chain,
       label: label ?? null,
