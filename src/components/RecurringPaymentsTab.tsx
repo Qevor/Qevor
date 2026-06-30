@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ChainEnvironmentToggle } from '@/components/ChainEnvironmentToggle';
 import { useProfiles } from '@/hooks/useProfiles';
+import { fetchAgentWallets } from '@/lib/agents/queries';
+import type { AgentWallet } from '@/lib/agents/types';
 import {
   type RecurringPayment,
   type RecurringFrequency,
@@ -15,6 +17,7 @@ import {
 } from '@/hooks/useRecurringPayments';
 import {
   getDefaultQevorChainForEnvironment,
+  getQevorChainByAgentChain,
   getQevorChainById,
   getQevorChainByKey,
   getQevorChainsByEnvironment,
@@ -47,8 +50,26 @@ function getStatusClasses(status: RecurringPayment['status']) {
   return 'border-muted bg-muted/30 text-muted-foreground';
 }
 
+function padDatePart(value: number) {
+  return String(value).padStart(2, '0');
+}
+
+function formatLocalDateTimeInput(date = new Date()) {
+  return [
+    date.getFullYear(),
+    padDatePart(date.getMonth() + 1),
+    padDatePart(date.getDate()),
+  ].join('-') + `T${padDatePart(date.getHours())}:${padDatePart(date.getMinutes())}`;
+}
+
+function hasConfiguredAgentEscrow(wallet: AgentWallet) {
+  const network = getQevorChainByAgentChain(wallet.chain);
+  return wallet.executor_mode === 'escrow' && !!(network.agentEscrowAddress ?? wallet.escrow_address);
+}
+
 export function RecurringPaymentsTab({ wallet }: RecurringPaymentsTabProps) {
   const [plans, setPlans] = useState<RecurringPayment[]>([]);
+  const [agentWallets, setAgentWallets] = useState<AgentWallet[]>([]);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [environment, setEnvironment] = useState<QevorChainEnvironment>('mainnet');
   const [chainKey, setChainKey] = useState<QevorChainKey>(() => getDefaultQevorChainForEnvironment('mainnet').key);
@@ -57,15 +78,16 @@ export function RecurringPaymentsTab({ wallet }: RecurringPaymentsTabProps) {
   const [amount, setAmount] = useState('');
   const [frequency, setFrequency] = useState<RecurringFrequency>('monthly');
   const [intervalCount, setIntervalCount] = useState('1');
-  const [startAt, setStartAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startAt, setStartAt] = useState(() => formatLocalDateTimeInput());
   const [maxRuns, setMaxRuns] = useState('');
   const [memo, setMemo] = useState('');
-  const [executionMode, setExecutionMode] = useState<'human' | 'agent'>('human');
+  const [selectedAgentWalletId, setSelectedAgentWalletId] = useState('');
   const { getRecurringPaymentsByWallet, createRecurringPayment, updateRecurringStatus, loading } = useRecurringPayments();
   const { resolveUsernameToWallet } = useProfiles();
 
   const selectedNetwork = getQevorChainByKey(chainKey);
   const networks = getQevorChainsByEnvironment(environment);
+  const eligibleAgentWallets = agentWallets.filter((agentWallet) => agentWallet.chain === selectedNetwork.agentChainCode);
 
   const loadPlans = async () => {
     const rows = await getRecurringPaymentsByWallet(wallet);
@@ -75,6 +97,17 @@ export function RecurringPaymentsTab({ wallet }: RecurringPaymentsTabProps) {
   useEffect(() => {
     loadPlans();
   }, [wallet]);
+
+  useEffect(() => {
+    fetchAgentWallets(wallet)
+      .then((rows) => setAgentWallets(rows.filter(hasConfiguredAgentEscrow)))
+      .catch(() => setAgentWallets([]));
+  }, [wallet]);
+
+  useEffect(() => {
+    if (eligibleAgentWallets.some((agentWallet) => agentWallet.id === selectedAgentWalletId)) return;
+    setSelectedAgentWalletId(eligibleAgentWallets[0]?.id ?? '');
+  }, [eligibleAgentWallets, selectedAgentWalletId]);
 
   const summary = useMemo(() => {
     return plans.reduce(
@@ -101,10 +134,10 @@ export function RecurringPaymentsTab({ wallet }: RecurringPaymentsTabProps) {
     setAmount('');
     setFrequency('monthly');
     setIntervalCount('1');
-    setStartAt(new Date().toISOString().slice(0, 10));
+    setStartAt(formatLocalDateTimeInput());
     setMaxRuns('');
     setMemo('');
-    setExecutionMode('human');
+    setSelectedAgentWalletId('');
     setEnvironment('mainnet');
     setChainKey(getDefaultQevorChainForEnvironment('mainnet').key);
   };
@@ -113,7 +146,7 @@ export function RecurringPaymentsTab({ wallet }: RecurringPaymentsTabProps) {
     const parsedAmount = Number(amount);
     const parsedInterval = Math.max(1, Number(intervalCount || 1));
     const parsedMaxRuns = maxRuns ? Number(maxRuns) : null;
-    const startsAt = new Date(`${startAt}T00:00:00.000Z`);
+    const startsAt = new Date(startAt);
 
     if (!recipient.trim()) return toast.error('Add a recipient wallet or username.');
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) return toast.error('Enter a valid recurring amount.');
@@ -121,7 +154,10 @@ export function RecurringPaymentsTab({ wallet }: RecurringPaymentsTabProps) {
     if (parsedMaxRuns !== null && (!Number.isFinite(parsedMaxRuns) || parsedMaxRuns <= 0)) {
       return toast.error('Max payments must be a positive number.');
     }
-    if (Number.isNaN(startsAt.getTime())) return toast.error('Choose a valid start date.');
+    if (Number.isNaN(startsAt.getTime())) return toast.error('Choose a valid start date and time.');
+    if (!selectedAgentWalletId) {
+      return toast.error(`Add or select a ${selectedNetwork.label} agent wallet before creating an agentic recurring plan.`);
+    }
 
     let receiverWallet = recipient.trim();
     if (!receiverWallet.startsWith('0x') || receiverWallet.length !== 42) {
@@ -143,7 +179,8 @@ export function RecurringPaymentsTab({ wallet }: RecurringPaymentsTabProps) {
       max_runs: parsedMaxRuns,
       title: title.trim() || null,
       memo: memo.trim() || null,
-      execution_mode: executionMode,
+      execution_mode: 'agent',
+      executor_agent_wallet_id: selectedAgentWalletId,
     });
 
     if (!created) {
@@ -186,13 +223,13 @@ export function RecurringPaymentsTab({ wallet }: RecurringPaymentsTabProps) {
           </DialogTrigger>
           <DialogContent className="max-h-[90vh] overflow-y-auto border-border bg-card sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Create recurring payment</DialogTitle>
+              <DialogTitle>Create agentic recurring payment</DialogTitle>
             </DialogHeader>
 
             <div className="space-y-5 py-2">
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
-                Qevor stores the schedule and safety settings first. Manual plans ask the user to approve each due payment.
-                Agent plans can be picked up by the executor only when an eligible agent wallet and policy are configured.
+                Qevor stores the exact schedule and queues each due payment through your agent wallet policy.
+                The executor picks it up only when the selected agent wallet and policy are configured.
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -278,10 +315,10 @@ export function RecurringPaymentsTab({ wallet }: RecurringPaymentsTabProps) {
 
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
-                  <Label htmlFor="recurring-start">Start date</Label>
+                  <Label htmlFor="recurring-start">Start date and time</Label>
                   <Input
                     id="recurring-start"
-                    type="date"
+                    type="datetime-local"
                     value={startAt}
                     onChange={(event) => setStartAt(event.target.value)}
                   />
@@ -298,15 +335,22 @@ export function RecurringPaymentsTab({ wallet }: RecurringPaymentsTabProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="recurring-mode">Execution</Label>
+                  <Label htmlFor="recurring-agent">Agent wallet</Label>
                   <select
-                    id="recurring-mode"
-                    value={executionMode}
-                    onChange={(event) => setExecutionMode(event.target.value as 'human' | 'agent')}
+                    id="recurring-agent"
+                    value={selectedAgentWalletId}
+                    onChange={(event) => setSelectedAgentWalletId(event.target.value)}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
-                    <option value="human">Human approval</option>
-                    <option value="agent">Agent policy</option>
+                    {eligibleAgentWallets.length === 0 ? (
+                      <option value="">No eligible agent wallet</option>
+                    ) : (
+                      eligibleAgentWallets.map((agentWallet) => (
+                        <option key={agentWallet.id} value={agentWallet.id}>
+                          {agentWallet.label || 'Agent wallet'} ({agentWallet.wallet_address.slice(0, 6)}...{agentWallet.wallet_address.slice(-4)})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>
@@ -392,7 +436,7 @@ export function RecurringPaymentsTab({ wallet }: RecurringPaymentsTabProps) {
                   </div>
                   <div className="rounded-xl border border-border bg-background/35 p-3">
                     <p className="text-xs text-muted-foreground">Next due</p>
-                    <p className="mt-1 text-sm font-semibold">{nextRun.toLocaleDateString()}</p>
+                    <p className="mt-1 text-sm font-semibold">{nextRun.toLocaleString()}</p>
                   </div>
                   <div className="rounded-xl border border-border bg-background/35 p-3">
                     <p className="text-xs text-muted-foreground">Execution</p>
@@ -407,7 +451,7 @@ export function RecurringPaymentsTab({ wallet }: RecurringPaymentsTabProps) {
 
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
                   <p className="text-xs text-muted-foreground">
-                    {plan.run_count} paid{plan.max_runs ? ` of ${plan.max_runs}` : ''} - Next after this: {estimatedNext.toLocaleDateString()}
+                    {plan.run_count} paid{plan.max_runs ? ` of ${plan.max_runs}` : ''} - Next after this: {estimatedNext.toLocaleString()}
                   </p>
                   <div className="flex gap-2">
                     {plan.status === 'active' ? (
