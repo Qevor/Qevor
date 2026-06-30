@@ -1,17 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
+import { getQevorApiUrl } from '@/lib/api';
 import type { AgentWallet, AgentPolicy, AgentAuditEntry, CosignQueueEntry } from './types';
-
-async function ensureAgentProfile(profileWallet: string): Promise<string> {
-  const wallet = profileWallet.trim().toLowerCase();
-  if (!wallet) throw new Error('Connect your wallet before registering an agent wallet.');
-
-  const { error } = await supabase
-    .from('profiles')
-    .upsert({ wallet }, { onConflict: 'wallet' });
-
-  if (error) throw error;
-  return wallet;
-}
 
 export async function fetchAgentWallets(profileWallet: string): Promise<AgentWallet[]> {
   const { data, error } = await supabase
@@ -34,23 +23,28 @@ export async function registerAgentWallet(
     escrowAddress?: string | null;
   },
 ): Promise<AgentWallet> {
-  const normalizedProfileWallet = await ensureAgentProfile(profileWallet);
+  const normalizedProfileWallet = profileWallet.trim().toLowerCase();
+  if (!normalizedProfileWallet) throw new Error('Connect your wallet before registering an agent wallet.');
 
-  const { data, error } = await supabase
-    .from('agent_wallets')
-    .insert({
+  const apiUrl = getQevorApiUrl();
+  const response = await fetch(`${apiUrl}/api/agents/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       profile_wallet: normalizedProfileWallet,
       wallet_address: walletAddress.trim().toLowerCase(),
       chain,
       label: label ?? null,
       executor_mode: opts?.executorMode ?? null,
       escrow_address: opts?.escrowAddress ?? null,
-    })
-    .select()
-    .single();
+    }),
+  });
 
-  if (error) throw error;
-  return data as AgentWallet;
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(payload?.error ?? 'Failed to register wallet');
+  }
+  return payload as AgentWallet;
 }
 
 export async function fetchPolicy(agentWalletId: string): Promise<AgentPolicy | null> {

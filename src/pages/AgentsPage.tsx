@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { DynamicConnectButton, useDynamicContext } from '@dynamic-labs/sdk-react-core';
-import { LogIn, Plus } from 'lucide-react';
+import { LogIn } from 'lucide-react';
 import { toast } from 'sonner';
-import { useProfiles } from '@/hooks/useProfiles';
 import { fetchAgentWallets, registerAgentWallet } from '@/lib/agents/queries';
 import type { AgentWallet } from '@/lib/agents/types';
 import { AgentWalletOnboarding } from '@/components/agents/AgentWalletOnboarding';
@@ -17,7 +16,6 @@ import { getQevorChainByAgentChain } from '@/lib/chains';
 export default function AgentsPage() {
   const { address, isConnected } = useAccount();
   const { primaryWallet, user } = useDynamicContext();
-  const { ensureProfile } = useProfiles();
 
   const [wallets, setWallets] = useState<AgentWallet[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,35 +30,34 @@ export default function AgentsPage() {
     (user as any)?.verifiedCredentials?.find((credential: any) => credential?.address)?.address ??
     null;
   const connectedAddress = address ?? dynamicAddress ?? null;
+  const normalizedConnectedAddress = connectedAddress?.trim().toLowerCase() ?? null;
 
   const loadWallets = useCallback(async () => {
-    if (!connectedAddress) return;
+    if (!normalizedConnectedAddress) return;
     setLoading(true);
     try {
-      const profile = await ensureProfile(connectedAddress);
-      if (!profile) return;
-      setProfileWallet(profile.wallet);
-      const data = await fetchAgentWallets(profile.wallet);
+      setProfileWallet(normalizedConnectedAddress);
+      const data = await fetchAgentWallets(normalizedConnectedAddress);
       setWallets(data);
     } catch (err) {
       console.error('Failed to load agent wallets:', err);
     } finally {
       setLoading(false);
     }
-  }, [connectedAddress, ensureProfile]);
+  }, [normalizedConnectedAddress]);
 
   useEffect(() => {
-    if (connectedAddress) {
+    if (normalizedConnectedAddress) {
       loadWallets();
     }
-  }, [connectedAddress, loadWallets]);
+  }, [normalizedConnectedAddress, loadWallets]);
 
   useEffect(() => {
-    if (!connectedAddress) {
+    if (!normalizedConnectedAddress) {
       setProfileWallet(null);
       setWallets([]);
     }
-  }, [connectedAddress]);
+  }, [normalizedConnectedAddress]);
 
   const handleRegister = async (
     walletAddress: string,
@@ -68,12 +65,10 @@ export default function AgentsPage() {
     chain: string,
     opts?: { executorMode?: 'escrow'; escrowAddress?: string | null },
   ) => {
-    const profile = profileWallet || (connectedAddress ? (await ensureProfile(connectedAddress))?.wallet : null);
+    const profile = profileWallet || normalizedConnectedAddress;
     if (!profile) {
       toast.error(
-        connectedAddress
-          ? 'Wallet is connected, but Qevor could not create your profile. Check Supabase and try again.'
-          : 'Connect your wallet first, then register the agent wallet.',
+        'Connect your wallet first, then register the agent wallet.',
       );
       return;
     }

@@ -14,6 +14,31 @@ const registerSchema = z.object({
   escrow_address: z.string().refine((v) => isAddress(v), 'Invalid escrow address').nullable().optional(),
 });
 
+function fallbackUsernameForWallet(wallet: string) {
+  const normalized = wallet.trim().toLowerCase().replace(/^0x/, '');
+  return `qevor_${normalized.slice(0, 8)}_${normalized.slice(-6)}`;
+}
+
+async function ensureProfile(wallet: string) {
+  const { data: existingProfile, error: selectError } = await supabase
+    .from('profiles')
+    .select('wallet')
+    .ilike('wallet', wallet)
+    .maybeSingle();
+
+  if (selectError) return selectError;
+  if (existingProfile) return null;
+
+  const { error: insertError } = await supabase
+    .from('profiles')
+    .insert({
+      wallet,
+      username: fallbackUsernameForWallet(wallet),
+    });
+
+  return insertError;
+}
+
 router.post('/register', async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -25,9 +50,7 @@ router.post('/register', async (req, res) => {
   const normalizedProfileWallet = profile_wallet.trim().toLowerCase();
   const normalizedWalletAddress = wallet_address.trim().toLowerCase();
 
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .upsert({ wallet: normalizedProfileWallet }, { onConflict: 'wallet' });
+  const profileError = await ensureProfile(normalizedProfileWallet);
 
   if (profileError) {
     res.status(500).json({ error: profileError.message });
