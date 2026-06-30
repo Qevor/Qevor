@@ -325,6 +325,10 @@ async function processBatch(
           },
         });
 
+        if (!result.txHash?.trim()) {
+          throw new Error('Agent transfer completed without a transaction hash');
+        }
+
         // Write audit log
         await supabase.from('agent_audit_log').insert({
           agent_wallet_id: wallet.id,
@@ -356,7 +360,7 @@ async function processBatch(
         // Mark payment completed
         await supabase
           .from('batch_payments')
-          .update({ status: 'paid' })
+          .update({ status: 'paid', tx_hash: result.txHash })
           .eq('id', payment.id);
 
         // Update running spend

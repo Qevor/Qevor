@@ -104,6 +104,10 @@ export async function processApprovedCosigns(
         },
       });
 
+      if (!result.txHash?.trim()) {
+        throw new Error('Agent cosign transfer completed without a transaction hash');
+      }
+
       // Mark cosign as completed (change status to distinguish from pending)
       await supabase
         .from('agent_cosign_queue')
@@ -135,7 +139,7 @@ export async function processApprovedCosigns(
 
       await supabase
         .from('batch_payments')
-        .update({ status: 'paid' })
+        .update({ status: 'paid', tx_hash: result.txHash })
         .eq('id', entry.batch_payment_id);
 
       log.info({ cosign_id: entry.id, tx_hash: result.txHash }, 'Cosign entry executed');
