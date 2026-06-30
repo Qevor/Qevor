@@ -147,6 +147,9 @@ async function getMantleWalletRpcSnapshot(rawAddress: string) {
 }
 
 function buildMantlescanExplorerUrl(rawAddress: string) {
+  const baseUrl = process.env.MANTLESCAN_API_BASE_URL;
+  if (!baseUrl) return null;
+
   const params = new URLSearchParams({
     module: 'account',
     action: 'txlist',
@@ -163,11 +166,13 @@ function buildMantlescanExplorerUrl(rawAddress: string) {
     params.set('apikey', apiKey);
   }
 
-  const baseUrl = process.env.MANTLESCAN_API_BASE_URL ?? 'https://api.mantlescan.xyz/api';
   return `${baseUrl}?${params.toString()}`;
 }
 
 function buildEtherscanV2ExplorerUrl(rawAddress: string) {
+  const apiKey = process.env.ETHERSCAN_API_KEY ?? process.env.MANTLESCAN_API_KEY;
+  if (!apiKey) return null;
+
   const params = new URLSearchParams({
     chainid: String(mantleMainnetChainId),
     module: 'account',
@@ -180,10 +185,7 @@ function buildEtherscanV2ExplorerUrl(rawAddress: string) {
     sort: 'asc',
   });
 
-  const apiKey = process.env.ETHERSCAN_API_KEY ?? process.env.MANTLESCAN_API_KEY;
-  if (apiKey) {
-    params.set('apikey', apiKey);
-  }
+  params.set('apikey', apiKey);
 
   return `https://api.etherscan.io/v2/api?${params.toString()}`;
 }
@@ -209,23 +211,33 @@ async function fetchExplorerTxlist(rawAddress: string, source: MantleExplorerSou
 
 async function fetchMantleMainnetTransactions(rawAddress: string) {
   const failures: string[] = [];
+  const mantlescanUrl = buildMantlescanExplorerUrl(rawAddress);
+  const etherscanV2Url = buildEtherscanV2ExplorerUrl(rawAddress);
 
-  try {
-    return {
-      source: 'mantlescan' as const,
-      transactions: await fetchExplorerTxlist(rawAddress, 'mantlescan', buildMantlescanExplorerUrl(rawAddress)),
-    };
-  } catch (error) {
-    failures.push(error instanceof Error ? error.message : String(error));
+  if (mantlescanUrl) {
+    try {
+      return {
+        source: 'mantlescan' as const,
+        transactions: await fetchExplorerTxlist(rawAddress, 'mantlescan', mantlescanUrl),
+      };
+    } catch (error) {
+      failures.push(error instanceof Error ? error.message : String(error));
+    }
   }
 
-  try {
-    return {
-      source: 'etherscan-v2' as const,
-      transactions: await fetchExplorerTxlist(rawAddress, 'etherscan-v2', buildEtherscanV2ExplorerUrl(rawAddress)),
-    };
-  } catch (error) {
-    failures.push(error instanceof Error ? error.message : String(error));
+  if (etherscanV2Url) {
+    try {
+      return {
+        source: 'etherscan-v2' as const,
+        transactions: await fetchExplorerTxlist(rawAddress, 'etherscan-v2', etherscanV2Url),
+      };
+    } catch (error) {
+      failures.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  if (!mantlescanUrl && !etherscanV2Url) {
+    failures.push('No Mantle explorer API URL or Etherscan V2 API key configured');
   }
 
   throw new Error(failures.join(' | ') || 'No Mantle explorer response');
