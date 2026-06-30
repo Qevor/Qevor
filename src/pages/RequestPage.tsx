@@ -38,9 +38,11 @@ export default function RequestPage() {
         pending: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
         partial: 'bg-primary/10 text-primary border-primary/20',
         complete: 'bg-green-500/10 text-green-400 border-green-500/20',
+        failed: 'bg-red-500/10 text-red-400 border-red-500/20',
     };
 
-    const paidCount = payments.length;
+    const isPaidPayment = (payment?: BatchPayment | null) => payment?.status === 'paid' && !!payment.tx_hash?.trim();
+    const paidCount = payments.filter(isPaidPayment).length;
     const network = getQevorChainById(batch.chain_id);
     const tokenSymbol = batch.token_symbol ?? network.paymentAsset;
 
@@ -99,15 +101,17 @@ export default function RequestPage() {
                 <div className="space-y-3">
                     {batch.recipients.map((rec, i) => {
                         const payment = payments.find(p => p.recipient_wallet.toLowerCase() === rec.wallet.toLowerCase());
+                        const isPaid = isPaidPayment(payment);
+                        const isFailed = ['failed', 'blocked', 'expired'].includes(payment?.status ?? '');
                         return (
                             <div
                                 key={i}
-                                className={`flex items-center justify-between p-4 rounded-xl border transition-all ${payment ? 'bg-green-500/5 border-green-500/30' : 'bg-card border-border'}`}
+                                className={`flex items-center justify-between p-4 rounded-xl border transition-all ${isPaid ? 'bg-green-500/5 border-green-500/30' : isFailed ? 'bg-red-500/5 border-red-500/30' : 'bg-card border-border'}`}
                             >
                                 <div className="flex items-center gap-3">
-                                    {payment
+                                    {isPaid
                                         ? <CheckCircle2 size={16} className="text-green-400 shrink-0" />
-                                        : <XCircle size={16} className="text-muted-foreground/40 shrink-0" />
+                                        : <XCircle size={16} className={`${isFailed ? 'text-red-400' : 'text-muted-foreground/40'} shrink-0`} />
                                     }
                                     <div>
                                         <p className="font-mono text-sm font-medium">{shortAddr(rec.wallet)}</p>
@@ -117,11 +121,11 @@ export default function RequestPage() {
                                 <div className="flex items-center gap-3 shrink-0">
                                     <div className="text-right">
                                         <p className="font-semibold">{rec.amount} {tokenSymbol}</p>
-                                        <p className={`text-xs ${payment ? 'text-green-400' : 'text-muted-foreground'}`}>
-                                            {payment ? 'Sent' : 'Not sent'}
+                                        <p className={`text-xs ${isPaid ? 'text-green-400' : isFailed ? 'text-red-400' : 'text-muted-foreground'}`}>
+                                            {isPaid ? 'Sent' : payment ? payment.status : 'Not sent'}
                                         </p>
                                     </div>
-                                    {payment?.tx_hash && (
+                                    {isPaid && payment?.tx_hash && (
                                         <a
                                             href={getExplorerTxUrl(payment.chain_id ?? batch.chain_id, payment.tx_hash)}
                                             target="_blank"

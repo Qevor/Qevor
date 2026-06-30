@@ -236,6 +236,7 @@ export default function DashboardPage() {
         // Group by batch_request_id
         const groups: Record<string, { batchId: string; totalAmount: number; count: number; latestTxHash: string; createdAt: string; chainId?: number; tokenSymbol?: string }> = {};
         for (const p of payments) {
+            if (p.status !== 'paid' || !p.tx_hash?.trim()) continue;
             if (!groups[p.batch_request_id]) {
                 groups[p.batch_request_id] = { batchId: p.batch_request_id, totalAmount: 0, count: 0, latestTxHash: p.tx_hash, createdAt: p.created_at, chainId: p.chain_id, tokenSymbol: p.token_symbol };
             }

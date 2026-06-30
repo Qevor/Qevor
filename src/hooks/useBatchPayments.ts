@@ -17,7 +17,7 @@ export interface Batch {
     total_amount: number;
     chain_id?: number;
     token_symbol?: string;
-    status: 'pending' | 'partial' | 'complete';
+    status: 'pending' | 'partial' | 'complete' | 'failed';
     expires_at?: string | null;
     created_at: string;
     executor_agent_wallet_id?: string | null;
@@ -172,7 +172,7 @@ export function useBatchPayments() {
         }
     };
 
-    const updateBatchStatus = async (batchId: string, status: 'pending' | 'partial' | 'complete') => {
+    const updateBatchStatus = async (batchId: string, status: 'pending' | 'partial' | 'complete' | 'failed') => {
         try {
             await supabase.from('batch_requests').update({ status }).eq('id', batchId);
         } catch (err) {

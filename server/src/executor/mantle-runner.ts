@@ -345,7 +345,7 @@ export class MantleNativeRunner implements RailRunner {
 
   private getAccount(agentChain: string) {
     const privateKey = isMantleMainnetAgentChain(agentChain)
-      ? process.env.MANTLE_MAINNET_AGENT_PRIVATE_KEY
+      ? process.env.MANTLE_MAINNET_AGENT_PRIVATE_KEY ?? process.env.MANTLE_AGENT_PRIVATE_KEY
       : process.env.MANTLE_SEPOLIA_AGENT_PRIVATE_KEY ?? process.env.MANTLE_AGENT_PRIVATE_KEY;
     if (!privateKey) {
       throw new Error(`${this.privateKeyEnvName(agentChain)} is not configured`);
@@ -356,7 +356,7 @@ export class MantleNativeRunner implements RailRunner {
 
   private privateKeyEnvName(agentChain: string): string {
     return isMantleMainnetAgentChain(agentChain)
-      ? 'MANTLE_MAINNET_AGENT_PRIVATE_KEY'
+      ? 'MANTLE_MAINNET_AGENT_PRIVATE_KEY or MANTLE_AGENT_PRIVATE_KEY'
       : 'MANTLE_SEPOLIA_AGENT_PRIVATE_KEY or MANTLE_AGENT_PRIVATE_KEY';
   }
 }

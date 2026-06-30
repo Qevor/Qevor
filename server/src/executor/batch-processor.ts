@@ -15,8 +15,33 @@ interface BatchPaymentRow {
   recipient_wallet: string;
   amount: number;
   status: string;
+  tx_hash?: string | null;
   chain_id?: number | null;
   token_symbol?: string | null;
+}
+
+function getFinalBatchStatus(payments: Pick<BatchPaymentRow, 'status' | 'tx_hash'>[]): {
+  status: 'pending' | 'partial' | 'complete' | 'failed';
+  executor_state: 'completed' | 'cosign_required' | 'failed';
+} {
+  const total = payments.length;
+  const paidCount = payments.filter((payment) => payment.status === 'paid' && payment.tx_hash?.trim()).length;
+  const hasCosign = payments.some((payment) => payment.status === 'awaiting_cosign');
+  const hasPending = payments.some((payment) => payment.status === 'pending');
+
+  if (total > 0 && paidCount === total) {
+    return { status: 'complete', executor_state: 'completed' };
+  }
+  if (hasCosign) {
+    return { status: paidCount > 0 ? 'partial' : 'pending', executor_state: 'cosign_required' };
+  }
+  if (hasPending) {
+    return { status: paidCount > 0 ? 'partial' : 'pending', executor_state: 'completed' };
+  }
+  if (paidCount > 0) {
+    return { status: 'partial', executor_state: 'completed' };
+  }
+  return { status: 'failed', executor_state: 'failed' };
 }
 
 interface BatchRequestRow {
@@ -418,10 +443,16 @@ async function processBatch(
   }
 
   // 7. Set final executor_state
+  const { data: finalPayments } = await supabase
+    .from('batch_payments')
+    .select('status, tx_hash')
+    .eq('batch_request_id', batch.id);
+  const finalStatus = getFinalBatchStatus((finalPayments ?? []) as Pick<BatchPaymentRow, 'status' | 'tx_hash'>[]);
+
   await supabase
     .from('batch_requests')
-    .update({ executor_state: 'completed' })
+    .update(finalStatus)
     .eq('id', batch.id);
 
-  batchLog.info('Batch processing complete');
+  batchLog.info(finalStatus, 'Batch processing complete');
 }

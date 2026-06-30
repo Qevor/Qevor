@@ -20,16 +20,18 @@ export function BatchPaymentCard({ batch, onSend }: BatchPaymentCardProps) {
         pending:  'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
         partial:  'bg-primary/10 text-primary border-primary/20',
         complete: 'bg-green-500/10 text-green-400 border-green-500/20',
+        failed:   'bg-red-500/10 text-red-400 border-red-500/20',
     };
 
-    const paidCount      = payments.length;
+    const isPaidPayment = (payment?: BatchPayment | null) => payment?.status === 'paid' && !!payment.tx_hash?.trim();
+    const paidCount      = payments.filter(isPaidPayment).length;
     const totalRecipients = batch.recipients.length;
     const isComplete     = batch.status === 'complete';
     const network = getQevorChainById(batch.chain_id);
     const tokenSymbol = batch.token_symbol ?? network.paymentAsset;
 
     const unsentRecipients = batch.recipients.filter(
-        r => !payments.some(p => p.recipient_wallet.toLowerCase() === r.wallet.toLowerCase())
+        r => !payments.some(p => p.recipient_wallet.toLowerCase() === r.wallet.toLowerCase() && isPaidPayment(p))
     );
 
     return (
@@ -74,12 +76,14 @@ export function BatchPaymentCard({ batch, onSend }: BatchPaymentCardProps) {
                     const payment = payments.find(
                         p => p.recipient_wallet.toLowerCase() === rec.wallet.toLowerCase()
                     );
+                    const isPaid = isPaidPayment(payment);
+                    const isFailed = ['failed', 'blocked', 'expired'].includes(payment?.status ?? '');
                     return (
                         <div key={i} className="flex items-center justify-between text-sm">
                             <div className="flex items-center gap-2 min-w-0">
-                                {payment
+                                {isPaid
                                     ? <CheckCircle2 size={13} className="text-green-400 shrink-0" />
-                                    : <XCircle     size={13} className="text-muted-foreground/40 shrink-0" />
+                                    : <XCircle     size={13} className={`${isFailed ? 'text-red-400' : 'text-muted-foreground/40'} shrink-0`} />
                                 }
                                 <span className="font-mono text-xs text-muted-foreground truncate">
                                     {rec.wallet.slice(0, 6)}…{rec.wallet.slice(-4)}
@@ -89,10 +93,15 @@ export function BatchPaymentCard({ batch, onSend }: BatchPaymentCardProps) {
                                 )}
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
-                                <span className={`font-medium text-xs ${payment ? '' : 'text-muted-foreground'}`}>
+                                {payment && !isPaid && (
+                                    <span className={`text-[10px] font-semibold uppercase ${isFailed ? 'text-red-400' : 'text-yellow-400'}`}>
+                                        {payment.status}
+                                    </span>
+                                )}
+                                <span className={`font-medium text-xs ${isPaid ? '' : 'text-muted-foreground'}`}>
                                     {Number(rec.amount).toFixed(2)} {tokenSymbol}
                                 </span>
-                                {payment?.tx_hash && (
+                                {isPaid && payment?.tx_hash && (
                                     <a
                                         href={getExplorerTxUrl(payment.chain_id ?? batch.chain_id, payment.tx_hash)}
                                         target="_blank"
