@@ -96,8 +96,20 @@ const isCompletedWalletTransaction = (status?: string | null, txHash?: string | 
     return !['pending', 'queued', 'failed', 'cancelled'].includes(normalized);
 };
 
-const addCompletedTransactionStat = (stats: WalletTransactionStats, chainId?: number | null) => {
+const addCompletedTransactionStat = (
+    stats: WalletTransactionStats,
+    txHashes: Set<string>,
+    txHash?: string | null,
+    chainId?: number | null,
+) => {
+    const normalized = txHash?.trim().toLowerCase();
+    if (!normalized) return;
+
     const environment = getQevorChainById(chainId).environment;
+    const key = `${environment}:${normalized}`;
+    if (txHashes.has(key)) return;
+
+    txHashes.add(key);
     stats[environment] += 1;
 };
 
@@ -234,6 +246,7 @@ export function WalletTab() {
             const linkFilter = `creator_wallet.ilike.${address},receiver_wallet.ilike.${address}`;
             const nextStats = createEmptyTransactionStats();
             const nextMainnetStats = createEmptyMainnetWalletStats();
+            const txHashes = new Set<string>();
             const mainnetTxHashes = new Set<string>();
             const mainnetGasHashes = new Set<string>();
 
@@ -270,7 +283,7 @@ export function WalletTab() {
                 for (const receipt of receiptResult.data as any[]) {
                     const chain = getQevorChainById(receipt.chain_id);
                     if (isCompletedWalletTransaction(receipt.status, receipt.tx_hash)) {
-                        addCompletedTransactionStat(nextStats, receipt.chain_id);
+                        addCompletedTransactionStat(nextStats, txHashes, receipt.tx_hash, receipt.chain_id);
                     }
                     const direction: WalletActivityDirection = normalizeWallet(receipt.sender) === wallet ? 'sent' : 'received';
                     const otherWallet = direction === 'sent' ? receipt.receiver : receipt.sender;
@@ -303,7 +316,7 @@ export function WalletTab() {
                 for (const payment of batchPaymentResult.data as any[]) {
                     const chain = getQevorChainById(payment.chain_id);
                     if (isCompletedWalletTransaction(payment.status, payment.tx_hash)) {
-                        addCompletedTransactionStat(nextStats, payment.chain_id);
+                        addCompletedTransactionStat(nextStats, txHashes, payment.tx_hash, payment.chain_id);
                     }
                     const direction: WalletActivityDirection = normalizeWallet(payment.payer_wallet) === wallet ? 'sent' : 'received';
                     const otherWallet = direction === 'sent' ? payment.recipient_wallet : payment.payer_wallet;
