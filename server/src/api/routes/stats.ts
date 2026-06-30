@@ -27,8 +27,24 @@ interface MantlescanTx {
   value?: string;
   gasUsed?: string;
   gasPrice?: string;
+  effectiveGasPrice?: string;
   isError?: string;
   txreceipt_status?: string;
+}
+
+type MantleExplorerSource = 'mantlescan' | 'etherscan-v2' | 'mantle-rpc-fallback';
+
+interface MantleExplorerPayload {
+  status?: string;
+  message?: string;
+  result?: MantlescanTx[] | string;
+}
+
+interface MantleMainnetWalletStats {
+  transactions: number;
+  gasSpent: number;
+  amountReceived: number;
+  amountSent: number;
 }
 
 const router = Router();
@@ -130,7 +146,28 @@ async function getMantleWalletRpcSnapshot(rawAddress: string) {
   };
 }
 
-function buildMantleExplorerUrl(rawAddress: string) {
+function buildMantlescanExplorerUrl(rawAddress: string) {
+  const params = new URLSearchParams({
+    module: 'account',
+    action: 'txlist',
+    address: rawAddress,
+    startblock: '0',
+    endblock: '99999999',
+    page: '1',
+    offset: '10000',
+    sort: 'asc',
+  });
+
+  const apiKey = process.env.MANTLESCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY;
+  if (apiKey) {
+    params.set('apikey', apiKey);
+  }
+
+  const baseUrl = process.env.MANTLESCAN_API_BASE_URL ?? 'https://api.mantlescan.xyz/api';
+  return `${baseUrl}?${params.toString()}`;
+}
+
+function buildEtherscanV2ExplorerUrl(rawAddress: string) {
   const params = new URLSearchParams({
     chainid: String(mantleMainnetChainId),
     module: 'account',
@@ -139,8 +176,8 @@ function buildMantleExplorerUrl(rawAddress: string) {
     startblock: '0',
     endblock: '99999999',
     page: '1',
-    offset: '1000',
-    sort: 'desc',
+    offset: '10000',
+    sort: 'asc',
   });
 
   const apiKey = process.env.ETHERSCAN_API_KEY ?? process.env.MANTLESCAN_API_KEY;
@@ -149,6 +186,89 @@ function buildMantleExplorerUrl(rawAddress: string) {
   }
 
   return `https://api.etherscan.io/v2/api?${params.toString()}`;
+}
+
+function parseTxlistPayload(payload: MantleExplorerPayload, source: MantleExplorerSource) {
+  if (Array.isArray(payload.result)) return payload.result;
+
+  const responseText = String(payload.result ?? payload.message ?? '');
+  if (payload.status === '0' && /no transactions/i.test(responseText)) return [];
+
+  throw new Error(`${source} txlist failed: ${responseText || 'Unknown response'}`);
+}
+
+async function fetchExplorerTxlist(rawAddress: string, source: MantleExplorerSource, url: string) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`${source} responded ${response.status}`);
+  }
+
+  const payload = (await response.json()) as MantleExplorerPayload;
+  return parseTxlistPayload(payload, source);
+}
+
+async function fetchMantleMainnetTransactions(rawAddress: string) {
+  const failures: string[] = [];
+
+  try {
+    return {
+      source: 'mantlescan' as const,
+      transactions: await fetchExplorerTxlist(rawAddress, 'mantlescan', buildMantlescanExplorerUrl(rawAddress)),
+    };
+  } catch (error) {
+    failures.push(error instanceof Error ? error.message : String(error));
+  }
+
+  try {
+    return {
+      source: 'etherscan-v2' as const,
+      transactions: await fetchExplorerTxlist(rawAddress, 'etherscan-v2', buildEtherscanV2ExplorerUrl(rawAddress)),
+    };
+  } catch (error) {
+    failures.push(error instanceof Error ? error.message : String(error));
+  }
+
+  throw new Error(failures.join(' | ') || 'No Mantle explorer response');
+}
+
+function computeNativeWalletStats(rawAddress: string, transactions: MantlescanTx[]): MantleMainnetWalletStats {
+  const wallet = rawAddress.toLowerCase();
+  let receivedWei = 0n;
+  let sentWei = 0n;
+  let gasSpentWei = 0n;
+  const seen = new Set<string>();
+
+  for (const tx of transactions) {
+    const from = tx.from?.toLowerCase();
+    const to = tx.to?.toLowerCase();
+
+    if (from !== wallet && to !== wallet) continue;
+    if (tx.isError === '1' || tx.txreceipt_status === '0') continue;
+
+    const hash = tx.hash?.toLowerCase();
+    if (hash) {
+      if (seen.has(hash)) continue;
+      seen.add(hash);
+    }
+
+    const valueWei = readBigInt(tx.value);
+
+    if (to === wallet) {
+      receivedWei += valueWei;
+    }
+
+    if (from === wallet) {
+      sentWei += valueWei;
+      gasSpentWei += readBigInt(tx.gasUsed) * readBigInt(tx.effectiveGasPrice ?? tx.gasPrice);
+    }
+  }
+
+  return {
+    transactions: seen.size,
+    gasSpent: weiToMnt(gasSpentWei),
+    amountReceived: weiToMnt(receivedWei),
+    amountSent: weiToMnt(sentWei),
+  };
 }
 
 router.get('/transactions', async (_req, res) => {
@@ -221,99 +341,40 @@ router.get('/mantle-mainnet-wallet/:address', async (req, res) => {
     return;
   }
 
-  const wallet = rawAddress.toLowerCase();
-
   try {
-    const [response, rpcSnapshot] = await Promise.all([
-      fetch(buildMantleExplorerUrl(rawAddress)),
+    const [explorerResult, rpcSnapshot] = await Promise.all([
+      fetchMantleMainnetTransactions(rawAddress),
       getMantleWalletRpcSnapshot(rawAddress),
     ]);
+    const computed = computeNativeWalletStats(rawAddress, explorerResult.transactions);
 
-    if (!response.ok) {
-      throw new Error(`Etherscan V2 responded ${response.status}`);
-    }
-
-    const payload = (await response.json()) as {
-      status?: string;
-      message?: string;
-      result?: MantlescanTx[] | string;
-    };
-
-    if (!Array.isArray(payload.result)) {
-      const noTransactions =
-        payload.status === '0' && /no transactions/i.test(String(payload.message ?? payload.result ?? ''));
-
-      if (!noTransactions) {
-        throw new Error(String(payload.result ?? payload.message ?? 'Unknown Mantlescan response'));
-      }
-
-      res.setHeader('Cache-Control', 'public, max-age=30');
-      res.json({
-        address: rawAddress,
-        chainId: mantleMainnetChainId,
-        transactions: rpcSnapshot.transactionCount,
-        gasSpent: 0,
-        amountReceived: rpcSnapshot.currentBalance,
-        amountSent: 0,
-        currentBalance: rpcSnapshot.currentBalance,
-        source: 'mantle-rpc-fallback',
-        updatedAt: new Date().toISOString(),
-      });
-      return;
-    }
-
-    let receivedWei = 0n;
-    let sentWei = 0n;
-    let gasSpentWei = 0n;
-    const seen = new Set<string>();
-
-    for (const tx of payload.result) {
-      const from = tx.from?.toLowerCase();
-      const to = tx.to?.toLowerCase();
-
-      if (from !== wallet && to !== wallet) continue;
-      if (tx.isError === '1' || tx.txreceipt_status === '0') continue;
-
-      const hash = tx.hash?.toLowerCase();
-      if (hash) seen.add(hash);
-
-      const valueWei = readBigInt(tx.value);
-
-      if (to === wallet) {
-        receivedWei += valueWei;
-      }
-
-      if (from === wallet) {
-        sentWei += valueWei;
-        gasSpentWei += readBigInt(tx.gasUsed) * readBigInt(tx.gasPrice);
-      }
-    }
-
-    res.setHeader('Cache-Control', 'public, max-age=30');
+    res.setHeader('Cache-Control', 'private, no-store');
     res.json({
       address: rawAddress,
       chainId: mantleMainnetChainId,
-      transactions: Math.max(seen.size, rpcSnapshot.transactionCount),
-      gasSpent: weiToMnt(gasSpentWei),
-      amountReceived: Math.max(weiToMnt(receivedWei), rpcSnapshot.currentBalance),
-      amountSent: weiToMnt(sentWei),
+      transactions: Math.max(computed.transactions, rpcSnapshot.transactionCount),
+      gasSpent: computed.gasSpent,
+      amountReceived: computed.amountReceived,
+      amountSent: computed.amountSent,
       currentBalance: rpcSnapshot.currentBalance,
-      source: 'etherscan-v2',
+      source: explorerResult.source,
+      isExact: true,
       updatedAt: new Date().toISOString(),
     });
   } catch (error) {
     try {
       const rpcSnapshot = await getMantleWalletRpcSnapshot(rawAddress);
-      res.setHeader('Cache-Control', 'public, max-age=30');
+      res.setHeader('Cache-Control', 'private, no-store');
       res.json({
         address: rawAddress,
         chainId: mantleMainnetChainId,
         transactions: rpcSnapshot.transactionCount,
         gasSpent: 0,
-        amountReceived: rpcSnapshot.currentBalance,
+        amountReceived: 0,
         amountSent: 0,
         currentBalance: rpcSnapshot.currentBalance,
         source: 'mantle-rpc-fallback',
+        isExact: false,
         fallbackReason: error instanceof Error ? error.message : String(error),
         updatedAt: new Date().toISOString(),
       });
