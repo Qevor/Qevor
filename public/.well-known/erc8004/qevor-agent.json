@@ -6,7 +6,14 @@
   "image": "https://qevor.xyz/qevor-logo.png",
   "active": true,
   "x402Support": false,
-  "registrations": [],
+  "registrations": [
+    {
+      "chainId": 5000,
+      "agentId": 1,
+      "agentRegistry": "eip155:5000:0x6883610c14cBd2F6E975DC546747B1c9FF5C4fc1",
+      "agentWallet": "eip155:5000:0xB99bc321AB360AbD0A87E0B2E1EB8df364851D60"
+    }
+  ],
   "supportedTrust": [
     "reputation",
     "crypto-economic"
