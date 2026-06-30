@@ -41,6 +41,16 @@ async function ensureProfile(wallet: string) {
   return { error: insertError, wallet: insertedProfile?.wallet ?? wallet };
 }
 
+async function fetchExistingAgentWallet(profileWallet: string, walletAddress: string, chain: string) {
+  return supabase
+    .from('agent_wallets')
+    .select()
+    .eq('profile_wallet', profileWallet)
+    .eq('wallet_address', walletAddress)
+    .eq('chain', chain)
+    .maybeSingle();
+}
+
 router.post('/register', async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -73,6 +83,19 @@ router.post('/register', async (req, res) => {
     .single();
 
   if (error) {
+    if (error.code === '23505') {
+      const { data: existingWallet, error: existingError } = await fetchExistingAgentWallet(
+        profileResult.wallet,
+        normalizedWalletAddress,
+        chain,
+      );
+
+      if (!existingError && existingWallet) {
+        res.status(200).json(existingWallet);
+        return;
+      }
+    }
+
     const status = error.code === '23505' ? 409 : 500;
     res.status(status).json({ error: error.message });
     return;
