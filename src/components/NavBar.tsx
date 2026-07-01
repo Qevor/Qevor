@@ -57,6 +57,7 @@ export default function NavBar() {
                         <Link to="/dashboard?tab=agent" className="text-primary hover:text-primary/80 transition-colors">Agent Workspace</Link>
                         <Link to="/agents" className="text-muted-foreground hover:text-primary transition-colors">Agent Operations</Link>
                         <Link to="/agent-guide" className="text-muted-foreground hover:text-primary transition-colors">Agent Guide</Link>
+                        <Link to="/docs" className="text-muted-foreground hover:text-primary transition-colors">Docs</Link>
                         <Link to="/dashboard?tab=wallet" className="text-muted-foreground hover:text-primary transition-colors">Payment Rails</Link>
                     </div>
                     <ThemeToggle />
@@ -77,6 +78,9 @@ export default function NavBar() {
                                     </DropdownMenuItem>
                                     <DropdownMenuItem asChild className="md:hidden">
                                         <Link to="/agent-guide">Agent Guide</Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem asChild className="md:hidden">
+                                        <Link to="/docs">Docs</Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem asChild className="md:hidden">
                                         <Link to="/dashboard?tab=wallet">Payment Rails</Link>

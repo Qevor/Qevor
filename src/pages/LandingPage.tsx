@@ -179,6 +179,7 @@ export default function LandingPage() {
               ['#try', 'Try it'],
               ['#networks', 'Networks'],
               ['/agent-guide', 'Agent Guide'],
+              ['/docs', 'Docs'],
               ['#start', 'Start'],
             ].map(([href, label]) => (
               <a key={href} href={href} className="transition-colors hover:text-foreground">
@@ -564,6 +565,7 @@ export default function LandingPage() {
               ['#safety', 'Safety'],
               ['#networks', 'Networks'],
               ['/agent-guide', 'Agent Guide'],
+              ['/docs', 'Docs'],
               ['/dashboard?tab=agent', 'Agent Workspace'],
             ].map(([href, label]) => (
               <a key={href} href={href} className="transition-colors hover:text-foreground">
