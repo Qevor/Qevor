@@ -1,6 +1,7 @@
 import { useSearchParams, Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { useAccount, useConnect } from 'wagmi'
+import { useAccount } from 'wagmi'
+import { DynamicConnectButton } from '@dynamic-labs/sdk-react-core'
 import { useArcSend } from '@/hooks/useArcSend'
 import { Loader2, Wallet, ExternalLink, MessageSquare, CheckCircle2, DollarSign, AlertCircle, Receipt as ReceiptIcon } from 'lucide-react'
 import Confetti from 'react-confetti'
@@ -42,7 +43,6 @@ const PayPage = () => {
   const { resolveUsernameToWallet } = useProfiles()
 
   const { address, isConnected } = useAccount()
-  const { connect, connectors, isPending: isConnecting } = useConnect()
   const { sendTransaction, isPending: isSending } = useArcSend()
   const selectedNetwork = getQevorChainByKey(chainKey)
 
@@ -279,14 +279,13 @@ const PayPage = () => {
             )}
 
             {!isConnected ? (
-              <button
-                onClick={() => connect({ connector: connectors[0] })}
-                disabled={isConnecting}
-                className="w-full gradient-primary text-primary-foreground font-semibold rounded-lg py-3 flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60 shadow-glow"
+              <DynamicConnectButton
+                buttonContainerClassName="contents"
+                buttonClassName="w-full gradient-primary text-primary-foreground font-semibold rounded-lg py-3 flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60 shadow-glow"
               >
-                {isConnecting ? <Loader2 size={18} className="animate-spin" /> : <Wallet size={18} />}
-                {isConnecting ? 'Connecting...' : 'Connect Wallet'}
-              </button>
+                <Wallet size={18} />
+                Connect Wallet
+              </DynamicConnectButton>
             ) : (
               <button
                 onClick={handlePay}
