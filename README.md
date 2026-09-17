@@ -2,7 +2,7 @@
 
 Qevor is an agent-first, multi-chain payment workspace for teams, communities, and autonomous agents. It lets users create payment links, send wallet transfers, import CSV batch payouts, review transaction history, and route payment operations through an AI safety copilot before funds move.
 
-Qevor currently supports Mantle Sepolia, Mantle Mainnet, and Arc Testnet. Mainnet execution is guarded behind stricter policy, approval, and treasury controls.
+Qevor currently supports Mantle Sepolia, Mantle Mainnet, Arc Testnet, and Arc Mainnet. Mainnet execution is guarded behind stricter policy, approval, and treasury controls.
 
 ## Product Focus
 
@@ -39,7 +39,7 @@ Key docs:
 - **Mantle Sepolia escrow:** [`0xf0e6f301D2036b0A0c94808dc945ed764e5a35c4`](https://explorer.sepolia.mantle.xyz/address/0xf0e6f301D2036b0A0c94808dc945ed764e5a35c4)
 - **Mantle Mainnet escrow:** pending guarded deployment
 - **Contract:** `contracts/QevorAgentEscrow.sol`
-- **Networks:** Mantle Sepolia, Mantle Mainnet-ready, Arc Testnet
+- **Networks:** Mantle Sepolia, Mantle Mainnet-ready, Arc Testnet, Arc Mainnet
 - **Mainnet guardrail:** use the dedicated mainnet deploy script and keep strict approval, policy, and treasury limits enabled.
 
 The deployed escrow contract is the Mantle contract that underpins Qevor's agentic payment rail. It can execute approved payments, record blocked/cosign/failed decisions, enforce replay protection, enforce per-user payment limits, validate owner signatures through ERC-1271, and link decisions to Qevor's ERC-8004 agent identity after `setAgentIdentity(identityRegistry, agentId, agentURI)` is configured. MNT sent through the escrow is accounted with `balanceOf(userWallet)`, so one user's deposit does not appear in another user's dashboard.
@@ -52,7 +52,7 @@ The deployed escrow contract is the Mantle contract that underpins Qevor's agent
 - **Database:** Supabase
 - **Agent API:** Express, Zod
 - **AI copilot:** Anthropic Claude, with OpenAI fallback support
-- **Execution:** Mantle Sepolia RPC, viem, optional Byreal-compatible preflight adapter
+- **Execution:** Mantle and Arc RPCs, viem, Circle CLI agent-wallet execution on Arc, optional Byreal-compatible preflight adapter
 - **Contracts:** Solidity, Foundry
 - **Hosting:** VPS with Caddy or any static host plus API process manager
 
@@ -120,6 +120,7 @@ QEVOR_BYREAL_MAX_PREFLIGHT_MNT=100
 QEVOR_BYREAL_REQUIRE_CLI=0
 MANTLE_SEPOLIA_RPC_URL=https://rpc.sepolia.mantle.xyz
 MANTLE_MAINNET_RPC_URL=https://rpc.mantle.xyz
+ARC_MAINNET_RPC_URL=https://rpc.mainnet.arc.io
 MANTLE_AGENT_PRIVATE_KEY=
 MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS=
 MANTLE_MAINNET_AGENT_PRIVATE_KEY=

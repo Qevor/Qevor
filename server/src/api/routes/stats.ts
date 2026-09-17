@@ -55,6 +55,7 @@ const mantleMainnetRpcUrl =
 const chainEnvironmentById: Record<number, RailEnvironment> = {
   5042002: 'testnet',
   5003: 'testnet',
+  5042: 'mainnet',
   [mantleMainnetChainId]: 'mainnet',
 };
 

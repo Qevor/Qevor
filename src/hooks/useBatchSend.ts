@@ -47,6 +47,7 @@ export function useBatchSend() {
     const { chainId } = useAccount();
     const { switchChainAsync } = useSwitchChain();
     const arcClient = usePublicClient({ chainId: getQevorChainByKey('arc-testnet').chain.id });
+    const arcMainnetClient = usePublicClient({ chainId: getQevorChainByKey('arc-mainnet').chain.id });
     const mantleSepoliaClient = usePublicClient({ chainId: getQevorChainByKey('mantle-sepolia').chain.id });
     const mantleMainnetClient = usePublicClient({ chainId: getQevorChainByKey('mantle-mainnet').chain.id });
 
@@ -57,7 +58,9 @@ export function useBatchSend() {
         if (recipients.length === 0) throw new Error('No recipients');
 
         const network = getQevorChainByKey(chainKey);
-        const publicClient = network.key === 'mantle-mainnet'
+        const publicClient = network.key === 'arc-mainnet'
+            ? arcMainnetClient
+            : network.key === 'mantle-mainnet'
             ? mantleMainnetClient
             : network.key === 'mantle-sepolia'
                 ? mantleSepoliaClient
@@ -77,7 +80,7 @@ export function useBatchSend() {
         const totalValue = calls.reduce((sum, c) => sum + c.value, 0n);
 
         const txHash = await writeContractAsync({
-            address:      MULTICALL3_ADDRESS,
+            address:      (network.chain.contracts?.multicall3?.address ?? MULTICALL3_ADDRESS) as `0x${string}`,
             abi:          multicall3Abi,
             functionName: 'aggregate3Value',
             args:         [calls],

@@ -29,6 +29,30 @@ export const arcTestnet = defineChain({
   testnet: true,
 })
 
+export const arcMainnet = defineChain({
+  id: 5042,
+  name: 'Arc Mainnet',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'USDC',
+    symbol: 'USDC',
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://rpc.mainnet.arc.io'],
+    },
+  },
+  blockExplorers: {
+    default: { name: 'Arc Explorer', url: 'https://explorer.arc.io' },
+  },
+  contracts: {
+    multicall3: {
+      address: '0xcA11bde05977b3631167028862bE2a173976CA11',
+    },
+  },
+  testnet: false,
+})
+
 export const mantleSepolia = defineChain({
   id: 5003,
   name: 'Mantle Sepolia',
@@ -77,7 +101,7 @@ export const mantleMainnet = defineChain({
   testnet: false,
 })
 
-export type QevorChainKey = 'arc-testnet' | 'mantle-sepolia' | 'mantle-mainnet'
+export type QevorChainKey = 'arc-testnet' | 'arc-mainnet' | 'mantle-sepolia' | 'mantle-mainnet'
 export type QevorChainEnvironment = 'testnet' | 'mainnet'
 
 export interface QevorChainConfig {
@@ -86,7 +110,7 @@ export interface QevorChainConfig {
   chain: Chain
   label: string
   paymentAsset: string
-  agentChainCode: 'ARC-TESTNET' | 'MANTLE-SEPOLIA' | 'MANTLE-MAINNET'
+  agentChainCode: 'ARC-TESTNET' | 'ARC-MAINNET' | 'MANTLE-SEPOLIA' | 'MANTLE-MAINNET'
   explorerUrl: string
   rpcUrls: readonly string[]
   agentEscrowAddress?: `0x${string}`
@@ -109,6 +133,18 @@ export const qevorChains = [
     agentChainCode: 'ARC-TESTNET',
     explorerUrl: 'https://testnet.arcscan.app',
     rpcUrls: arcTestnet.rpcUrls.default.http,
+    agentEscrowAddress: undefined,
+  },
+  {
+    key: 'arc-mainnet',
+    environment: 'mainnet',
+    chain: arcMainnet,
+    label: 'Arc Mainnet',
+    paymentAsset: 'USDC',
+    agentChainCode: 'ARC-MAINNET',
+    explorerUrl: 'https://explorer.arc.io',
+    rpcUrls: arcMainnet.rpcUrls.default.http,
+    agentEscrowAddress: undefined,
   },
   {
     key: 'mantle-sepolia',

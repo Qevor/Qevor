@@ -6,7 +6,7 @@ The Agent Stack turns Qevor into policy-gated payment infrastructure that can be
 
 It now supports three execution rails:
 
-1. **Arc Testnet via Circle CLI** - agent wallets, Circle session auth, and USDC transfers.
+1. **Arc Testnet and Arc Mainnet via Circle CLI** - agent wallets, Circle session auth, and USDC transfers. Qevor maps its internal `ARC-MAINNET` code to Circle's `ARC` mainnet identifier.
 2. **Mantle Sepolia via contract escrow** - MNT transfers are executed through `QevorAgentEscrow` when `MANTLE_AGENT_ESCROW_CONTRACT_ADDRESS` is configured, with optional Byreal CLI preflight before signing.
 3. **Mantle Mainnet via ERC-8004-linked escrow** - the same escrow pattern runs on Mantle mainnet, but the mainnet deploy path must link the escrow to Qevor's ERC-8004 agent identity.
 
@@ -132,7 +132,10 @@ Arc rail:
 ```env
 HOME=/var/lib/qevor-executor
 CIRCLE_ACCEPT_TERMS=1
+ARC_MAINNET_RPC_URL=https://rpc.mainnet.arc.io
 ```
+
+Arc Mainnet uses USDC as its native gas asset. The native balance view uses 18 decimals for gas accounting, while the ERC-20 USDC view uses 6 decimals for token display and transfers. Qevor shows one USDC balance and never adds those two views together.
 
 Mantle rail:
 

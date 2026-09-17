@@ -6,15 +6,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Download, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
 import { fetchAuditLog } from '@/lib/agents/queries';
 import type { AgentAuditEntry } from '@/lib/agents/types';
+import { getQevorChainByAgentChain } from '@/lib/chains';
 
-const EXPLORER_URL = 'https://testnet.arcscan.app';
 const PAGE_SIZE = 20;
 
 interface Props {
   agentWalletId: string;
+  chain: string;
 }
 
-export function AuditLogViewer({ agentWalletId }: Props) {
+export function AuditLogViewer({ agentWalletId, chain }: Props) {
   const [entries, setEntries] = useState<AgentAuditEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -41,6 +42,7 @@ export function AuditLogViewer({ agentWalletId }: Props) {
   useEffect(() => { load(); }, [load]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
+  const explorerUrl = getQevorChainByAgentChain(chain).explorerUrl;
 
   const outcomeBadge = (outcome: string) => {
     switch (outcome) {
@@ -138,7 +140,7 @@ export function AuditLogViewer({ agentWalletId }: Props) {
                       <td className="py-2">
                         {e.tx_hash ? (
                           <a
-                            href={`${EXPLORER_URL}/tx/${e.tx_hash}`}
+                            href={`${explorerUrl}/tx/${e.tx_hash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-primary hover:underline inline-flex items-center gap-1"

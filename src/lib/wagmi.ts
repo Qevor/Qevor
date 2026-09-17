@@ -1,9 +1,9 @@
 import { http, createConfig, fallback } from 'wagmi'
 import { injected } from 'wagmi/connectors'
-import { arcTestnet, mantleMainnet, mantleSepolia } from './chains'
+import { arcMainnet, arcTestnet, mantleMainnet, mantleSepolia } from './chains'
 
 export const config = createConfig({
-  chains: [arcTestnet, mantleSepolia, mantleMainnet],
+  chains: [arcTestnet, arcMainnet, mantleSepolia, mantleMainnet],
   connectors: [
     injected(),
   ],
@@ -13,6 +13,9 @@ export const config = createConfig({
       http('https://rpc.blockdaemon.testnet.arc.network'),
       http('https://arc-testnet.drpc.org'),
       http('https://rpc.quicknode.testnet.arc.network'),
+    ]),
+    [arcMainnet.id]: fallback([
+      http('https://rpc.mainnet.arc.io'),
     ]),
     [mantleSepolia.id]: fallback([
       http('https://rpc.sepolia.mantle.xyz'),

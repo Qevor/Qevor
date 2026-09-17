@@ -174,7 +174,7 @@ export function WalletTab() {
                 setDisplayBalance(parseFloat(formatUnits(native, selectedNetwork.chain.nativeCurrency.decimals)).toFixed(4));
                 return;
             }
-            if (selectedNetwork.key !== 'arc-testnet') {
+            if (selectedNetwork.key !== 'arc-testnet' && selectedNetwork.key !== 'arc-mainnet') {
                 setDisplayBalance('0.0000');
                 return;
             }
@@ -184,7 +184,7 @@ export function WalletTab() {
                 functionName: 'balanceOf',
                 args: [address],
             });
-            setDisplayBalance(parseFloat(formatUnits(erc20, 18)).toFixed(4));
+            setDisplayBalance(parseFloat(formatUnits(erc20, 6)).toFixed(4));
         } catch {
             // silently keep last known value
         }
@@ -745,7 +745,7 @@ export function WalletTab() {
                     </div>
                     <div>
                         <h3 className="font-semibold mb-1">Payment Links</h3>
-                        <p className="text-sm text-muted-foreground">Generate shareable links to request exact amounts on Arc, Mantle Sepolia, or Mantle Mainnet.</p>
+                        <p className="text-sm text-muted-foreground">Generate shareable links to request exact amounts on Arc Testnet, Arc Mainnet, Mantle Sepolia, or Mantle Mainnet.</p>
                     </div>
                 </Link>
             </div>

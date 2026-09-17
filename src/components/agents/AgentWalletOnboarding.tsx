@@ -119,7 +119,7 @@ export function AgentWalletOnboarding({ onRegister, registering }: Props) {
       <CardHeader>
         <CardTitle>Add an Agent Wallet</CardTitle>
         <CardDescription>
-          Register an agent wallet for Arc, Mantle Sepolia, or Mantle Mainnet execution.
+          Register an agent wallet for Arc Testnet, Arc Mainnet, Mantle Sepolia, or Mantle Mainnet execution.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

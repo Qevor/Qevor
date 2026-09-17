@@ -47,6 +47,17 @@ sudo -u qevor-executor HOME=/var/lib/qevor-executor \
     circle wallet status --type agent --output json
 ```
 
+The command above creates an Arc Testnet session. For Arc Mainnet execution,
+use a production Circle session instead by omitting `--testnet`:
+
+```bash
+sudo -u qevor-executor HOME=/var/lib/qevor-executor \
+    circle wallet login <EXECUTOR_EMAIL> --init
+```
+
+Keep production and testnet executor sessions and credentials separate. Qevor
+maps its internal `ARC-MAINNET` rail to Circle's `ARC` provider network.
+
 Sessions expire after 7 days. See `deploy/runbooks/executor-session-renewal.md`.
 
 ## Updates

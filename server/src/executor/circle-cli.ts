@@ -5,6 +5,12 @@ import type { RailRunner } from './rail-runner.js';
 
 const execFileAsync = promisify(execFile);
 
+function circleBlockchainFor(chain: string): string {
+  // Circle names the Arc production network ARC; Qevor keeps ARC-MAINNET
+  // internally so it remains unambiguous alongside ARC-TESTNET.
+  return chain.trim().toUpperCase() === 'ARC-MAINNET' ? 'ARC' : chain;
+}
+
 export interface CircleCliRunner extends RailRunner {
   status(): Promise<{ authenticated: boolean; expiresAt?: Date; reason?: string }>;
   walletTransfer(args: {
@@ -73,7 +79,7 @@ export class RealCircleCliRunner implements CircleCliRunner {
       'wallet', 'transfer', args.toAddress,
       '--amount', args.amount,
       '--address', args.fromAddress,
-      '--chain', args.chain,
+      '--chain', circleBlockchainFor(args.chain),
       '--output', 'json',
     ];
     if (args.idempotencyKey) {
@@ -98,7 +104,7 @@ export class RealCircleCliRunner implements CircleCliRunner {
     const raw = await this.exec([
       'wallet', 'balance',
       '--address', args.address,
-      '--chain', args.chain,
+      '--chain', circleBlockchainFor(args.chain),
       '--output', 'json',
     ]);
     const parsed = JSON.parse(raw);

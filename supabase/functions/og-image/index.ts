@@ -13,6 +13,7 @@ Deno.serve(async (req) => {
   const url = new URL(req.url)
   const amount = url.searchParams.get('amount') || '0'
   const to = url.searchParams.get('to') || ''
+  const networkLabel = url.searchParams.get('network') || 'Arc Testnet'
   const shortAddr = to ? `${to.slice(0, 6)}...${to.slice(-4)}` : ''
 
   const svg = `
@@ -34,7 +35,7 @@ Deno.serve(async (req) => {
       <circle cx="150" cy="500" r="150" fill="#3b82f6" opacity="0.05" />
       <text x="600" y="180" text-anchor="middle" fill="#a78bfa" font-family="system-ui, sans-serif" font-size="24" font-weight="500" letter-spacing="4">PAYMENT REQUEST</text>
       <text x="600" y="310" text-anchor="middle" fill="#ffffff" font-family="system-ui, sans-serif" font-size="96" font-weight="700">${parseFloat(amount).toFixed(2)} USDC</text>
-      <text x="600" y="400" text-anchor="middle" fill="#9ca3af" font-family="system-ui, sans-serif" font-size="28">on Arc Testnet</text>
+      <text x="600" y="400" text-anchor="middle" fill="#9ca3af" font-family="system-ui, sans-serif" font-size="28">on ${networkLabel}</text>
       ${shortAddr ? `<text x="600" y="450" text-anchor="middle" fill="#6b7280" font-family="monospace" font-size="22">to ${shortAddr}</text>` : ''}
       <text x="600" y="560" text-anchor="middle" fill="#7c3aed" font-family="system-ui, sans-serif" font-size="28" font-weight="600">Qevor</text>
     </svg>

@@ -35,6 +35,16 @@ describe('planPaymentIntentLocally', () => {
     expect(plan.recipients).toEqual([{ wallet, amount: 0.01, label: '' }]);
   });
 
+  it('selects Arc Mainnet only when the prompt names the production rail', () => {
+    const wallet = '0x1111111111111111111111111111111111111111';
+    const plan = planPaymentIntentLocally(`Pay 1 USDC to ${wallet} on Arc Mainnet. Require my approval.`, {
+      currentChainKey: 'arc-testnet',
+    });
+
+    expect(plan.chainKey).toBe('arc-mainnet');
+    expect(plan.recipients).toEqual([{ wallet, amount: 1, label: '' }]);
+  });
+
   it('preserves imported recipients when the intent refers to the existing draft', () => {
     const plan = planPaymentIntentLocally('Pay these 10 contributors on Mantle and block duplicates', {
       currentChainKey: 'arc-testnet',

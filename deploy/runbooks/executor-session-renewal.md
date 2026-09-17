@@ -19,6 +19,14 @@ sudo -u qevor-executor HOME=/var/lib/qevor-executor \
     circle wallet login <EXECUTOR_EMAIL> --testnet --init
 ```
 
+That renews an Arc Testnet session. For an Arc Mainnet executor, omit
+`--testnet` so Circle authenticates the production network:
+
+```bash
+sudo -u qevor-executor HOME=/var/lib/qevor-executor \
+    circle wallet login <EXECUTOR_EMAIL> --init
+```
+
 Step 2 — check your email for the OTP code, then complete:
 
 ```bash

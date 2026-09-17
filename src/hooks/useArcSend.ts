@@ -20,6 +20,7 @@ export function useArcSend() {
     const { switchChainAsync } = useSwitchChain();
     const { sendTransactionAsync } = useSendTransaction();
     const arcClient = usePublicClient({ chainId: getQevorChainByKey('arc-testnet').chain.id });
+    const arcMainnetClient = usePublicClient({ chainId: getQevorChainByKey('arc-mainnet').chain.id });
     const mantleSepoliaClient = usePublicClient({ chainId: getQevorChainByKey('mantle-sepolia').chain.id });
     const mantleMainnetClient = usePublicClient({ chainId: getQevorChainByKey('mantle-mainnet').chain.id });
 
@@ -27,7 +28,9 @@ export function useArcSend() {
         setIsPending(true);
         try {
             const network = getQevorChainByKey(chainKey);
-            const publicClient = network.key === 'mantle-mainnet'
+            const publicClient = network.key === 'arc-mainnet'
+                ? arcMainnetClient
+                : network.key === 'mantle-mainnet'
                 ? mantleMainnetClient
                 : network.key === 'mantle-sepolia'
                     ? mantleSepoliaClient

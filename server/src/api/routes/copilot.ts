@@ -8,7 +8,7 @@ const router = Router();
 const byrealLog = createLogger('api').child({ route: 'copilot-byreal' });
 const byreal = new ByrealCliRunner(byrealLog);
 const agentExecutionPattern = /\b(agent|autonomous|automatically|autopilot)\b|\b(no approval|without approval|no human approval)\b|do(?:es)?\s+not\s+require\s+(?:my\s+)?approval|don'?t\s+require\s+(?:my\s+)?approval/;
-const qevorChainKeys = ['arc-testnet', 'mantle-sepolia', 'mantle-mainnet'] as const;
+const qevorChainKeys = ['arc-testnet', 'arc-mainnet', 'mantle-sepolia', 'mantle-mainnet'] as const;
 type QevorChainKey = typeof qevorChainKeys[number];
 
 const recipientSchema = z.object({
@@ -258,7 +258,7 @@ async function buildAnthropicPlan(input: z.infer<typeof requestSchema>) {
         'Keep constraints.requireHumanApproval true as the draft-level safety marker even for agent mode.',
         'Never execute funds, preserve supplied recipients when the instruction refers to them, and return only JSON.',
         'The JSON must include explanation, title, description, chainKey, executionMode, recipients, constraints, and warnings.',
-        'chainKey must be arc-testnet, mantle-sepolia, or mantle-mainnet. Bare "Mantle" means mantle-sepolia. Use mantle-mainnet only when the user explicitly says Mantle mainnet, live, production, or real funds. executionMode must be human or agent.',
+        'chainKey must be arc-testnet, arc-mainnet, mantle-sepolia, or mantle-mainnet. Bare "Arc" means arc-testnet. Bare "Mantle" means mantle-sepolia. Use a mainnet chain only when the user explicitly says mainnet, live, production, or real funds. executionMode must be human or agent.',
         'constraints.requireHumanApproval and constraints.duplicateCheck must both be true.',
         'Every recipient must include wallet, amount, and label. Use an empty string for label when unknown.',
         'If the intent says "0.01 MNT to 0x..." then create one recipient with that address and amount 0.01.',
@@ -375,6 +375,7 @@ async function buildByrealExecutionLayer(
 export default router;
 
 function inferChainKey(lowerIntent: string, fallback: QevorChainKey): QevorChainKey {
+  if (/\barc\s+(mainnet|production|live|real\s+funds?)\b/.test(lowerIntent)) return 'arc-mainnet';
   if (/\b(mantle\s+mainnet|mainnet|production|live\s+funds?|real\s+funds?|real\s+mnt)\b/.test(lowerIntent)) {
     return 'mantle-mainnet';
   }
@@ -394,5 +395,6 @@ function isMantleChainKey(chainKey: QevorChainKey) {
 function chainLabel(chainKey: QevorChainKey) {
   if (chainKey === 'mantle-mainnet') return 'Mantle Mainnet';
   if (chainKey === 'mantle-sepolia') return 'Mantle Sepolia';
+  if (chainKey === 'arc-mainnet') return 'Arc Mainnet';
   return 'Arc Testnet';
 }

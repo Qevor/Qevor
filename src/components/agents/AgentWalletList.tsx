@@ -107,7 +107,7 @@ export function AgentWalletList({ wallets, onEditPolicy, onEnableExecutor }: Pro
             </div>
 
             {showHistoryFor === w.id && (
-              <AuditLogViewer agentWalletId={w.id} />
+              <AuditLogViewer agentWalletId={w.id} chain={w.chain} />
             )}
           </CardContent>
         </Card>
