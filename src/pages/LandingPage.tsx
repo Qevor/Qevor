@@ -48,6 +48,7 @@ const MOCK: Record<string, string> = {
 
 const MARQUEE_ITEMS = [
   'Multi-chain payout confirmed',
+  'Arc Mainnet USDC payment confirmed',
   'Batch import scanned for duplicate addresses',
   'Payment link paid on the selected network',
   '10 recipients, 1 signature',
@@ -83,6 +84,7 @@ export default function LandingPage() {
   const [chainEnvironment, setChainEnvironment] = useState<QevorChainEnvironment>(DEFAULT_QEVOR_CHAIN_ENVIRONMENT);
   const [chainKey, setChainKey] = useState<QevorChainKey>(DEFAULT_QEVOR_CHAIN_KEY);
   const [landingStats, setLandingStats] = useState<LandingTransactionStats>(EMPTY_LANDING_STATS);
+  const [statsUnavailable, setStatsUnavailable] = useState(false);
   const [copied, setCopied] = useState(false);
   const [resolveHandle, setResolveHandle] = useState('');
   const [resolved, setResolved] = useState<{ handle: string; address: string } | null>(null);
@@ -118,9 +120,11 @@ export default function LandingPage() {
             testnet,
             mainnet,
           });
+          setStatsUnavailable(false);
         })
         .catch((error) => {
           console.error('Error loading landing transaction stats:', error);
+          if (mounted) setStatsUnavailable(true);
         });
     };
 
@@ -227,7 +231,7 @@ export default function LandingPage() {
               with human control.
             </h1>
             <p className="mt-7 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Give Qevor an outcome. Its agent prepares the payment operation, selects the right chain rail, checks policy and risk, then waits for the required approval before funds move.
+              Give Qevor an outcome. Its agent prepares the payment operation, selects the right chain rail, checks policy and risk, then waits for the required approval before funds move across Arc Mainnet USDC and Mantle MNT rails.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <Link to="/dashboard?tab=agent" className="flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-elegant hover-scale">
@@ -251,13 +255,16 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
+            {statsUnavailable && (
+              <p className="mt-2 text-xs text-muted-foreground">Live transaction stats are temporarily unavailable.</p>
+            )}
           </div>
 
           <div className="mt-10 grid max-w-5xl gap-3 sm:grid-cols-3">
             {[
               ['Agent planner', 'Intent to operation', 'reviewable before execution'],
               ['Policy engine', 'Hard safety gates', 'approval required by default'],
-              ['Network rails', 'Arc + Mantle', 'more EVM chains next'],
+              ['Network rails', 'Arc Mainnet + Mantle', 'USDC and MNT settlement'],
             ].map(([k, v, meta]) => (
               <div key={k} className="rounded-lg border border-border bg-card/70 p-4 backdrop-blur">
                 <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{k}</p>
@@ -364,7 +371,7 @@ export default function LandingPage() {
               {[
                 [<ShieldCheck className="h-5 w-5" />, 'Policy-controlled', 'Qevor never bypasses spending policy. Human approval remains required unless explicitly delegated within strict limits.'],
                 [<Layers className="h-5 w-5" />, 'Chain confirmation', 'The app switches and submits on the selected network, reducing wrong-chain sends.'],
-                [<AlertTriangle className="h-5 w-5" />, 'Mainnet guardrails', 'Mainnet remains a planned mode with explicit confirmations and stricter limits.'],
+                [<AlertTriangle className="h-5 w-5" />, 'Mainnet guardrails', 'Arc Mainnet and Mantle Mainnet use explicit confirmations and stricter limits.'],
                 [<Receipt className="h-5 w-5" />, 'Receipts by network', 'Receipts and batch records store chain id and token symbol for traceability.'],
               ].map(([icon, title, body]) => (
                 <div key={title as string} className="rounded-lg border border-border bg-background/70 p-5">
@@ -505,9 +512,9 @@ export default function LandingPage() {
           </h2>
           <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3">
             {[
-              ['Testnet rails', 'Sandbox ready', 'Arc and Mantle Sepolia remain available for safe demos, grant proof, and hackathon testing.'],
+              ['Testnet rails', 'Sandbox ready', 'Arc Testnet and Mantle Sepolia remain available for safe demos, grant proof, and hackathon testing.'],
               ['Network registry', 'Expandable', 'Every payment stores chain id, token symbol, RPC, and explorer metadata.'],
-              ['Mainnet rails', 'Live guarded', 'Mantle Mainnet is enabled by default with visible environment controls and policy-first review.'],
+              ['Mainnet rails', 'Arc Mainnet + Mantle Mainnet', 'Arc settles USDC while Mantle settles MNT, with visible environment controls and policy-first review.'],
             ].map(([name, status, body]) => (
               <div key={name} className="bg-card p-6">
                 <p className="text-xl font-semibold text-foreground">{name}</p>
