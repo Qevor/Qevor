@@ -3,7 +3,7 @@ import { injected } from 'wagmi/connectors'
 import { arcMainnet, arcTestnet, mantleMainnet, mantleSepolia } from './chains'
 
 export const config = createConfig({
-  chains: [arcTestnet, arcMainnet, mantleSepolia, mantleMainnet],
+  chains: [arcMainnet, mantleMainnet, arcTestnet, mantleSepolia],
   connectors: [
     injected(),
   ],

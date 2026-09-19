@@ -26,8 +26,8 @@ interface Props {
 
 const STEPS = [
   {
-    title: 'Use the Qevor Mantle agent wallet',
-    description: 'For Mantle Sepolia or Mainnet, Qevor uses the deployed escrow below as shared agent infrastructure with a separate balance for each user wallet.',
+    title: 'Use a Qevor agent wallet',
+    description: 'Choose Arc Mainnet for production or a testnet for sandbox work. Qevor keeps agent funds scoped and separate from your personal wallet.',
     command: null,
   },
   {
@@ -54,9 +54,7 @@ function getAgentWalletLabel(network: Pick<QevorChainConfig, 'label' | 'paymentA
 }
 
 export function AgentWalletOnboarding({ onRegister, registering }: Props) {
-  const defaultNetwork = qevorChains.find((network) => network.agentChainCode === 'MANTLE-MAINNET' && network.agentEscrowAddress)
-    ?? qevorChains.find((network) => network.agentChainCode === 'MANTLE-SEPOLIA');
-  const initialNetwork = defaultNetwork ?? qevorChains[0];
+  const initialNetwork = getDefaultQevorChainForEnvironment('mainnet');
   const defaultEscrow = initialNetwork.agentEscrowAddress ?? '';
   const [chainEnvironment, setChainEnvironment] = useState<QevorChainEnvironment>(initialNetwork.environment);
   const [chain, setChain] = useState(initialNetwork.agentChainCode);

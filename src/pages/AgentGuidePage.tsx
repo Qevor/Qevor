@@ -99,8 +99,8 @@ export default function AgentGuidePage() {
             </div>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               {[
-                ['Default rail', 'Mantle Mainnet'],
-                ['Sandbox rail', 'Mantle Sepolia'],
+                ['Default rail', 'Arc Mainnet'],
+                ['Sandbox rail', 'Arc Testnet'],
                 ['Approval', 'Policy controlled'],
                 ['CSV', 'address, amount, label'],
               ].map(([label, value]) => (
@@ -199,7 +199,7 @@ export default function AgentGuidePage() {
             <div className="mt-5 space-y-4">
               <GuideRow
                 icon={<Network className="h-5 w-5" />}
-                title="Mantle Mainnet is default"
+                title="Arc Mainnet is default"
                 body="Qevor now starts on the real payment rail, while the interface keeps testnet available as a sandbox."
               />
               <GuideRow

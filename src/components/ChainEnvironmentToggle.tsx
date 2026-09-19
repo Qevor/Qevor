@@ -9,8 +9,8 @@ interface ChainEnvironmentToggleProps {
 
 export function ChainEnvironmentToggle({ value, onChange, className }: ChainEnvironmentToggleProps) {
   const environments = [
-    { key: 'testnet', label: 'Testnet' },
     { key: 'mainnet', label: 'Mainnet' },
+    { key: 'testnet', label: 'Testnet' },
   ] as const;
 
   return (

@@ -142,12 +142,14 @@ function inferTitle(intent: string): string {
 }
 
 function inferChainKey(lowerIntent: string, fallback: QevorChainKey): QevorChainKey {
+  if (/\barc\s+(testnet|sandbox)\b/.test(lowerIntent)) return 'arc-testnet';
   if (/\barc\s+(mainnet|production|live|real\s+funds?)\b/.test(lowerIntent)) return 'arc-mainnet';
-  if (/\b(arc|arc\s+testnet)\b/.test(lowerIntent)) return 'arc-testnet';
-  if (/\b(mantle\s+sepolia|sepolia|testnet|sandbox)\b/.test(lowerIntent)) return 'mantle-sepolia';
+  if (/\barc\b/.test(lowerIntent)) return 'arc-mainnet';
+  if (/\b(mantle\s+sepolia|sepolia)\b/.test(lowerIntent)) return 'mantle-sepolia';
   if (/\b(mantle\s+mainnet|mainnet|production|live\s+funds?|real\s+funds?|real\s+mnt|mantle)\b/.test(lowerIntent)) {
     return 'mantle-mainnet';
   }
+  if (/\b(testnet|sandbox)\b/.test(lowerIntent)) return 'arc-testnet';
   return fallback;
 }
 

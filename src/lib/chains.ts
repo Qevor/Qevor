@@ -125,17 +125,6 @@ const mantleMainnetEscrowAddress = optionalAddress(import.meta.env.VITE_MANTLE_M
 
 export const qevorChains = [
   {
-    key: 'arc-testnet',
-    environment: 'testnet',
-    chain: arcTestnet,
-    label: 'Arc Testnet',
-    paymentAsset: 'USDC',
-    agentChainCode: 'ARC-TESTNET',
-    explorerUrl: 'https://testnet.arcscan.app',
-    rpcUrls: arcTestnet.rpcUrls.default.http,
-    agentEscrowAddress: undefined,
-  },
-  {
     key: 'arc-mainnet',
     environment: 'mainnet',
     chain: arcMainnet,
@@ -144,6 +133,28 @@ export const qevorChains = [
     agentChainCode: 'ARC-MAINNET',
     explorerUrl: 'https://explorer.arc.io',
     rpcUrls: arcMainnet.rpcUrls.default.http,
+    agentEscrowAddress: undefined,
+  },
+  {
+    key: 'mantle-mainnet',
+    environment: 'mainnet',
+    chain: mantleMainnet,
+    label: 'Mantle Mainnet',
+    paymentAsset: 'MNT',
+    agentChainCode: 'MANTLE-MAINNET',
+    explorerUrl: 'https://explorer.mantle.xyz',
+    rpcUrls: mantleMainnet.rpcUrls.default.http,
+    agentEscrowAddress: mantleMainnetEscrowAddress,
+  },
+  {
+    key: 'arc-testnet',
+    environment: 'testnet',
+    chain: arcTestnet,
+    label: 'Arc Testnet',
+    paymentAsset: 'USDC',
+    agentChainCode: 'ARC-TESTNET',
+    explorerUrl: 'https://testnet.arcscan.app',
+    rpcUrls: arcTestnet.rpcUrls.default.http,
     agentEscrowAddress: undefined,
   },
   {
@@ -157,21 +168,10 @@ export const qevorChains = [
     rpcUrls: mantleSepolia.rpcUrls.default.http,
     agentEscrowAddress: '0xf0e6f301D2036b0A0c94808dc945ed764e5a35c4',
   },
-  {
-    key: 'mantle-mainnet',
-    environment: 'mainnet',
-    chain: mantleMainnet,
-    label: 'Mantle Mainnet',
-    paymentAsset: 'MNT',
-    agentChainCode: 'MANTLE-MAINNET',
-    explorerUrl: 'https://explorer.mantle.xyz',
-    rpcUrls: mantleMainnet.rpcUrls.default.http,
-    agentEscrowAddress: mantleMainnetEscrowAddress,
-  },
 ] as const satisfies readonly QevorChainConfig[]
 
 export const DEFAULT_QEVOR_CHAIN_ENVIRONMENT: QevorChainEnvironment = 'mainnet'
-export const DEFAULT_QEVOR_CHAIN_KEY: QevorChainKey = 'mantle-mainnet'
+export const DEFAULT_QEVOR_CHAIN_KEY: QevorChainKey = 'arc-mainnet'
 export const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11' as const
 
 function getDefaultQevorChain() {
@@ -199,8 +199,8 @@ export function getQevorChainsByEnvironment(environment: QevorChainEnvironment) 
 }
 
 export function getDefaultQevorChainForEnvironment(environment: QevorChainEnvironment) {
-  if (environment === 'mainnet') return getQevorChainByKey('mantle-mainnet')
-  return getQevorChainByKey('mantle-sepolia')
+  if (environment === 'mainnet') return getQevorChainByKey('arc-mainnet')
+  return getQevorChainByKey('arc-testnet')
 }
 
 export function getExplorerTxUrl(chainId: number | null | undefined, txHash: string) {

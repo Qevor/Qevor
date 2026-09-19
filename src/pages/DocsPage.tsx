@@ -47,7 +47,7 @@ const quickStarts = [
 const concepts = [
   {
     title: 'Payment rails',
-    body: 'Qevor routes payments through chain-aware rails. Mantle Mainnet is live, Mantle Sepolia remains available for testing, and every receipt stores network context.',
+    body: 'Qevor routes payments through chain-aware rails. Arc Mainnet is the default, Arc Testnet remains available for testing, and every receipt stores network context.',
     icon: <Network className="h-5 w-5" />,
   },
   {

@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { AgentAuditEntry, AgentPolicy, AgentWallet, CosignQueueEntry } from '@/lib/agents/types';
 import { fetchAuditLog, fetchCosignQueue, fetchPolicy } from '@/lib/agents/queries';
-import { getQevorChainByAgentChain, getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains';
+import { getQevorChainByKey, qevorChains, type QevorChainKey } from '@/lib/chains';
 import { AgentWalletBalance } from './AgentWalletBalance';
 import { AgentSafetyReview } from './AgentSafetyReview';
 
@@ -35,8 +35,8 @@ interface Props {
 const truncate = (value: string) => `${value.slice(0, 6)}...${value.slice(-4)}`;
 
 export function AgentControlCenter({ wallets, onAddWallet, onEditPolicy, onEnableExecutor }: Props) {
-  const defaultWallet = wallets.find((wallet) => wallet.chain === 'MANTLE-MAINNET') ?? wallets[0];
-  const defaultNetwork = defaultWallet ? getQevorChainByAgentChain(defaultWallet.chain) : getQevorChainByKey('mantle-mainnet');
+  const defaultWallet = wallets.find((wallet) => wallet.chain === 'ARC-MAINNET');
+  const defaultNetwork = getQevorChainByKey('arc-mainnet');
   const [selectedChainKey, setSelectedChainKey] = useState<QevorChainKey>(defaultNetwork.key);
   const [selectedId, setSelectedId] = useState(defaultWallet?.id ?? '');
   const [policy, setPolicy] = useState<AgentPolicy | null>(null);
